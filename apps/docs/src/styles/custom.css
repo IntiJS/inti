@@ -1,0 +1,144 @@
+/* Custom styles for Inti.js Documentation */
+
+:root {
+  --inti-primary: #667eea;
+  --inti-secondary: #764ba2;
+  --inti-accent: #f093fb;
+}
+
+/* Logo customization */
+.site-title {
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--inti-primary) 0%, var(--inti-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Code blocks */
+expressive-code {
+  margin: 1.5rem 0;
+}
+
+/* Cards */
+.card {
+  border-radius: 12px;
+  border: 1px solid var(--sl-color-gray-5);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+/* Custom hero for splash page */
+.hero {
+  background: linear-gradient(135deg, var(--inti-primary) 0%, var(--inti-secondary) 100%);
+  padding: 4rem 2rem;
+  border-radius: 16px;
+  margin-bottom: 2rem;
+}
+
+/* Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+}
+
+th, td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--sl-color-gray-5);
+}
+
+th {
+  font-weight: 600;
+  background: var(--sl-color-gray-6);
+}
+
+/* Steps */
+.sl-steps {
+  counter-reset: step;
+}
+
+.sl-steps > li {
+  position: relative;
+  padding-left: 3rem;
+  margin-bottom: 1.5rem;
+}
+
+.sl-steps > li::before {
+  counter-increment: step;
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2rem;
+  height: 2rem;
+  background: linear-gradient(135deg, var(--inti-primary) 0%, var(--inti-secondary) 100%);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+/* Mermaid diagrams */
+.mermaid {
+  display: flex;
+  justify-content: center;
+  margin: 2rem 0;
+}
+
+/* Block type badges */
+.block-type {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  background: var(--sl-color-accent-low);
+  color: var(--sl-color-accent-high);
+  border-radius: 4px;
+  font-family: var(--sl-font-mono);
+  font-size: 0.875rem;
+}
+
+/* API method styling */
+.api-method {
+  display: inline-block;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.api-method.get {
+  background: #22c55e;
+  color: white;
+}
+
+.api-method.post {
+  background: #3b82f6;
+  color: white;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--sl-color-gray-6);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--sl-color-gray-4);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--sl-color-gray-3);
+}

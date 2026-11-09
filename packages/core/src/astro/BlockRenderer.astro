@@ -1,0 +1,177 @@
+---
+import { registry } from "../registry/index.js";
+import FallbackBlock from "./FallbackBlock.astro";
+import { auditPage, formatAudit } from "../seo/audit.js";
+import type { AuditOptions } from "../seo/audit.js";
+import { isBlockVisible, hiddenBlocks, hiddenReason } from "../blocks/visibility.js";
+import { hasAdaptiveBlocks } from "../adapt/index.js";
+import { resolveEditorSession } from "../server/editor-session.js";
+import type { IntiBlock, IntiPage } from "../types/index.js";
+
+interface Props {
+    blocks: IntiBlock[];
+    /**
+     * Emits each block's data as embedded JSON so that VisualBridge's
+     * InlineEditor can auto-bind editable fields.
+     * Default: development only.
+     */
+    editable?: boolean;
+    /**
+     * Audits the page's SEO and warns in the console. Default: dev.
+     * Pass it the full page so it also checks the metadata.
+     */
+    audit?: boolean | AuditOptions;
+    /** Full page, if you want the audit to cover the SEO */
+    page?: Partial<IntiPage>;
+}
+
+const { blocks, editable: editableProp = import.meta.env.DEV, audit = import.meta.env.DEV, page } = Astro.props;
+
+/**
+ * Outside dev, `editable` embeds the data of every block —including
+ * hidden and scheduled ones— in HTML that anyone could receive. It is
+ * honored only if whoever requests the page has an editor session.
+ */
+const editable =
+    editableProp &&
+    (import.meta.env.DEV ||
+        (
+            await resolveEditorSession({
+                request: Astro.request,
+                cookies: Astro.cookies,
+                prerendered: Astro.isPrerendered,
+            })
+        ).allowed);
+
+// The audit runs on the server: it adds nothing to the HTML or the client
+if (audit) {
+    const options = typeof audit === "object" ? audit : {};
+    // Without `page` the title and description are unknown. It used to audit a
+    // page with no title, and every load showed "✕ The page has no title"
+    // even when it had one — also in the documentation's minimal setup.
+    const findings = auditPage(page ?? { blocks }, {
+        ...options,
+        metadata: options.metadata ?? Boolean(page),
+    });
+
+    if (findings.length > 0) {
+        console.warn(`[Inti] SEO — ${findings.length} finding(s):\n${formatAudit(findings)}`);
+    }
+}
+
+/** JSON safe to embed in <script> (prevents premature closing of the tag) */
+const toSafeJson = (data: unknown) => JSON.stringify(data).replace(/</g, "\\u003c");
+
+/**
+ * Blocks that are hidden or scheduled for another date are not rendered in
+ * production: if they reached the HTML they would also reach the structured
+ * data and the search engine.
+ *
+ * In the editor they are rendered —marked— because if they were not visible
+ * there would be no way to reactivate them. `editable` already tells the two
+ * contexts apart and defaults to dev.
+ */
+const hiddenList = hiddenBlocks(blocks);
+const blocksToRender = editable ? blocks : blocks.filter((block) => isBlockVisible(block));
+const totalBlocks = blocks.length;
+
+if (editable && hiddenList.length > 0) {
+    const details = hiddenList
+        .map((block) => `  · ${block.type} — ${hiddenReason(block) ?? "hidden"}`)
+        .join("\n");
+    console.info(
+        `[Inti] ${hiddenList.length} block(s) would not be shown in production:\n${details}`,
+    );
+}
+
+/**
+ * `clientDirective` in the registry cannot work: Astro only hydrates
+ * statically imported components, and here they arrive through `import()`.
+ * Applying it would break the render with `NoMatchingImport`; ignoring it
+ * silently leaves a carousel that does not respond and nobody knows why. It
+ * warns with the concrete fix.
+ */
+if (import.meta.env.DEV) {
+    const withDirective = [
+        ...new Set(
+            blocks
+                .filter((block) => registry.get(block.type)?.clientDirective)
+                .map((block) => block.type),
+        ),
+    ];
+    for (const type of withDirective) {
+        const directive = registry.get(type)?.clientDirective;
+        console.warn(
+            `[Inti] Block "${type}" is registered with clientDirective: '${directive}', ` +
+                `which has no effect: Astro does not hydrate dynamically imported components.\n` +
+                `  Put the directive inside src/blocks/${type}.astro, on a static import:\n` +
+                `    import Widget from '../components/Widget.svelte';\n` +
+                `    <Widget client:${directive} {...Astro.props} />`,
+        );
+    }
+}
+
+// Load all components in parallel asynchronously
+const renderableBlocks = await Promise.all(
+    blocksToRender.map(async (block) => {
+        const registration = registry.get(block.type);
+
+        if (registration) {
+            // Lazy load the component module
+            const module = await registration.component();
+            return {
+                ...block,
+                hidden: !isBlockVisible(block),
+                Component: module.default,
+                clientDirective: registration.clientDirective,
+            };
+        }
+
+        return {
+            ...block,
+            hidden: !isBlockVisible(block),
+            Component: null,
+            clientDirective: undefined,
+        };
+    }),
+);
+---
+
+{/* Tells the editor this page has versions: enables "view as" */}
+{editable && hasAdaptiveBlocks(blocks) && <div data-inti-adaptive hidden />}
+
+{
+    renderableBlocks.map(({ type, id, data, meta, hidden, Component, clientDirective }, index) => {
+        // 1. Graceful degradation (Fallback)
+        if (!Component) {
+            return <FallbackBlock type={type} id={id} data={data} />;
+        }
+
+        return (
+            <div
+                class="inti-block-wrapper"
+                data-inti-block={type}
+                data-inti-block-id={id}
+                data-inti-document-id={meta?.documentId}
+                data-inti-content-type={meta?.contentType}
+                data-inti-locale={meta?.locale}
+                data-inti-block-label={meta?.label}
+                data-inti-block-index={meta?.index ?? index}
+                data-inti-block-total={meta?.total ?? totalBlocks}
+                data-inti-block-hidden={hidden ? "true" : undefined}
+            >
+                {/*
+                  Besides the data, the block receives its position. It is the
+                  only thing BlockRenderer knows and the component does not: it
+                  lets the first block's image load with priority instead of
+                  lazily, which is what decides the LCP.
+                */}
+                {/* @ts-expect-error - Dynamic Prop Spread for Astro Components */}
+                <Component {...data} intiBlock={{ index, isFirst: index === 0, total: renderableBlocks.length }} />
+                {editable && (
+                    <script type="application/json" data-inti-block-json set:html={toSafeJson(data)} />
+                )}
+            </div>
+        );
+    })
+}

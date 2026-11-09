@@ -1,0 +1,134 @@
+---
+title: Generative UI
+description: A model composes sections with the blocks you declared
+---
+
+`@intijs/genui` lets a model compose with your blocks. It picks components and fills in their fields: it does not generate HTML, CSS or code, and everything it returns is validated in shape and content before use. The result is the same JSON an editor saves, and the same `BlockRenderer` draws it.
+
+```bash
+npm install @intijs/genui
+```
+
+## The vocabulary
+
+```ts
+import { defineVocabulary, fromData } from '@intijs/genui';
+
+export const vocabulary = defineVocabulary({
+  ProductGrid: {
+    description: 'Compare several products',
+    when: 'Only with two or more products',
+    fields: {
+      heading: { type: 'string', maxLength: 60 },
+      products: fromData('products', { max: 6 })
+    },
+    variants: { layout: ['grid', 'list'] }
+  }
+});
+```
+
+| Type | Validation |
+|---|---|
+| `string`, `text` | Maximum length. Rejects values like `javascript:` |
+| `richtext` | Rebuilt with a closed set of tags |
+| `number`, `boolean` | Type and bounds |
+| `url` | Only allowed schemes; by default `http`, `https`, `mailto`, `tel` and relative paths |
+| `list`, `object` | Item cap; anything undeclared is dropped |
+| `media`, `relation`, `data` | Only ids from the given source |
+
+## The data does not come from the model
+
+With a reference, the model picks an id and the server supplies the value. It only sees a summary, so a price cannot come from it:
+
+```ts
+import { wooProductsAsData } from '@intijs/adapter-wordpress';
+
+const sources = { products: wooProductsAsData(products) };
+```
+
+A source is a list of `{ id, summary, value }`, or a function that looks it up from the request.
+
+## In the editor
+
+The composer adds a ✨ AI tab. The proposal appears on the page, block by block, with your real components, and nothing is written until the editor accepts it.
+
+```ts
+// src/middleware.ts
+import { registerIntiPlugin } from '@intijs/core/plugins';
+import { createBlockGenerator } from '@intijs/genui';
+import { createAnthropicProvider } from '@intijs/genui/anthropic';
+
+const provider = createAnthropicProvider({ apiKey: import.meta.env.ANTHROPIC_API_KEY });
+
+registerIntiPlugin({
+  name: 'genui',
+  getBlockGenerator: () => createBlockGenerator({ provider, sources })
+});
+```
+
+Pass the vocabulary in `blockTypes` of `<VisualBridgeAuto />`. Any object that implements `AiProvider` works; there is also [Workers AI](/guides/cloudflare/).
+
+## During the visit
+
+A search box or an assistant that composes for whoever is looking:
+
+```astro
+---
+import BlockRenderer from '@intijs/core/astro/BlockRenderer.astro';
+import { createVisitorComposer, VISITOR_HEADERS } from '@intijs/genui';
+
+export const partial = true;
+
+const composer = createVisitorComposer({ provider, vocabulary, sources });
+const { blocks } = await composer.compose(Astro.url.searchParams.get('q') ?? '', {
+  visitorKey: Astro.clientAddress
+});
+
+for (const [name, value] of Object.entries(VISITOR_HEADERS)) Astro.response.headers.set(name, value);
+---
+<BlockRenderer blocks={blocks.map((b) => ({ type: b.nativeType, data: b.data }))} editable={false} />
+```
+
+- **It cannot write.** It receives no adapter, so a prompt injection has nothing to reach the CMS with.
+- **It does not spend without limit.** Per-visitor cap, daily cap, block cap and cache, adjustable with `limits`.
+- **It does not break the page.** Any failure returns zero blocks and a status.
+- **It is not indexed.** What matters for SEO is generated in the editor and saved to the CMS.
+
+Limits are counted per process. With several instances, pass `limiter` and `cache` to share them, like the [Cloudflare](/guides/cloudflare/) ones.
+
+## Streaming on the page
+
+Astro accepts an async iterable in the template, so the HTML goes out as the model finishes each block, with no client-side JavaScript:
+
+```astro
+---
+const events = composeStream({ prompt, vocabulary, provider, sources });
+---
+<h1>Results</h1>
+{(async function* () {
+  for await (const event of events) {
+    if (event.type !== 'block') continue;
+    yield <BlockRenderer blocks={[{ type: event.rendered.nativeType, data: event.rendered.data }]} editable={false} />;
+  }
+})()}
+```
+
+It goes in order: whatever follows the generator waits, and headers can no longer be changed once it starts. So that the rest of the page does not wait, move the area into a [Server Island](https://docs.astro.build/en/guides/server-islands/).
+
+## From other agents
+
+```ts
+import { jsonSchema, streamText } from 'ai';
+import { createVocabularyTool } from '@intijs/genui';
+
+const compose = await createVocabularyTool(vocabulary, { jsonSchema, sources });
+streamText({ model, tools: { compose }, prompt });
+```
+
+In `@intijs/mcp`, point `INTI_MCP_VOCABULARY` to a JSON file with the vocabulary to validate what an agent inserts.
+
+## Rules
+
+- Do not give a write tool to visitor-facing composition.
+- Do not print a generated field with `set:html` unless it is declared `richtext`.
+- Model keys are server-only.

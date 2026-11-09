@@ -1,0 +1,106 @@
+---
+title: BlockRenderer
+description: The component that paints a page's blocks and connects them to the editor
+---
+
+`BlockRenderer` receives a page's list of blocks and paints each one with the component you registered for its type. You do not have to write it: it ships with Inti.
+
+```astro
+---
+import BlockRenderer from '@intijs/core/astro/BlockRenderer.astro';
+---
+<BlockRenderer blocks={page.blocks} page={page} />
+```
+
+## Props
+
+| Prop | Type | Default | What for |
+|---|---|---|---|
+| `blocks` | `IntiBlock[]` | — | The blocks to paint, in order. Required. |
+| `page` | `IntiPage` | — | The whole page. Without it the audit does not check title or description. |
+| `editable` | `boolean` | `true` in dev | Prepares the blocks for the editor and shows hidden ones. |
+| `audit` | `boolean \| AuditOptions` | `true` in dev | Checks the page's SEO and warns in the console. |
+
+## What it does with each block
+
+1. **Looks up the component** in the registry by `block.type`. It is loaded on demand: a type that does not appear on the page is not downloaded.
+2. **Passes it the data as props.** The CMS fields arrive directly —`heading`, `cta`…—, not inside a `data` object.
+3. **Passes it its position** as `intiBlock={{ index, isFirst, total }}`. Use it so the first block's image is not lazy-loaded: it is usually the LCP.
+4. **Wraps it** in a `div` with `data-inti-*` attributes (document, index, type). That is what the editor uses to know where to write a change.
+
+If a type has no registered component, a box appears in its place saying exactly which file is missing.
+
+```astro
+---
+// src/blocks/HeroBanner.astro
+const { heading, image, intiBlock } = Astro.props;
+---
+<section>
+  <h1 data-inti-field="heading">{heading}</h1>
+  <IntiImage src={image} alt={image?.alt} priority={intiBlock?.isFirst} />
+</section>
+```
+
+## Hidden and scheduled blocks
+
+If the CMS marks a block as hidden or gives it a date window, `BlockRenderer` **does not paint it in production**: it does not reach the HTML, the structured data or the search engine.
+
+In the editor it is painted —marked with `data-inti-block-hidden`— because a block you cannot see is a block you cannot turn back on. In development, the console lists which blocks would not be visible in production and why.
+
+Hiding a block never renumbers the others: each block's index is its address in the CMS.
+
+## SEO audit
+
+In development, every load checks the page and warns in the console: images without `alt` at any depth, and —if you pass `page`— a missing title and description or ones of unsuitable length.
+
+```astro
+<BlockRenderer
+  blocks={page.blocks}
+  page={page}
+  audit={{ headings: { HeroBanner: 1, Section: 2 } }}
+/>
+```
+
+`headings` declares which heading level each block type paints. The core cannot infer it from the data, so without that map heading hierarchies are not checked.
+
+## Nested content
+
+Many blocks contain lists: the cards in a grid, the questions in an FAQ. Those items **are not CMS blocks**, they are fields of the block that contains them. Paint them inside it and edit them with paths:
+
+```astro
+---
+// src/blocks/CardGrid.astro
+const { title, items = [] } = Astro.props;
+---
+<section>
+  <h2 data-inti-field="title">{title}</h2>
+  <div class="grid">
+    {items.map((item, i) => (
+      <article>
+        <h3 data-inti-field={`items.${i}.title`}>{item.title}</h3>
+        <p data-inti-field={`items.${i}.text`}>{item.text}</p>
+      </article>
+    ))}
+  </div>
+</section>
+```
+
+Editing `items.1.title` writes to the second item of the `CardGrid` block's list, and the array is kept as an array.
+
+**Do not nest a `BlockRenderer` inside another for editable content.** The children have no document of their own in the CMS, so the editor leaves them read-only. If you want to reuse the card component, pass it the path prefix:
+
+```astro
+{items.map((item, i) => <Card {...item} field={`items.${i}`} />)}
+```
+
+```astro
+---
+// src/components/Card.astro
+const { title, field } = Astro.props;
+---
+<h3 data-inti-field={`${field}.title`}>{title}</h3>
+```
+
+## Interactive components
+
+`client:*` directives go **inside** the block, on a statically imported component. See [Client Directives](/registry/client-directives/).

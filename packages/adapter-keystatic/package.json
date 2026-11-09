@@ -1,0 +1,62 @@
+{
+  "name": "@intijs/adapter-keystatic",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Edit Keystatic content by double-clicking the rendered page. Reads and writes its files, locally or through GitHub",
+  "keywords": [
+    "astro",
+    "withastro",
+    "keystatic",
+    "git-cms",
+    "visual-editing",
+    "inti"
+  ],
+  "author": "Victor Antinori Broce",
+  "license": "MIT",
+  "homepage": "https://github.com/intijs/inti/tree/main/packages/adapter-keystatic#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/intijs/inti.git",
+    "directory": "packages/adapter-keystatic"
+  },
+  "bugs": {
+    "url": "https://github.com/intijs/inti/issues"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepare": "node ../../scripts/prepare-package.mjs",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "bun test",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "peerDependencies": {
+    "@intijs/core": "^0.1.0"
+  },
+  "devDependencies": {
+    "@keystatic/core": "^0.6.9",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.7.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

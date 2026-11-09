@@ -1,0 +1,35 @@
+---
+/**
+ * Emits into the `<head>` the metadata your CMS already returns.
+ *
+ * It goes inside `<head>`, not in the body:
+ *
+ *   <head>
+ *     <IntiSeo page={page} url={Astro.url.href} siteName="My Site" />
+ *   </head>
+ *
+ * Everything is rendered on the server, which is what AI crawlers need:
+ * except Gemini, none of them runs JavaScript.
+ */
+
+import { buildMetaTags } from '../seo/meta.js';
+import type { SeoOptions } from '../seo/meta.js';
+import type { IntiPage } from '../types/index.js';
+
+interface Props extends SeoOptions {
+    page?: Partial<IntiPage> | null;
+}
+
+const { page, ...options } = Astro.props;
+
+// Canonical: the request's, unless another one is passed
+const url = options.url ?? Astro.url?.href;
+
+const tags = buildMetaTags(page, { ...options, url });
+---
+
+{tags.map((tag) => {
+    if (tag.tag === 'title') return <title>{tag.attrs.content}</title>;
+    if (tag.tag === 'link') return <link {...tag.attrs} />;
+    return <meta {...tag.attrs} />;
+})}

@@ -1,0 +1,267 @@
+---
+// apps/demo-site/src/components/landing/SolarCanvas3D.astro
+// Interactive 3D WebGL / Canvas Solar Core with orbital rings & reactive physics
+---
+
+<div class="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-center -z-10">
+  <canvas
+    id="solar-3d-canvas"
+    class="w-full h-full max-w-[1200px] max-h-[700px] opacity-80 transition-opacity duration-1000"
+  ></canvas>
+</div>
+
+<script>
+  // High-performance 3D Canvas Solar Engine
+  const canvas = document.getElementById('solar-3d-canvas') as HTMLCanvasElement;
+  if (canvas) {
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      let width = (canvas.width = canvas.parentElement?.clientWidth || 1000);
+      let height = (canvas.height = canvas.parentElement?.clientHeight || 600);
+
+      // Mouse tracking with smooth spring inertia
+      let mouseX = 0;
+      let mouseY = 0;
+      let targetRotX = 0;
+      let targetRotY = 0;
+      let rotX = 0.25;
+      let rotY = 0;
+
+      window.addEventListener('resize', () => {
+        width = canvas.width = canvas.parentElement?.clientWidth || 1000;
+        height = canvas.height = canvas.parentElement?.clientHeight || 600;
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const nx = (e.clientX - rect.left) / rect.width - 0.5;
+        const ny = (e.clientY - rect.top) / rect.height - 0.5;
+        targetRotY = nx * 1.2;
+        targetRotX = -ny * 0.8 + 0.25;
+      });
+
+      // 3D Point Interface
+      interface Point3D {
+        x: number;
+        y: number;
+        z: number;
+        baseRadius: number;
+        color: string;
+        size: number;
+        speed: number;
+        angle: number;
+        ringRadius?: number;
+      }
+
+      const points: Point3D[] = [];
+      const numSpherePoints = 140;
+      const sphereRadius = 140;
+
+      // 1. Generate Fibonacci Solar Sphere Points
+      const goldenRatio = (1 + Math.sqrt(5)) / 2;
+      for (let i = 0; i < numSpherePoints; i++) {
+        const theta = (2 * Math.PI * i) / goldenRatio;
+        const phi = Math.acos(1 - (2 * (i + 0.5)) / numSpherePoints);
+
+        const x = sphereRadius * Math.sin(phi) * Math.cos(theta);
+        const y = sphereRadius * Math.sin(phi) * Math.sin(theta);
+        const z = sphereRadius * Math.cos(phi);
+
+        // Gradient from solar gold to magenta/orange
+        const isCore = Math.random() > 0.4;
+        points.push({
+          x,
+          y,
+          z,
+          baseRadius: sphereRadius,
+          color: isCore ? '#FFB800' : Math.random() > 0.5 ? '#FF7A00' : '#FF0055',
+          size: Math.random() * 2.2 + 1.2,
+          speed: 0.003 + Math.random() * 0.004,
+          angle: theta,
+        });
+      }
+
+      // 2. Generate 3 Orbital Rings (Futuristic Gyroscope Rings)
+      const rings = [
+        { radius: 210, tiltX: 0.7, tiltZ: 0.4, count: 80, color: '#FF7A00' },
+        { radius: 270, tiltX: -0.5, tiltZ: 0.8, count: 100, color: '#7928CA' },
+        { radius: 330, tiltX: 0.2, tiltZ: -0.6, count: 120, color: '#FF0055' },
+      ];
+
+      const ringParticles: Array<{
+        ringIndex: number;
+        angle: number;
+        radius: number;
+        speed: number;
+        size: number;
+        color: string;
+      }> = [];
+
+      rings.forEach((ring, rIdx) => {
+        for (let i = 0; i < ring.count; i++) {
+          ringParticles.push({
+            ringIndex: rIdx,
+            angle: (i / ring.count) * Math.PI * 2,
+            radius: ring.radius + (Math.random() - 0.5) * 12,
+            speed: (0.004 + rIdx * 0.002) * (rIdx % 2 === 0 ? 1 : -1),
+            size: Math.random() * 2 + 1,
+            color: ring.color,
+          });
+        }
+      });
+
+      // Projection parameters
+      const fov = 400;
+      let time = 0;
+
+      function render() {
+        if (!ctx) return;
+        time += 0.01;
+
+        // Smooth rotation interpolation
+        rotX += (targetRotX - rotX) * 0.05;
+        rotY += (targetRotY - rotY) * 0.05 + 0.003; // Gentle continuous auto-spin
+
+        ctx.clearRect(0, 0, width, height);
+
+        const cx = width / 2;
+        const cy = height / 2 - 20;
+
+        // Draw central solar ambient flare
+        const glowGrad = ctx.createRadialGradient(cx, cy, 10, cx, cy, sphereRadius * 1.8);
+        glowGrad.addColorStop(0, 'rgba(255, 184, 0, 0.22)');
+        glowGrad.addColorStop(0.35, 'rgba(255, 122, 0, 0.12)');
+        glowGrad.addColorStop(0.7, 'rgba(121, 40, 202, 0.06)');
+        glowGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = glowGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, sphereRadius * 1.8, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Collect all drawable 3D elements for Z-sorting
+        const renderList: Array<{
+          x2d: number;
+          y2d: number;
+          scale: number;
+          z: number;
+          size: number;
+          color: string;
+          alpha: number;
+        }> = [];
+
+        // 1. Project Sphere Points
+        const cosY = Math.cos(rotY);
+        const sinY = Math.sin(rotY);
+        const cosX = Math.cos(rotX);
+        const sinX = Math.sin(rotX);
+
+        points.forEach((p) => {
+          // Micro pulsing
+          const pulse = Math.sin(time * 2 + p.angle) * 6;
+          const currentR = p.baseRadius + pulse;
+
+          // Normalize vector and scale
+          const len = Math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
+          const px = (p.x / len) * currentR;
+          const py = (p.y / len) * currentR;
+          const pz = (p.z / len) * currentR;
+
+          // 3D Matrix Rotation (Y then X)
+          const x1 = px * cosY + pz * sinY;
+          const z1 = -px * sinY + pz * cosY;
+          const y2 = py * cosX - z1 * sinX;
+          const z2 = py * sinX + z1 * cosX;
+
+          // 3D to 2D Perspective Projection
+          const scale = fov / (fov + z2 + 200);
+          const x2d = cx + x1 * scale;
+          const y2d = cy + y2 * scale;
+          const alpha = Math.max(0.15, Math.min(1, (z2 + sphereRadius) / (sphereRadius * 2) * 0.9 + 0.1));
+
+          renderList.push({
+            x2d,
+            y2d,
+            scale,
+            z: z2,
+            size: p.size * scale,
+            color: p.color,
+            alpha,
+          });
+        });
+
+        // 2. Project Orbital Ring Particles
+        ringParticles.forEach((rp) => {
+          rp.angle += rp.speed;
+          const ring = rings[rp.ringIndex];
+
+          // Ring base coordinates
+          let rx = Math.cos(rp.angle) * rp.radius;
+          let ry = 0;
+          let rz = Math.sin(rp.angle) * rp.radius;
+
+          // Apply ring specific tilt
+          const cosTx = Math.cos(ring.tiltX);
+          const sinTx = Math.sin(ring.tiltX);
+          const cosTz = Math.cos(ring.tiltZ);
+          const sinTz = Math.sin(ring.tiltZ);
+
+          // Tilt around Z then X
+          let x0 = rx * cosTz - ry * sinTz;
+          let y0 = rx * sinTz + ry * cosTz;
+          let z0 = rz;
+
+          let y1 = y0 * cosTx - z0 * sinTx;
+          let z1 = y0 * sinTx + z0 * cosTx;
+          let x1 = x0;
+
+          // Now apply global rotation (rotY, rotX)
+          const rx2 = x1 * cosY + z1 * sinY;
+          const rz2 = -x1 * sinY + z1 * cosY;
+          const ry3 = y1 * cosX - rz2 * sinX;
+          const rz3 = y1 * sinX + rz2 * cosX;
+
+          const scale = fov / (fov + rz3 + 200);
+          const x2d = cx + rx2 * scale;
+          const y2d = cy + ry3 * scale;
+          const alpha = Math.max(0.1, Math.min(0.85, (rz3 + ring.radius) / (ring.radius * 2)));
+
+          renderList.push({
+            x2d,
+            y2d,
+            scale,
+            z: rz3,
+            size: rp.size * scale,
+            color: rp.color,
+            alpha,
+          });
+        });
+
+        // Sort back to front (Painter's algorithm)
+        renderList.sort((a, b) => a.z - b.z);
+
+        // Draw points with neon glow
+        renderList.forEach((item) => {
+          ctx.beginPath();
+          ctx.arc(item.x2d, item.y2d, Math.max(0.8, item.size), 0, Math.PI * 2);
+          ctx.fillStyle = item.color;
+          ctx.globalAlpha = item.alpha;
+          ctx.fill();
+
+          // Specular halo for foreground particles
+          if (item.z > 60) {
+            ctx.beginPath();
+            ctx.arc(item.x2d, item.y2d, item.size * 2.2, 0, Math.PI * 2);
+            ctx.fillStyle = item.color;
+            ctx.globalAlpha = item.alpha * 0.25;
+            ctx.fill();
+          }
+        });
+
+        ctx.globalAlpha = 1.0;
+        requestAnimationFrame(render);
+      }
+
+      render();
+    }
+  }
+</script>

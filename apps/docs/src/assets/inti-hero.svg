@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea"/>
+      <stop offset="100%" style="stop-color:#764ba2"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f093fb"/>
+      <stop offset="100%" style="stop-color:#f5576c"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="400" height="300" fill="url(#bg)" rx="20"/>
+  
+  <!-- Grid pattern -->
+  <g stroke="rgba(255,255,255,0.1)" stroke-width="1">
+    <line x1="0" y1="75" x2="400" y2="75"/>
+    <line x1="0" y1="150" x2="400" y2="150"/>
+    <line x1="0" y1="225" x2="400" y2="225"/>
+    <line x1="100" y1="0" x2="100" y2="300"/>
+    <line x1="200" y1="0" x2="200" y2="300"/>
+    <line x1="300" y1="0" x2="300" y2="300"/>
+  </g>
+  
+  <!-- Logo -->
+  <rect x="160" y="80" width="80" height="100" rx="16" fill="white"/>
+  <text x="200" y="145" font-family="system-ui, -apple-system, sans-serif" font-size="48" font-weight="700" fill="url(#bg)" text-anchor="middle">I</text>
+  <circle cx="220" cy="100" r="8" fill="url(#accent)"/>
+  
+  <!-- Text -->
+  <text x="200" y="220" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="600" fill="white" text-anchor="middle">Visual editing for Astro</text>
+  
+  <!-- Blocks representation -->
+  <rect x="40" y="140" width="60" height="40" rx="8" fill="rgba(255,255,255,0.2)"/>
+  <rect x="300" y="120" width="60" height="40" rx="8" fill="rgba(255,255,255,0.2)"/>
+  <rect x="320" y="170" width="40" height="30" rx="6" fill="rgba(255,255,255,0.15)"/>
+</svg>

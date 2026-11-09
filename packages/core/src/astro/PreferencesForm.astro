@@ -1,0 +1,48 @@
+---
+/**
+ * Visitor preferences form. Plain HTML: works without JavaScript.
+ *
+ *   <PreferencesForm options={{ diet: { label: 'Diet', values: ['vegan', 'gluten-free'] } }} consent />
+ */
+
+import { buildAdaptContext } from '../adapt/index.js';
+
+interface Props {
+    options: Record<string, { label: string; values: string[] }>;
+    /** Offers to let the site remember what is visited */
+    consent?: boolean;
+    consentLabel?: string;
+    submitLabel?: string;
+}
+
+const {
+    options,
+    consent = false,
+    consentLabel = 'Remember what I visit to adapt the content',
+    submitLabel = 'Save'
+} = Astro.props;
+
+const context = buildAdaptContext(Astro.request);
+---
+
+<form method="post" action="/api/inti/preferences" data-inti-preferences>
+    <input type="hidden" name="next" value={Astro.url.pathname} />
+    {Object.entries(options).map(([key, option]) => (
+        <label>
+            {option.label}
+            <select name={`pref.${key}`}>
+                <option value="">No preference</option>
+                {option.values.map((value) => (
+                    <option value={value} selected={context.preferences[key] === value}>{value}</option>
+                ))}
+            </select>
+        </label>
+    ))}
+    {consent && (
+        <label>
+            <input type="checkbox" name="consent" value="1" checked={context.consent} />
+            {consentLabel}
+        </label>
+    )}
+    <button type="submit">{submitLabel}</button>
+</form>

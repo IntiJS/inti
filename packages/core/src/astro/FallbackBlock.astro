@@ -1,0 +1,167 @@
+---
+interface Props {
+  type: string;
+  id?: string;
+  data?: Record<string, any>;
+}
+
+const { type, id, data } = Astro.props;
+
+// Only show the verbose fallback block in development mode.
+const isDev = import.meta.env.DEV;
+---
+
+{isDev ? (
+  <div class="inti-fallback-blueprint">
+    <div class="inti-fallback-header">
+      <div class="inti-fallback-badge">Missing Component</div>
+      <h3 class="inti-fallback-title">"{type}"</h3>
+    </div>
+    
+    <div class="inti-fallback-body">
+      <p class="inti-fallback-desc">
+        No component is registered for the CMS block type <strong>{type}</strong>, so nothing can be rendered.
+      </p>
+
+      <div class="inti-fallback-data">
+        <span>Fix — create <code>src/blocks/{type}.astro</code>, then register the folder once:</span>
+        <pre><code>{`// src/pages/[...slug].astro (or a shared setup file)
+import { registerBlocks } from '@intijs/core/registry';
+
+registerBlocks(import.meta.glob('/src/blocks/*.astro'));`}</code></pre>
+      </div>
+
+      {id && (
+        <div class="inti-fallback-meta">
+          <span>Block ID:</span> <code>{id}</code>
+        </div>
+      )}
+      
+      {data && Object.keys(data).length > 0 && (
+        <div class="inti-fallback-data">
+          <span>Injected Props:</span>
+          <pre><code>{JSON.stringify(data, null, 2)}</code></pre>
+        </div>
+      )}
+    </div>
+  </div>
+) : (
+  /* In production the missing block is hidden so it does not break the layout */
+  <span style="display: none;" data-inti-fallback={type}></span>
+)}
+
+<style>
+  /* 
+   * Premium "Blueprint / Technical" aesthetic 
+   * Avoids generic red error stylings using deep tech hues.
+   */
+  .inti-fallback-blueprint {
+    --f-bg: #0f172a;
+    --f-border: #38bdf8;
+    --f-text: #e2e8f0;
+    --f-muted: #94a3b8;
+    --f-accent: #0ea5e9;
+    --f-code-bg: #1e293b;
+    
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    background-color: var(--f-bg);
+    color: var(--f-text);
+    border: 1px dashed var(--f-border);
+    border-radius: 8px;
+    margin: 2rem 0;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  }
+
+  .inti-fallback-blueprint::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image: linear-gradient(var(--f-border) 1px, transparent 1px),
+                      linear-gradient(90deg, var(--f-border) 1px, transparent 1px);
+    background-size: 20px 20px;
+    opacity: 0.05;
+    pointer-events: none;
+  }
+
+  .inti-fallback-header {
+    background-color: rgb(15 23 42 / 0.8);
+    border-bottom: 1px solid rgb(56 189 248 / 0.3);
+    padding: 1rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .inti-fallback-badge {
+    background-color: rgb(56 189 248 / 0.15);
+    color: var(--f-border);
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .inti-fallback-title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 500;
+  }
+
+  .inti-fallback-body {
+    padding: 1.5rem;
+  }
+
+  .inti-fallback-desc {
+    margin: 0 0 1.5rem 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--f-muted);
+  }
+  
+  .inti-fallback-desc strong {
+    color: var(--f-text);
+  }
+
+  .inti-fallback-desc code {
+    color: var(--f-accent);
+    background-color: var(--f-code-bg);
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+  }
+
+  .inti-fallback-meta {
+    font-size: 0.875rem;
+    color: var(--f-muted);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .inti-fallback-data span {
+    display: block;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--f-muted);
+    margin-bottom: 0.5rem;
+    letter-spacing: 0.05em;
+  }
+
+  .inti-fallback-data pre {
+    background-color: var(--f-code-bg);
+    padding: 1rem;
+    border-radius: 6px;
+    border: 1px solid rgb(255 255 255 / 0.1);
+    margin: 0;
+    overflow-x: auto;
+  }
+
+  .inti-fallback-data code {
+    font-size: 0.875rem;
+    color: #a5b4fc;
+  }
+</style>

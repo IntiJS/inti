@@ -1,0 +1,183 @@
+---
+title: First Project
+description: From an existing WordPress to an editable Astro frontend, step by step
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+This guide goes from a headless WordPress to an Astro frontend where you can edit the content by double-clicking on the page itself.
+
+It is the full path: **no step is optional**. If you skip the Astro adapter nothing can be saved, and if you skip the block registration nothing will render.
+
+## The fast track
+
+```bash
+npm create inti@latest
+```
+
+It asks for your CMS (WordPress, Kitsuden, Strapi, or none to try it locally) and generates the project this guide describes, with the CMS connection split out into `src/lib/cms.ts`. Without a CMS it ships sample content: `npm run dev`, double-click the title, Enter, and the change is saved.
+
+Without prompts, for example in CI:
+
+```bash
+npm create inti@latest my-site -- --cms wordpress --yes
+```
+
+The rest of this guide is the same project built by hand, step by step, to understand each piece.
+
+## WordPress requirements
+
+<Steps>
+
+1. **ACF >= 5.11** with *"Show in REST API"* enabled on your field groups.
+
+2. Page blocks modeled as an **ACF Flexible Content** field (for example `content_blocks`). Each layout will be an Inti block.
+
+3. An **Application Password** (WP >= 5.6): wp-admin → Users → Profile → Application Passwords.
+
+</Steps>
+
+## Set up the Astro project
+
+<Steps>
+
+1. ### Install
+
+   ```bash
+   npm install @intijs/core @intijs/adapter-wordpress
+   ```
+
+2. ### Add an Astro adapter
+
+   Inline editing saves through `astro:actions`, and actions **only exist if there is an adapter**. Without it the site renders but no change is saved.
+
+   ```bash
+   npx astro add node
+   ```
+
+   Any of them works: `node`, `vercel`, `cloudflare`, `netlify`. If you only want to read content and not edit, you can skip this step.
+
+3. ### Register the integration
+
+   ```js
+   // astro.config.mjs
+   import { defineConfig } from 'astro/config';
+   import node from '@astrojs/node';
+   import inti from '@intijs/core';
+
+   export default defineConfig({
+     output: 'server',
+     adapter: node({ mode: 'standalone' }),
+     integrations: [inti()]
+   });
+   ```
+
+   `output: 'server'` makes each page be read from the CMS on every request, which is what lets you see a change without rebuilding the site. Without it, the dynamic route in step 7 does not compile: Astro requires `getStaticPaths()`.
+
+4. ### Credentials
+
+   ```bash
+   # .env — never commit it to the repository
+   INTI_ADAPTER=wordpress
+   INTI_WP_ENDPOINT=https://cms.yoursite.com
+   INTI_WP_USER=editor
+   INTI_WP_APP_PASSWORD=xxxx xxxx xxxx xxxx xxxx xxxx
+   INTI_WP_BLOCKS_FIELD=content_blocks
+   ```
+
+   No `PUBLIC_` prefix: these variables stay on the server and never reach the browser.
+
+5. ### Expose the write action
+
+   ```ts
+   // src/actions/index.ts
+   import { intiActions } from '@intijs/core/actions';
+
+   export const server = { inti: intiActions };
+   ```
+
+   <Aside type="caution" title="Before deploying this">
+   Actions are public HTTP endpoints, and these ones write to your CMS with the server's credentials. In development there is nothing to do, but **in production you have to decide who can edit**: Inti rejects writes if nobody is checking.
+
+   How to solve it —publish static, register a guard plugin, or open it on purpose— is in [Securing writes](/guides/securing-writes/).
+   </Aside>
+
+6. ### Create the block components
+
+   One file per ACF layout. The file name is the block type: the adapter turns `hero_banner` into `HeroBanner`, so the file is called `HeroBanner.astro`.
+
+   ```astro
+   ---
+   // src/blocks/HeroBanner.astro
+   const { heading, subheading } = Astro.props;
+   ---
+   <section class="hero">
+     <h1 data-inti-field="heading">{heading}</h1>
+     <p data-inti-field="subheading">{subheading}</p>
+   </section>
+   ```
+
+   The `data-inti-field` attribute marks which field each element edits. It is optional —Inti tries to infer it from the text— but with it the binding is exact.
+
+7. ### Register the blocks and render
+
+   ```astro
+   ---
+   // src/pages/[...slug].astro
+   import { WordPressAdapter } from '@intijs/adapter-wordpress';
+   import { registerBlocks } from '@intijs/core/registry';
+   import BlockRenderer from '@intijs/core/astro/BlockRenderer.astro';
+   import VisualBridgeAuto from '@intijs/core/visual-bridge/VisualBridgeAuto.astro';
+
+   // One line: registers all of src/blocks/
+   registerBlocks(import.meta.glob('/src/blocks/*.astro'));
+
+   const adapter = new WordPressAdapter({
+     endpoint: import.meta.env.INTI_WP_ENDPOINT
+   });
+   const page = await adapter.fetchPageBySlug(Astro.params.slug ?? 'home');
+   ---
+
+   <BlockRenderer blocks={page.blocks} />
+   <VisualBridgeAuto />
+   ```
+
+8. ### Try it
+
+   ```bash
+   npm run dev
+   ```
+
+   Hover over a text: a dotted outline appears. Double-click, edit, Enter. The change travels to WordPress.
+
+</Steps>
+
+## If something does not work
+
+**I see blue boxes that say "Missing Component"**
+There is no component registered for that block type. The box itself tells you the exact name of the missing file and the `registerBlocks` line to add.
+
+**I edit but it does not save**
+The Astro adapter is missing (step 2). On startup, Inti warns in the console: *"No Astro adapter configured"*.
+
+**I get a 401 when saving**
+With Apache, the `Authorization` header can get lost. Add to your `.htaccess`:
+
+```apache
+SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+```
+
+**I don't use ACF, my pages are Gutenberg**
+The adapter detects it on its own and parses `post_content`. Inline editing works on simple text blocks; complex ones are rejected with a clear error instead of risking the content.
+
+## Other CMSs
+
+The same flow works for Strapi by changing the adapter and the variables (`INTI_STRAPI_*`). Contentful and Sanity work read-only today.
+
+With no CMS configured, Inti writes to a local JSON file (`.inti/content.json`) so you can try inline editing before connecting anything. It is a convenience for getting started, not a CMS: Inti ships no admin panel and no database of its own.
+
+## Next steps
+
+1. 🧱 [Turn it into a page builder](/guides/configuration/) — block palette, variants and patterns
+2. 🔌 [The adapter contract](/adapters/contract/) — support your own CMS
+3. 🤖 [Working with AI](/guides/ai-optimization/) — MCP server and block manifest

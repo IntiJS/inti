@@ -1,0 +1,229 @@
+---
+/**
+ * LiveCursors - Shows other users' cursors in real time
+ * 
+ * Shows the mouse position of other connected users,
+ * useful for demos and collaborative editing.
+ */
+
+interface Props {
+    /** Room ID */
+    room: string;
+    /** WebSocket endpoint */
+    endpoint: string;
+    /** Optional token */
+    token?: string;
+    /** Show user names */
+    showNames?: boolean;
+    /** Cursor offset (to adjust the position) */
+    offset?: { x: number; y: number };
+}
+
+const { 
+    room, 
+    endpoint, 
+    token,
+    showNames = true,
+    offset = { x: 0, y: 0 }
+} = Astro.props;
+
+const config = {
+    room,
+    endpoint,
+    token,
+    presence: true
+};
+---
+
+<div 
+    class="inti-live-cursors"
+    data-config={JSON.stringify(config)}
+    data-offset={JSON.stringify(offset)}
+    data-show-names={showNames}
+>
+    <!-- Other users' cursors are rendered here -->
+</div>
+
+<style>
+    .inti-live-cursors {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 99999;
+    }
+    
+    .inti-cursor {
+        position: absolute;
+        pointer-events: none;
+        transition: transform 0.1s ease-out;
+        z-index: 99999;
+    }
+    
+    .inti-cursor-icon {
+        width: 24px;
+        height: 24px;
+    }
+    
+    .inti-cursor-icon svg {
+        width: 100%;
+        height: 100%;
+        fill: currentColor;
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+    }
+    
+    .inti-cursor-name {
+        position: absolute;
+        top: 18px;
+        left: 14px;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
+        color: white;
+        background: inherit;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+</style>
+
+<script>
+    import { initRealtime, getRealtimeClient } from '../client.js';
+    import type { UserPresence, CursorPosition } from '../types.js';
+    
+    class LiveCursorsManager {
+        private container: HTMLElement;
+        private config: any;
+        private offset: { x: number; y: number };
+        private showNames: boolean;
+        private cursors: Map<string, HTMLElement> = new Map();
+        private client: any;
+        private lastMousePosition: { x: number; y: number } | null = null;
+        private throttleTimer: any = null;
+        
+        constructor(container: HTMLElement) {
+            this.container = container;
+            this.config = JSON.parse(container.dataset.config || '{}');
+            this.offset = JSON.parse(container.dataset.offset || '{"x":0,"y":0}');
+            this.showNames = container.dataset.showNames === 'true';
+            
+            this.init();
+        }
+        
+        private async init() {
+            // Initialize the connection
+            this.client = initRealtime(this.config);
+            await this.client.connect();
+            
+            // Listen to other users' cursors
+            this.client.on('cursor_move', (event) => {
+                this.updateCursor(event.data);
+            });
+            
+            // Listen to users joining/leaving
+            this.client.on('user_join', (event) => {
+                this.addUser(event.data);
+            });
+            
+            this.client.on('user_leave', (event) => {
+                this.removeUser(event.data.userId);
+            });
+            
+            // Track the local mouse movement
+            document.addEventListener('mousemove', (e) => {
+                this.handleMouseMove(e);
+            });
+            
+            // Cleanup when leaving the page
+            window.addEventListener('beforeunload', () => {
+                this.client.disconnect();
+            });
+        }
+        
+        private handleMouseMove(e: MouseEvent) {
+            this.lastMousePosition = {
+                x: e.clientX + this.offset.x,
+                y: e.clientY + this.offset.y
+            };
+            
+            // Throttle so as not to send too many messages
+            if (!this.throttleTimer) {
+                this.throttleTimer = setTimeout(() => {
+                    if (this.lastMousePosition) {
+                        this.client.moveCursor({
+                            x: this.lastMousePosition.x,
+                            y: this.lastMousePosition.y
+                        });
+                    }
+                    this.throttleTimer = null;
+                }, 50); // 20fps
+            }
+        }
+        
+        private updateCursor(data: { userId: string; cursor: CursorPosition; color: string; name?: string }) {
+            let cursor = this.cursors.get(data.userId);
+            
+            if (!cursor) {
+                cursor = this.createCursor(data);
+                this.container.appendChild(cursor);
+                this.cursors.set(data.userId, cursor);
+            }
+            
+            // Update the position
+            cursor.style.transform = `translate(${data.cursor.x}px, ${data.cursor.y}px)`;
+            
+            // Update the color if it changed
+            if (data.color) {
+                cursor.style.color = data.color;
+                const name = cursor.querySelector('.inti-cursor-name') as HTMLElement;
+                if (name) {
+                    name.style.background = data.color;
+                }
+            }
+        }
+        
+        private createCursor(data: { userId: string; color: string; name?: string }): HTMLElement {
+            const cursor = document.createElement('div');
+            cursor.className = 'inti-cursor';
+            cursor.style.color = data.color;
+            
+            cursor.innerHTML = `
+                <div class="inti-cursor-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M5.5 3.21V20.8c0 .45.54.67.85.35l4.86-4.86a.5.5 0 0 1 .35-.15h6.87a.5.5 0 0 0 .35-.85L6.35 2.85a.5.5 0 0 0-.85.35Z"/>
+                    </svg>
+                </div>
+                ${this.showNames ? `
+                    <div class="inti-cursor-name" style="background: ${data.color}">
+                        ${data.name || data.userId.slice(0, 8)}
+                    </div>
+                ` : ''}
+            `;
+            
+            return cursor;
+        }
+        
+        private addUser(user: UserPresence) {
+            // The cursor will be created when the user moves the mouse
+            console.log(`[LiveCursors] User joined: ${user.name}`);
+        }
+        
+        private removeUser(userId: string) {
+            const cursor = this.cursors.get(userId);
+            if (cursor) {
+                cursor.remove();
+                this.cursors.delete(userId);
+            }
+        }
+    }
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        const containers = document.querySelectorAll('.inti-live-cursors');
+        containers.forEach(container => {
+            new LiveCursorsManager(container as HTMLElement);
+        });
+    });
+</script>

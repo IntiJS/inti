@@ -1,0 +1,52 @@
+{
+  "name": "@intijs/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "author": "Victor Antinori Broce",
+  "homepage": "https://github.com/intijs/inti/tree/main/packages/cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/intijs/inti.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/intijs/inti/issues"
+  },
+  "description": "CLI for Inti.js — schema introspection and typed SDK generation",
+  "bin": {
+    "inti": "./bin/inti.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "bin",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc && npm run copy:bin",
+    "prepare": "node ../../scripts/prepare-package.mjs",
+    "copy:bin": "node -e \"require('fs').cpSync('src/bin','dist/bin',{recursive:true})\"",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "bun test",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@intijs/core": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.7.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,86 @@
+---
+title: Component Registry
+description: How to map each CMS block type to its Astro component
+---
+
+The registry maps each block type to the component that paints it. `BlockRenderer` looks it up for every block on the page.
+
+## Registration by convention
+
+The usual way is one line, in the page that renders:
+
+```astro
+---
+import { registerBlocks } from '@intijs/core/registry';
+
+registerBlocks(import.meta.glob('/src/blocks/*.astro'));
+---
+```
+
+The file name, without extension, is the block type. Each component is loaded on demand: a type that does not appear on the page is not downloaded.
+
+| CMS | Native identifier | Type in Inti | File |
+|---|---|---|---|
+| WordPress (ACF) | `acf_fc_layout: "hero_banner"` | `HeroBanner` | `src/blocks/HeroBanner.astro` |
+| WordPress (Gutenberg) | `core/paragraph` | `Paragraph` | `src/blocks/Paragraph.astro` |
+| Strapi | `__component: "sections.hero"` | `Hero` | `src/blocks/Hero.astro` |
+| Kitsuden | `type: "hero"` | `hero` | `src/blocks/hero.astro` |
+
+WordPress and Strapi convert the native name to PascalCase; Kitsuden uses the `type` from its palette as is. If a name does not match, the block is painted as a box that says exactly which file is missing.
+
+## Names that do not match
+
+If your files are not named like the CMS types, translate them when registering:
+
+```ts
+const types: Record<string, string> = { Cover: 'HeroBanner' };
+
+registerBlocks(import.meta.glob('/src/blocks/*.astro'), {
+  typeFromPath: (path) => {
+    const file = path.split('/').pop()!.replace('.astro', '');
+    return types[file] ?? file;
+  },
+});
+```
+
+With WordPress you can also do it on the adapter side, with `blockTypeMap`:
+
+```ts
+new WordPressAdapter({
+  endpoint: import.meta.env.INTI_WP_ENDPOINT,
+  blockTypeMap: { hero_banner: 'Cover' },
+});
+```
+
+## Subfolders
+
+`import.meta.glob` accepts patterns. The type is still the file name, so two files with the same name in different folders would clash:
+
+```ts
+registerBlocks(import.meta.glob('/src/blocks/**/*.astro'));
+```
+
+## Manual registration
+
+For a one-off case:
+
+```ts
+import { registry } from '@intijs/core/registry';
+
+registry.register('HeroBanner', {
+  component: () => import('../blocks/HeroBanner.astro'),
+});
+```
+
+## Interactive components
+
+A block that needs JavaScript —React, Svelte, Vue— is registered the same way, as an `.astro` block, and carries the `client:*` directive inside, on a static import. The registry's `clientDirective` option has no effect. See [Client Directives](/registry/client-directives/).
+
+## Checking what is registered
+
+`registerBlocks` returns the list of registered types:
+
+```ts
+const types = registerBlocks(import.meta.glob('/src/blocks/*.astro'));
+if (import.meta.env.DEV) console.log('[Inti] blocks:', types.join(', '));
+```

@@ -1,0 +1,63 @@
+---
+/**
+ * Component that shows source code from the @intijs/* packages
+ * Usage: <SourceCode path="packages/core/src/adapters/index.ts" />
+ */
+import { Code } from '@astrojs/starlight/components';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+
+interface Props {
+  path: string;
+  lang?: string;
+  title?: string;
+  lineStart?: number;
+  lineEnd?: number;
+}
+
+const { path, lang = 'ts', title, lineStart, lineEnd } = Astro.props;
+
+// Resolve from the monorepo root
+const rootDir = resolve(process.cwd(), '../..');
+const filePath = resolve(rootDir, path);
+
+let code = '';
+let error = '';
+
+try {
+  const content = await readFile(filePath, 'utf-8');
+  const lines = content.split('\n');
+  
+  if (lineStart && lineEnd) {
+    code = lines.slice(lineStart - 1, lineEnd).join('\n');
+  } else if (lineStart) {
+    code = lines.slice(lineStart - 1).join('\n');
+  } else if (lineEnd) {
+    code = lines.slice(0, lineEnd).join('\n');
+  } else {
+    code = content;
+  }
+} catch (e) {
+  error = `Could not read the file: ${path}`;
+}
+
+const displayTitle = title || path;
+---
+
+{error ? (
+  <div class="source-error">
+    <p>⚠️ {error}</p>
+  </div>
+) : (
+  <Code code={code} lang={lang} title={displayTitle} />
+)}
+
+<style>
+  .source-error {
+    padding: 1rem;
+    background: var(--sl-color-danger-low);
+    border: 1px solid var(--sl-color-danger);
+    border-radius: 0.5rem;
+    color: var(--sl-color-danger-high);
+  }
+</style>

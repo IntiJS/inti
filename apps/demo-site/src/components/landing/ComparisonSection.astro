@@ -1,0 +1,118 @@
+---
+// apps/demo-site/src/components/landing/ComparisonSection.astro
+---
+
+<section id="why-inti" class="py-20 sm:py-28 relative">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="text-center max-w-3xl mx-auto mb-16">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20 text-xs font-semibold mb-4">
+        <span>The Ecosystem in 2026</span>
+      </div>
+      <h2 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight mb-4">
+        Why does Inti.js exist?<br />
+        <span class="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-rose-400">
+          The missing piece in Astro.
+        </span>
+      </h2>
+      <p class="text-slate-300 text-base sm:text-lg leading-relaxed">
+        Static site generators and modern frameworks had a major trade-off: either lock yourself into a proprietary SaaS, or settle for admin panels disconnected from the real page.
+      </p>
+    </div>
+
+    <!-- Comparison Table / Matrix -->
+    <div class="rounded-2xl border border-white/10 bg-[#0A0E1A] overflow-hidden shadow-2xl">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse text-xs sm:text-sm">
+          <thead>
+            <tr class="border-b border-white/10 bg-white/[0.02]">
+              <th class="py-4 px-6 text-slate-400 font-semibold uppercase tracking-wider text-xs">Tool</th>
+              <th class="py-4 px-6 text-slate-300 font-semibold">Real On-Page Editing</th>
+              <th class="py-4 px-6 text-slate-300 font-semibold">Keeps Your Existing CMS</th>
+              <th class="py-4 px-6 text-slate-300 font-semibold">Zero Destructive CSS</th>
+              <th class="py-4 px-6 text-slate-300 font-semibold">AI Agents (MCP)</th>
+              <th class="py-4 px-6 text-slate-300 font-semibold">Cost Model</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-white/5">
+            <!-- Astro Content Layer -->
+            <tr class="hover:bg-white/[0.01] transition-colors">
+              <td class="py-4 px-6 font-semibold text-slate-200">Astro Content Layer</td>
+              <td class="py-4 px-6 text-rose-400">❌ Read-only (no write-back)</td>
+              <td class="py-4 px-6 text-emerald-400">✅ Yes</td>
+              <td class="py-4 px-6 text-slate-400">—</td>
+              <td class="py-4 px-6 text-rose-400">❌ No</td>
+              <td class="py-4 px-6 text-emerald-400">Open Source</td>
+            </tr>
+
+            <!-- Keystatic -->
+            <tr class="hover:bg-white/[0.01] transition-colors">
+              <td class="py-4 px-6 font-semibold text-slate-200">Keystatic</td>
+              <td class="py-4 px-6 text-rose-400">❌ Separate admin panel only</td>
+              <td class="py-4 px-6 text-amber-300">⚠️ Local/Git files only</td>
+              <td class="py-4 px-6 text-emerald-400">✅ Yes</td>
+              <td class="py-4 px-6 text-rose-400">❌ No</td>
+              <td class="py-4 px-6 text-emerald-400">Open Source</td>
+            </tr>
+
+            <!-- TinaCMS -->
+            <tr class="hover:bg-white/[0.01] transition-colors">
+              <td class="py-4 px-6 font-semibold text-slate-200">TinaCMS</td>
+              <td class="py-4 px-6 text-emerald-400">✅ Yes</td>
+              <td class="py-4 px-6 text-rose-400">❌ Git-based only (no WP/Strapi)</td>
+              <td class="py-4 px-6 text-slate-300">Partial</td>
+              <td class="py-4 px-6 text-rose-400">❌ No</td>
+              <td class="py-4 px-6 text-amber-300">Freemium / Cloud</td>
+            </tr>
+
+            <!-- Storyblok -->
+            <tr class="hover:bg-white/[0.01] transition-colors">
+              <td class="py-4 px-6 font-semibold text-slate-200">Storyblok</td>
+              <td class="py-4 px-6 text-emerald-400">✅ Yes</td>
+              <td class="py-4 px-6 text-rose-400">❌ Only their own SaaS CMS</td>
+              <td class="py-4 px-6 text-slate-300">Partial</td>
+              <td class="py-4 px-6 text-rose-400">❌ No</td>
+              <td class="py-4 px-6 text-rose-400">SaaS ($$$ + Lock-in)</td>
+            </tr>
+
+            <!-- Inti.js Highlight Row -->
+            <tr class="bg-gradient-to-r from-orange-500/15 via-rose-500/10 to-transparent border-t-2 border-orange-500/40">
+              <td class="py-5 px-6 font-bold text-white flex items-center gap-2">
+                <span class="text-amber-400 text-lg">☀️</span>
+                <span class="text-amber-300 font-extrabold text-base">Inti.js</span>
+                <span class="px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-[10px] font-bold">Your solution</span>
+              </td>
+              <td class="py-5 px-6 font-semibold text-emerald-400">✅ Live double-click &amp; write-back</td>
+              <td class="py-5 px-6 font-semibold text-emerald-400">✅ WordPress, Kitsuden, Strapi, Keystatic</td>
+              <td class="py-5 px-6 font-semibold text-emerald-400">✅ Typed code vocabulary</td>
+              <td class="py-5 px-6 font-semibold text-emerald-400">✅ Native via MCP + GenUI</td>
+              <td class="py-5 px-6 font-semibold text-amber-300">100% MIT Open Source</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Philosophy Callout Box -->
+    <div class="mt-10 p-6 sm:p-8 rounded-2xl bg-gradient-to-r from-white/[0.03] to-white/[0.01] border border-white/10 flex flex-col md:flex-row items-center justify-between gap-6">
+      <div class="space-y-2 text-left">
+        <h4 class="text-white font-bold text-lg flex items-center gap-2">
+          <span>The Inti philosophy:</span>
+          <span class="text-amber-400 font-mono text-sm">Powerful like Oxygen, simple like Elementor</span>
+        </h4>
+        <p class="text-slate-300 text-sm max-w-2xl leading-relaxed">
+          Developers define the component vocabulary in TypeScript and Astro code (full control and performance). Editors compose freely with that vocabulary. Because there is no free-form CSS editing, pages never break layout, never get bloated, and always stay true to the design system.
+        </p>
+      </div>
+      <a
+        href="#features"
+        class="shrink-0 px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition-all flex items-center gap-2"
+      >
+        <span>Explore Features</span>
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </a>
+    </div>
+  </div>
+</section>

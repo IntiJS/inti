@@ -1,0 +1,34 @@
+{
+  "name": "@intijs/docs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Inti.js documentation — the visual editing layer for headless wordpress on astro",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.32.0",
+    "@intijs/core": "*",
+    "@intijs/adapter-kitsuden": "*",
+    "astro": "^5.0.0",
+    "sharp": "^0.33.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.7.3"
+  },
+  "author": "Victor Antinori Broce",
+  "homepage": "https://github.com/intijs/inti/tree/main/apps/docs#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/intijs/inti.git",
+    "directory": "apps/docs"
+  },
+  "bugs": {
+    "url": "https://github.com/intijs/inti/issues"
+  }
+}

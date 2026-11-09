@@ -1,0 +1,134 @@
+---
+/**
+ * VisualBridgeAuto - Component with CMS auto-detection
+ * 
+ * Automatically detects the adapter configured in inti.config.ts
+ * and configures VisualBridge without having to specify the CMS manually.
+ * 
+ * Usage:
+ *   <VisualBridgeAuto />
+ * 
+ * Or with additional options:
+ *   <VisualBridgeAuto 
+ *     enabled={true}
+ *     display={{ theme: 'light' }}
+ *   />
+ */
+
+import VisualBridge from './VisualBridge.astro';
+import InlineEditor from './InlineEditor.astro';
+import { createVisualBridgeConfig, shouldEnableVisualBridge, isDevelopment } from './auto-detect.js';
+import { resolveWriteAdapter } from '../server/write-adapter.js';
+import { resolveEditorSession } from '../server/editor-session.js';
+import type { VisualBridgeConfig } from './types.js';
+import type { ComposerBlockType } from './block-composer.js';
+
+interface Props {
+    /** Force enabled/disabled (if not specified, auto-detects dev mode) */
+    enabled?: boolean;
+    /** Additional options to override */
+    options?: Partial<Omit<VisualBridgeConfig, 'enabled' | 'cms'>>;
+    /**
+     * Composer palette: the block types the editor can add, with their
+     * initial values and variants. It is passed here because the editor
+     * only reads the page's first `InlineEditor`: a separate one, added
+     * next to this one, was ignored.
+     */
+    blockTypes?: ComposerBlockType[];
+}
+
+const { enabled, options = {}, blockTypes = [] } = Astro.props;
+
+let config: VisualBridgeConfig | null = null;
+let error: string | null = null;
+
+/**
+ * inti.config.ts is OPTIONAL: the documented path configures the CMS through
+ * environment variables. The specifier goes in a variable with
+ * @vite-ignore so the bundler does not try to resolve it in projects that
+ * do not have it — a `.catch()` is not enough, because Rollup fails while
+ * bundling, before any runtime exists.
+ */
+const CONFIG_MODULE = '/inti.config.ts';
+
+try {
+    let intiConfig: any = null;
+
+    try {
+        const module = await import(/* @vite-ignore */ CONFIG_MODULE);
+        intiConfig = module?.default ?? null;
+    } catch {
+        intiConfig = null;
+    }
+
+    // Without a config file it is deduced from the environment, the same
+    // convention the actions and the MCP server use. Without INTI_ADAPTER the
+    // server writes to the local store
+    // (resolveWriteAdapter), so the editor has to assume the same.
+    // It used to stay null, and the documentation's "try it without
+    // connecting anything" did not show the editor.
+    if (!intiConfig) {
+        intiConfig = { adapter: import.meta.env.INTI_ADAPTER || 'local' };
+    }
+
+    {
+        // The server is asked whether there is an adapter that can write,
+        // instead of deducing it from the CMS name. Only when the editor could
+        // turn on: in production nothing is resolved.
+        const couldActivate = enabled !== false && (enabled === true || isDevelopment());
+
+        // `enabled={true}` in production is no longer enough: the block bar and
+        // the panels are only rendered for whoever has an editor session.
+        // Other visitors receive the page with nothing for editing.
+        const hasSession = couldActivate
+            ? (await resolveEditorSession({
+                  request: Astro.request,
+                  cookies: Astro.cookies,
+                  prerendered: Astro.isPrerendered
+              })).allowed
+            : false;
+        const canWrite = hasSession ? Boolean(await resolveWriteAdapter()) : false;
+
+        if (hasSession && shouldEnableVisualBridge(intiConfig, enabled, canWrite)) {
+            config = createVisualBridgeConfig(intiConfig, {
+                ...options,
+                features: { inlineEdit: canWrite, ...options.features }
+            });
+        }
+    }
+} catch (e) {
+    error = e instanceof Error ? e.message : 'Error loading config';
+}
+
+// Console debug
+if (config) {
+    console.log(`[VisualBridgeAuto] Detected CMS: ${config.cms}`);
+    console.log(`[VisualBridgeAuto] Admin URL: ${config.cmsConfig?.adminUrl}`);
+}
+---
+
+{config && (
+    <VisualBridge config={config} />
+)}
+
+{/* Real inline editing (write-back) for adapters that support it */}
+{config?.features?.inlineEdit && (
+    <InlineEditor enabled={true} blockTypes={blockTypes} />
+)}
+
+{error && process.env.NODE_ENV === 'development' && (
+    <div style="
+        position: fixed;
+        bottom: 1rem;
+        right: 1rem;
+        background: #fef3c7;
+        border: 1px solid #f59e0b;
+        color: #92400e;
+        padding: 0.75rem 1rem;
+        border-radius: 0.5rem;
+        font-size: 0.875rem;
+        z-index: 999999;
+    ">
+        ⚠️ VisualBridgeAuto: {error}
+    </div>
+)}

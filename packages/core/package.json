@@ -1,0 +1,181 @@
+{
+  "name": "@intijs/core",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "AI for any CMS, without changing the CMS: edit on the page and compose with AI on Astro sites, saving to WordPress, Kitsuden, Strapi, Keystatic…",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "keywords": [
+    "astro",
+    "astro-integration",
+    "withastro",
+    "wordpress",
+    "headless-wordpress",
+    "visual-editing",
+    "inline-editing",
+    "headless-cms",
+    "astro-component",
+    "cms",
+    "content",
+    "blocks",
+    "forms",
+    "validation",
+    "strapi",
+    "contentful",
+    "sanity",
+    "kitsuden"
+  ],
+  "author": "Victor Antinori Broce",
+  "license": "MIT",
+  "homepage": "https://github.com/intijs/inti/tree/main/packages/core#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/intijs/inti.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/intijs/inti/issues"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "import": "./integration.js",
+      "types": "./integration.d.ts"
+    },
+    "./index": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./integration": {
+      "import": "./dist/integration/index.js",
+      "types": "./dist/integration/index.d.ts"
+    },
+    "./types": {
+      "import": "./dist/types/index.js",
+      "types": "./dist/types/index.d.ts"
+    },
+    "./registry": {
+      "import": "./dist/registry/index.js",
+      "types": "./dist/registry/index.d.ts"
+    },
+    "./runtime": {
+      "import": "./dist/runtime/index.js",
+      "types": "./dist/runtime/index.d.ts"
+    },
+    "./adapters": {
+      "import": "./dist/adapters/index.js",
+      "types": "./dist/adapters/index.d.ts"
+    },
+    "./adapters/local": {
+      "import": "./dist/adapters/local.js",
+      "types": "./dist/adapters/local.d.ts"
+    },
+    "./adapt": {
+      "import": "./dist/adapt/index.js",
+      "types": "./dist/adapt/index.d.ts"
+    },
+    "./blocks": {
+      "import": "./dist/blocks/index.js",
+      "types": "./dist/blocks/index.d.ts"
+    },
+    "./server": {
+      "import": "./dist/server/index.js",
+      "types": "./dist/server/index.d.ts"
+    },
+    "./plugins": {
+      "import": "./dist/plugins/index.js",
+      "types": "./dist/plugins/index.d.ts"
+    },
+    "./team": {
+      "import": "./dist/team/index.js",
+      "types": "./dist/team/index.d.ts"
+    },
+    "./seo": {
+      "import": "./dist/seo/index.js",
+      "types": "./dist/seo/index.d.ts"
+    },
+    "./actions": {
+      "import": "./dist/actions/index.js",
+      "types": "./dist/actions/index.d.ts"
+    },
+    "./validation": {
+      "import": "./dist/validation/index.js",
+      "types": "./dist/validation/index.d.ts"
+    },
+    "./forms": {
+      "import": "./dist/forms/index.js",
+      "types": "./dist/forms/index.d.ts"
+    },
+    "./realtime": {
+      "import": "./dist/realtime/index.js",
+      "types": "./dist/realtime/index.d.ts"
+    },
+    "./visual-bridge": {
+      "import": "./dist/visual-bridge/index.js",
+      "types": "./dist/visual-bridge/index.d.ts"
+    },
+    "./visual-bridge/*": "./src/visual-bridge/*",
+    "./astro": {
+      "import": "./dist/astro/index.js",
+      "types": "./dist/astro/index.d.ts"
+    },
+    "./astro/*": "./src/astro/*",
+    "./api/*": "./src/api/*",
+    "./image": {
+      "import": "./dist/image/index.js",
+      "types": "./dist/image/index.d.ts"
+    },
+    "./image/*": "./src/image/*",
+    "./transformers": {
+      "import": "./dist/transformers/index.js",
+      "types": "./dist/transformers/index.d.ts"
+    },
+    "./preview": {
+      "import": "./dist/preview/index.js",
+      "types": "./dist/preview/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "integration.js",
+    "integration.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepare": "node ../../scripts/prepare-package.mjs",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "bun test",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "astro": "^5.0.0 || ^6.0.0 || ^7.0.0",
+    "@aws-sdk/client-s3": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-s3": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/ws": "^8.5.0",
+    "astro": "^5.0.0",
+    "typescript": "^5.7.3"
+  },
+  "optionalDependencies": {
+    "ws": "^8.18.0"
+  },
+  "dependencies": {
+    "@unocss/astro": "^66.6.1",
+    "@unocss/preset-wind": "^66.6.1",
+    "@unocss/reset": "^66.6.1",
+    "unocss": "^66.6.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

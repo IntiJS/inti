@@ -1,0 +1,57 @@
+---
+title: Client Directives
+description: How to hydrate interactive components (React, Svelte, Vue…) inside a block
+---
+
+Most blocks need no JavaScript: they are painted on the server and arrive as HTML. When a block does need interactivity —a carousel, a form with validation, a configurator— you use an Astro **island** with a `client:*` directive.
+
+## The directive goes inside the block
+
+```astro
+---
+// src/blocks/Carousel.astro
+import Carousel from '../components/Carousel.svelte';
+
+const { title, slides = [] } = Astro.props;
+---
+<section>
+  <h2 data-inti-field="title">{title}</h2>
+  <Carousel client:visible slides={slides} />
+</section>
+```
+
+The `Carousel.astro` block is registered like any other with `registerBlocks`. The interactive component is imported **statically** inside it, and that is where it carries the directive.
+
+This works even though the block is loaded on demand: the compiler generates the island when it processes the block, not when it loads it.
+
+## Why it is not declared in the registry
+
+Astro can only hydrate a component if it knows its module at compile time. The registry loads blocks with a dynamic `import()`, and applying `client:*` to a component loaded that way fails with `NoMatchingImport` (verified on Astro 7).
+
+That is why the `clientDirective` option of `registry.register` and of `registerBlocks` **has no effect** and is marked as deprecated. If you use it, `BlockRenderer` warns in development with the exact change you need to make.
+
+## Available directives
+
+| Directive | When it hydrates | Typical use |
+|---|---|---|
+| `client:load` | When the page loads | Something that must respond immediately |
+| `client:idle` | When the browser becomes idle | Secondary widgets |
+| `client:visible` | When it enters the screen | Carousels, maps, counters below the fold |
+| `client:media` | When a media query matches | Mobile-only navigation |
+| `client:only` | Only on the client, without server HTML | Components that depend on `window` |
+
+`client:visible` is usually the best option for blocks: what the visitor does not see downloads no JavaScript.
+
+## Editable text outside the island
+
+Keep the text the editor has to change —titles, descriptions— in the `.astro` block, outside the interactive component. Once hydrated, the island belongs to the framework, which can repaint that HTML and undo what the editor is typing.
+
+Pass the data to the interactive component as props. Astro serializes them to send them to the browser, so they must be plain data: no functions or class instances.
+
+## Framework integration
+
+Each framework needs its Astro integration:
+
+```bash
+npx astro add svelte    # or react, vue, solid, preact
+```

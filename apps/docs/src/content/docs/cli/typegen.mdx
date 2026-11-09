@@ -1,0 +1,121 @@
+---
+title: Type Generation
+description: Which types inti sync generates and how to use them with what the adapter returns
+---
+
+`inti sync` asks the adapter for the CMS schema and writes `inti.types.ts`: one interface per block type and a type that discriminates a page's blocks by their `type`.
+
+The types **do not read content**. The adapter always reads the content; the types describe what it returns.
+
+## What gets generated
+
+For a CMS with two block types, `hero` and `faq`, the output is this (an excerpt from the real generator):
+
+```ts
+import type { IntiBlock } from '@intijs/core/types';
+
+export type IntiMedia =
+    | string
+    | { url?: string; alt?: string; width?: number; height?: number; [key: string]: unknown };
+
+/** Header with headline and button */
+export interface HeroBlock {
+    headline: string;
+    /** HTML */
+    body?: string;
+    background?: IntiMedia;
+    /** ISO 8601 */
+    showFrom?: string;
+}
+
+export interface FaqBlock {
+    items: Record<string, unknown>;
+}
+
+/** Data of each block type, by its `IntiBlock.type` */
+export interface IntiBlockDataMap {
+    "hero": HeroBlock;
+    "faq": FaqBlock;
+}
+
+/** A page block with its data typed according to its `type` */
+export type IntiTypedBlock = /* union of { type: 'hero', data: HeroBlock } | … */;
+```
+
+The file compiles with `tsc --strict` with only `@intijs/core` installed; a test checks it.
+
+## Type mapping
+
+The types describe what comes from the adapter, which is JSON:
+
+| CMS field | TypeScript | Why |
+|---|---|---|
+| `string`, `text`, `richtext` | `string` | `richtext` is HTML in a string |
+| `number` | `number` | |
+| `boolean` | `boolean` | |
+| `date`, `datetime` | `string` | They arrive as ISO 8601. With `Date`, `date.getTime()` would compile and fail at runtime |
+| `media` | `IntiMedia` | Depending on the CMS it is an id or an object with `url`; `<IntiImage>` accepts both |
+| `relation` | `string` | The id of the related entry |
+| `blocks` | `IntiBlock[]` | |
+| `json`, `component` | `Record<string, unknown>` | |
+
+## Usage
+
+### Typing a block's props
+
+```astro
+---
+// src/blocks/hero.astro
+import type { HeroBlock } from '../lib/inti/inti.types';
+
+const { headline, body } = Astro.props as HeroBlock;
+---
+<h1 data-inti-field="headline">{headline}</h1>
+```
+
+### Iterating over a page's blocks
+
+```ts
+import type { IntiTypedBlock } from '../lib/inti/inti.types';
+
+const page = await adapter.getPage('home');
+const blocks = page.blocks as IntiTypedBlock[];
+
+for (const block of blocks) {
+  if (block.type === 'hero') {
+    block.data.headline;   // string
+    block.data.items;      // error: 'items' does not exist on HeroBlock
+  }
+}
+```
+
+Checking `block.type` leaves `block.data` typed. A `type` that does not exist in the CMS is also a compile error.
+
+## Which block types are described
+
+| CMS | Typed blocks |
+|---|---|
+| Kitsuden | Every block in the palette, with the fields its schema declares |
+| WordPress | The Flexible Content layouts present on the sample page. Fields are inferred from their values |
+| Others | None: `IntiTypedBlock` is just `IntiBlock` |
+
+In WordPress, use a page that contains every layout as the sample: one that does not appear is not described.
+
+## In CI
+
+Commit `inti.types.ts` and check it with `tsc`. That way the build does not depend on the CMS being reachable from CI:
+
+```yaml
+- name: Type check
+  run: npx tsc --noEmit
+```
+
+Regenerate it with `npx inti sync` when the CMS schema changes.
+
+## Common problems
+
+**The types do not reflect a CMS change.**
+`inti sync` keeps no cache between runs: it reads the schema again every time. If the change does not show up, it is not in what the CMS exposes —in WordPress, on the sample page—.
+
+**A WordPress block type is missing.**
+It does not appear on the sample page. See above.

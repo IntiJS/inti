@@ -1,0 +1,44 @@
+{
+  "name": "create-inti",
+  "version": "0.1.0",
+  "description": "Creates an Astro project with Inti: visual editing on top of WordPress, Kitsuden or Strapi",
+  "type": "module",
+  "bin": {
+    "create-inti": "./bin/create-inti.js"
+  },
+  "files": [
+    "bin",
+    "lib"
+  ],
+  "scripts": {
+    "test": "bun test"
+  },
+  "keywords": [
+    "astro",
+    "create-astro",
+    "inti",
+    "cms",
+    "headless",
+    "wordpress",
+    "visual-editing",
+    "scaffold"
+  ],
+  "author": "Victor Antinori Broce",
+  "license": "MIT",
+  "homepage": "https://github.com/intijs/inti/tree/main/packages/create-inti#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/intijs/inti.git",
+    "directory": "packages/create-inti"
+  },
+  "bugs": {
+    "url": "https://github.com/intijs/inti/issues"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.10.0",
+    "picocolors": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

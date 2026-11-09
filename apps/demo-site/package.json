@@ -1,0 +1,37 @@
+{
+  "name": "@intijs/demo-site",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev --port 4330",
+    "start": "astro dev --port 4330",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "serve": "bun run server.ts"
+  },
+  "dependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@intijs/adapter-kitsuden": "*",
+    "@intijs/core": "*",
+    "@unocss/reset": "^66.6.1",
+    "astro": "^5.2.5",
+    "typescript": "^5.7.3"
+  },
+  "devDependencies": {
+    "@astrojs/node": "^9.5.4",
+    "@unocss/preset-wind": "^66.6.1",
+    "unocss": "^66.6.1"
+  },
+  "author": "Victor Antinori Broce",
+  "homepage": "https://github.com/intijs/inti/tree/main/apps/demo-site#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/intijs/inti.git",
+    "directory": "apps/demo-site"
+  },
+  "bugs": {
+    "url": "https://github.com/intijs/inti/issues"
+  }
+}

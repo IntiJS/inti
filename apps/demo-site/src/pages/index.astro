@@ -1,0 +1,145 @@
+---
+// apps/demo-site/src/pages/index.astro
+// Inti.js Official Landing Page & Interactive Showcase
+
+import Navbar from '../components/landing/Navbar.astro';
+import HeroSection from '../components/landing/HeroSection.astro';
+import InteractiveEditorDemo from '../components/landing/InteractiveEditorDemo.astro';
+import ComparisonSection from '../components/landing/ComparisonSection.astro';
+import BentoFeatures from '../components/landing/BentoFeatures.astro';
+import DesignerVsBuilderSlider from '../components/landing/DesignerVsBuilderSlider.astro';
+import Isometric3DStack from '../components/landing/Isometric3DStack.astro';
+import AIPlaygroundSection from '../components/landing/AIPlaygroundSection.astro';
+import AdaptersSection from '../components/landing/AdaptersSection.astro';
+import ArchitectureSection from '../components/landing/ArchitectureSection.astro';
+import FaqSection from '../components/landing/FaqSection.astro';
+import QuickstartSection from '../components/landing/QuickstartSection.astro';
+import FooterSection from '../components/landing/FooterSection.astro';
+
+// Structured Data (JSON-LD) for Search Engines & AI Crawlers
+const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Inti.js",
+  "operatingSystem": "Cross-platform (Node.js, Cloudflare Workers, Vercel)",
+  "applicationCategory": "DeveloperApplication",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "description": "AI for any CMS, without changing the CMS. Visual on-page editing for Astro with write-back to WordPress ACF, Kitsuden, Strapi, and Keystatic.",
+  "softwareVersion": "0.1.0",
+  "license": "https://opensource.org/licenses/MIT",
+  "author": {
+    "@type": "Person",
+    "name": "Victor Antinori Broce"
+  }
+};
+---
+
+<!doctype html>
+<html lang="en" class="scroll-smooth">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    
+    <!-- Primary Meta Tags -->
+    <title>Inti.js — AI for any CMS, without changing the CMS</title>
+    <meta name="title" content="Inti.js — AI for any CMS, without changing the CMS" />
+    <meta
+      name="description"
+      content="Live visual editing on your Astro site with automatic write-back to WordPress ACF, Kitsuden, Strapi, or Keystatic. Native AI agent support via MCP."
+    />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Inti.js — AI for any CMS, without changing the CMS" />
+    <meta
+      property="og:description"
+      content="Edit directly on your Astro page. Double-click, type, and persist back to your CMS. Without migrating your database or changing your editors' admin panel."
+    />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:title" content="Inti.js — AI for any CMS, without changing the CMS" />
+    <meta
+      property="twitter:description"
+      content="On-page visual editing for Astro and headless CMSs. Generative UI, MCP Agents, and zero-JS server-side personalization."
+    />
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
+
+    <style is:global>
+      /* Smooth custom scrollbars */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #07090E;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #1F293D;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #334155;
+      }
+
+      /* Selection highlight */
+      ::selection {
+        background: #FF7A00;
+        color: #FFFFFF;
+      }
+    </style>
+  </head>
+
+  <body class="bg-[#06080F] text-slate-100 font-sans min-h-screen antialiased selection:bg-orange-500 selection:text-white">
+    <!-- Navbar Header with Mobile Menu -->
+    <Navbar />
+
+    <!-- Main Landing Sections -->
+    <main>
+      <!-- Hero Section with Solar Aura & 1-Click CLI Copy -->
+      <HeroSection />
+
+      <!-- Interactive Live Simulator Demo (Double click & write-back) -->
+      <InteractiveEditorDemo />
+
+      <!-- Why Inti? Ecosystem Comparison Matrix -->
+      <ComparisonSection />
+
+      <!-- Interactive Before / After Split Slider (Painkillers for Designers & Marketers) -->
+      <DesignerVsBuilderSlider />
+
+      <!-- Interactive 3D Exploded Isometric Stack -->
+      <div id="architecture-3d">
+        <Isometric3DStack />
+      </div>
+
+      <!-- Bento Grid of 8 Core Superpowers -->
+      <BentoFeatures />
+
+      <!-- Generative UI & AI Agents Playground (GenUI + MCP) -->
+      <AIPlaygroundSection />
+
+      <!-- Supported CMS Adapters Showcase -->
+      <AdaptersSection />
+
+      <!-- Clean & Secure Architecture -->
+      <ArchitectureSection />
+
+      <!-- Frequently Asked Questions Accordion -->
+      <FaqSection />
+
+      <!-- Quickstart & 3-Step Setup -->
+      <QuickstartSection />
+    </main>
+
+    <!-- Footer Banner & Credits -->
+    <FooterSection />
+  </body>
+</html>

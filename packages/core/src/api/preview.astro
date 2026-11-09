@@ -1,0 +1,34 @@
+---
+/**
+ * POST /api/inti/preview
+ *
+ * Renders blocks without saving them, to show a proposal on the page with the
+ * real components. Editors only: an endpoint that renders whatever it is sent
+ * cannot be left open.
+ */
+
+import BlockRenderer from '../astro/BlockRenderer.astro';
+import { blockTypeForPreview } from '../registry/index.js';
+import { resolveEditorSession } from '../server/editor-session.js';
+
+export const prerender = false;
+export const partial = true;
+
+const session = await resolveEditorSession({ request: Astro.request, cookies: Astro.cookies });
+if (Astro.request.method !== 'POST' || !session.allowed) {
+    return new Response(null, { status: session.allowed ? 405 : 401 });
+}
+
+const body = await Astro.request.json().catch(() => null);
+const received = Array.isArray(body?.blocks) ? body.blocks : [];
+
+const blocks = received
+    .filter((block: any) => typeof block?.nativeType === 'string')
+    .slice(0, 20)
+    .map((block: any) => ({ type: blockTypeForPreview(block.nativeType), data: block.data ?? {} }));
+
+Astro.response.headers.set('Cache-Control', 'no-store');
+Astro.response.headers.set('X-Robots-Tag', 'noindex');
+---
+
+<BlockRenderer blocks={blocks} editable={false} audit={false} />

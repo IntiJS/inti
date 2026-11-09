@@ -1,0 +1,67 @@
+---
+import { KitsudenAdapter } from "@intijs/adapter-kitsuden";
+import { registry } from "@intijs/core/registry";
+import BlockRenderer from "@intijs/core/astro/BlockRenderer.astro";
+import Hero from "../components/Hero.astro";
+
+// 1. Register block components
+// Registry expects a lazy-loader Promise for Hot-Swap optimization: () => Promise<ComponentModule>
+registry.register("Hero", { component: async () => ({ default: Hero }) });
+
+// 2. Raw payload exactly as Kitsuden returns it: `GET /api/page-builder/pages/:idOrSlug`.
+//    Blocks are rows with a uuid and `sortOrder`, not an array nested in the document.
+const cmsPayload = {
+  id: "11111111-2222-3333-4444-555555555555",
+  title: "Testing Everything Page",
+  slug: "full-test",
+  status: "published" as const,
+  blocks: [
+    {
+      id: "b1",
+      type: "Hero",
+      name: "Cover",
+      sortOrder: 0,
+      content: {
+        title: "Inti.js Rendering Engine E2E",
+        subtitle:
+          "Agnostic Contract Validation, Safe Fallbacks, UnoCSS Engine and Dynamic Resolution of the Astro 5.x Server Interface.",
+      },
+    },
+    {
+      // Unregistered on purpose: demonstrates graceful degradation
+      id: "b2",
+      type: "UnregisteredFeature",
+      sortOrder: 5,
+      content: {
+        msg: "This component will fail to render because it was intentionally not registered.",
+      },
+    },
+  ],
+};
+
+// 3. Data Standardization (The Pro Adapters)
+const adapter = new KitsudenAdapter({ endpoint: "https://cms.example.com" });
+const pageData = adapter.parsePage(cmsPayload);
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{pageData.title} | Inti.js</title>
+  </head>
+  <body class="bg-[#0A0A0A] text-white font-sans min-h-screen">
+    <header
+      class="p-4 border-b border-white/5 flex justify-between items-center text-sm"
+    >
+      <div class="font-mono text-slate-400">
+        Status: <span class="text-emerald-400"
+          >All Systems Functional ({pageData.blocks.length} blocks received)</span
+        >
+      </div>
+    </header>
+
+    <!-- 4. Automagic Rendering (Smart Resolver + Block Renderer) -->
+    <BlockRenderer blocks={pageData.blocks} />
+  </body>
+</html>

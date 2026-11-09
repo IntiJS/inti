@@ -1,0 +1,153 @@
+---
+title: Deploying to Cloudflare
+description: D1, Durable Objects, R2, Workers AI and Images, as optional pieces
+---
+
+`@intijs/cloudflare` is optional: Inti does not depend on Cloudflare. Each piece implements a contract that already existed and plugs in through a plugin, so you can use just one.
+
+| Piece | Purpose | Contract |
+|---|---|---|
+| **D1** | Content for a site without a CMS, measurement, patterns, composition cache | `getWriteAdapter`, `getExperimentStore`, `getPatternStore`, `cache` |
+| **Durable Objects** | WebSocket editing rooms and shared limits | `IntiRoom`, `limiter` |
+| **R2** | Media | `createR2MediaStore`, data source for `@intijs/genui` |
+| **Workers AI** | A model in your account, with no external key | `AiProvider` |
+| **Images** | Resizing at the edge | `registerImageService` |
+
+Cloudflare does not replace your CMS: with WordPress or Kitsuden, that is still your CMS and you use the rest.
+
+## Project
+
+```js
+// astro.config.mjs
+import cloudflare from '@astrojs/cloudflare';
+
+export default defineConfig({
+  output: 'server',
+  adapter: cloudflare(),
+  integrations: [inti()]
+});
+```
+
+```jsonc
+// wrangler.jsonc
+{
+  "name": "my-site",
+  "main": "./src/worker.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [{ "binding": "DB", "database_name": "inti", "database_id": "..." }],
+  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "inti-media" }],
+  "ai": { "binding": "AI" },
+  "durable_objects": {
+    "bindings": [
+      { "name": "INTI_ROOM", "class_name": "IntiRoom" },
+      { "name": "INTI_LIMITER", "class_name": "IntiLimiter" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["IntiRoom", "IntiLimiter"] }]
+}
+```
+
+```ts
+// src/worker.ts
+import { handle } from '@astrojs/cloudflare/handler';
+export { IntiRoom, IntiLimiter } from '@intijs/cloudflare/durable';
+
+export default {
+  fetch: (request, env, ctx) => handle(request, env, ctx)
+};
+```
+
+A Worker does not resolve the `import()` Inti uses to load an adapter by name: register the adapter with `getWriteAdapter`, even if it is WordPress or Kitsuden.
+
+```ts
+// src/middleware.ts
+import { env } from 'cloudflare:workers';
+import { registerIntiPlugin } from '@intijs/core/plugins';
+import { D1ContentAdapter, createD1ExperimentStore, createD1PatternStore } from '@intijs/cloudflare';
+
+registerIntiPlugin({
+  name: 'cloudflare',
+  resolveActor: (ctx) => mySession(ctx.request),
+  beforeWrite: (ctx) => ({ allowed: Boolean(ctx.actor) }),
+  getWriteAdapter: () => new D1ContentAdapter(env.DB),
+  getExperimentStore: () => createD1ExperimentStore(env.DB),
+  getPatternStore: () => createD1PatternStore(env.DB)
+});
+```
+
+Create the tables once with `migrateD1(env.DB)`, or with `D1_SCHEMA` in a Wrangler migration.
+
+## D1
+
+`D1ContentAdapter` is for what does not justify a CMS, just like the local store: it has no panel, users or history. Two instances writing at the same time do not overwrite each other, because each write checks a version and retries if another one got there first.
+
+## Editing rooms
+
+One room per document, with hibernating WebSockets: with no activity it consumes nothing and the connections stay open. Whoever joins receives the last 50 messages.
+
+```ts
+// src/pages/api/room.ts
+import { env } from 'cloudflare:workers';
+import { resolveEditorSession } from '@intijs/core/server';
+import { connectToRoom } from '@intijs/cloudflare/durable';
+
+export const GET = async ({ request, cookies, url }) => {
+  const session = await resolveEditorSession({ request, cookies });
+  if (!session.allowed) return new Response(null, { status: 401 });
+  return connectToRoom(env.INTI_ROOM, request, {
+    documentId: url.searchParams.get('docId'),
+    actorId: session.actor?.id
+  });
+};
+```
+
+The room does not authenticate: this route does. The `clientId` and the actor the others see are set by the room, so a client cannot impersonate another. The `joined`, `left`, `presence` and `history` messages are reserved.
+
+## Visitor-mode limits
+
+In memory, each instance keeps its own count and the real cap is the per-instance cap. With a Durable Object and D1 they are shared:
+
+```ts
+import { createDurableLimiter } from '@intijs/cloudflare/durable';
+import { createD1ComposeCache, createWorkersAiProvider } from '@intijs/cloudflare';
+
+createVisitorComposer({
+  provider: createWorkersAiProvider(env.AI),
+  limiter: createDurableLimiter(env.INTI_LIMITER),
+  cache: createD1ComposeCache(env.DB),
+  vocabulary,
+  sources
+});
+```
+
+## R2
+
+```ts
+const media = createR2MediaStore(env.MEDIA);
+
+await media.upload(file, { alt: 'A photo' }); // check the session yourself first
+media.serve(id);                              // Response for src/pages/media/[id].ts
+await media.asData();                         // data source for @intijs/genui
+```
+
+The type is decided by the bytes, not by what the uploader claims, and the file name never reaches the key. SVG is not accepted because it can carry scripts.
+
+## Workers AI
+
+`createWorkersAiProvider(env.AI)` satisfies `AiProvider`. Its JSON mode does not support streaming, so the proposal arrives all at once. It does not guarantee the schema either, but `@intijs/genui` always validates what comes back.
+
+## Images
+
+```ts
+import { registerImageService } from '@intijs/core/image';
+import { createCloudflareImageService } from '@intijs/cloudflare';
+
+registerImageService(createCloudflareImageService());
+```
+
+`<IntiImage>` uses it with no further changes. Image Transformations must be enabled on the zone.
+
+## Check it locally
+
+`npm run test:cloudflare` builds a real project and runs it in `workerd`, Cloudflare's runtime, with local D1, R2 and Durable Objects. It needs no account.

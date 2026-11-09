@@ -1,0 +1,35 @@
+---
+/**
+ * Tells the visitor why they see what they see, and lets them change it.
+ * It is a <details>: it needs no JavaScript. With nothing personalized it renders nothing.
+ *
+ *   const { blocks, decisions } = await adaptPage(page.blocks, Astro);
+ *   <WhyThis decisions={decisions} settingsUrl="/preferences" />
+ */
+
+import type { AdaptDecision } from '../adapt/index.js';
+
+interface Props {
+    /** What `adaptPage` returns */
+    decisions: AdaptDecision[];
+    /** Where to change the preferences */
+    settingsUrl?: string;
+    label?: string;
+}
+
+const { decisions, settingsUrl, label = 'Why am I seeing this?' } = Astro.props;
+
+const reasons = [
+    ...new Set(decisions.filter((decision) => decision.personalized && decision.reason).map((decision) => decision.reason))
+];
+---
+
+{reasons.length > 0 && (
+    <details data-inti-why>
+        <summary>{label}</summary>
+        <ul>
+            {reasons.map((reason) => <li>{reason}</li>)}
+        </ul>
+        {settingsUrl && <a href={settingsUrl}>Change my preferences</a>}
+    </details>
+)}

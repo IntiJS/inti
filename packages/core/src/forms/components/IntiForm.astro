@@ -1,0 +1,828 @@
+---
+/**
+ * IntiForm - schema-driven form component
+ * Renders a complete form based on the CMS schema
+ */
+
+import type { FormSchema, FormState } from '../types.js';
+
+interface Props {
+    /** Form schema */
+    schema: FormSchema;
+    /** Initial values */
+    initialValues?: Record<string, any>;
+    /** Initial state (for SSR) */
+    initialState?: FormState;
+    /** Mode: 'create' | 'edit' | 'view' */
+    mode?: 'create' | 'edit' | 'view';
+    /** Successful submit callback */
+    onSuccess?: string;
+    /** Error callback */
+    onError?: string;
+    /** Extra CSS classes */
+    class?: string;
+}
+
+const { 
+    schema, 
+    initialValues = {},
+    initialState,
+    mode = 'create',
+    onSuccess,
+    onError,
+    class: className = ''
+} = Astro.props;
+
+// Generate a unique ID for the form
+const formId = `inti-form-${schema.id}-${Math.random().toString(36).substr(2, 9)}`;
+
+// Configure the layout
+const layout = schema.layout || { columns: 1, gap: 'medium' };
+const columnsClass = layout.columns && layout.columns > 1 
+    ? `grid grid-cols-1 md:grid-cols-${layout.columns}` 
+    : 'flex flex-col';
+const gapClass = {
+    small: 'gap-2',
+    medium: 'gap-4',
+    large: 'gap-6'
+}[layout.gap || 'medium'];
+
+// Sort the fields
+const sortedFields = [...schema.fields].sort((a, b) => (a.order || 0) - (b.order || 0));
+
+// Multi-step?
+const isMultiStep = schema.steps && schema.steps.length > 0;
+const totalSteps = isMultiStep ? schema.steps!.length : 1;
+---
+
+<form 
+    id={formId}
+    class={`inti-form ${className}`}
+    data-schema={JSON.stringify(schema)}
+    data-initial-values={JSON.stringify(initialValues)}
+    data-mode={mode}
+    data-form-id={schema.id}
+    novalidate
+>
+    {/* Header with title */}
+    {(schema.name || schema.description) && (
+        <header class="inti-form-header">
+            {schema.name && <h3 class="inti-form-title">{schema.name}</h3>}
+            {schema.description && (
+                <p class="inti-form-description">{schema.description}</p>
+            )}
+        </header>
+    )}
+    
+    {/* Multi-step progress */}
+    {isMultiStep && schema.showProgress && (
+        <div class="inti-step-progress">
+            <div class="inti-step-bar">
+                {schema.steps!.map((step, index) => (
+                    <div 
+                        class="inti-step-indicator"
+                        data-step={index}
+                    >
+                        <span class="inti-step-number">{index + 1}</span>
+                        <span class="inti-step-label">{step.title}</span>
+                    </div>
+                ))}
+            </div>
+            <div class="inti-progress-line">
+                <div class="inti-progress-fill" data-progress="0"></div>
+            </div>
+        </div>
+    )}
+    
+    {/* Honeypot (anti-spam) */}
+    {schema.spamProtection?.honeypot && (
+        <div class="inti-honeypot" aria-hidden="true">
+            <input 
+                type="text"
+                name={schema.spamProtection.honeypotField || 'website'}
+                tabindex="-1"
+                autocomplete="off"
+            />
+        </div>
+    )}
+    
+    {/* Form fields */}
+    <div class={`inti-form-fields ${columnsClass} ${gapClass}`}>
+        {sortedFields.map(field => {
+            const widthClass = field.width ? `col-span-${field.width}` : '';
+            const fieldId = `${formId}-${field.name}`;
+            
+            return (
+                <div 
+                    class={`inti-field-wrapper ${widthClass}`}
+                    data-field-name={field.name}
+                    data-field-type={field.type}
+                >
+                    {/* Label */}
+                    {field.label && field.type !== 'hidden' && (
+                        <label for={fieldId} class="inti-field-label">
+                            {field.label}
+                            {field.required && <span class="inti-required">*</span>}
+                        </label>
+                    )}
+                    
+                    {/* Input by type */}
+                    {field.type === 'textarea' ? (
+                        <textarea
+                            id={fieldId}
+                            name={field.name}
+                            placeholder={field.placeholder}
+                            required={field.required}
+                            disabled={field.disabled || mode === 'view'}
+                            readonly={field.readonly}
+                            class="inti-field-input"
+                            data-validate="true"
+                        >{initialValues[field.name] || ''}</textarea>
+                    ) : field.type === 'select' ? (
+                        <select
+                            id={fieldId}
+                            name={field.name}
+                            required={field.required}
+                            disabled={field.disabled || mode === 'view'}
+                            class="inti-field-input"
+                            data-validate="true"
+                        >
+                            <option value="">{field.placeholder || 'Select...'}</option>
+                            {field.options?.map(opt => (
+                                <option 
+                                    value={opt.value}
+                                    selected={initialValues[field.name] === opt.value}
+                                    disabled={opt.disabled}
+                                >
+                                    {opt.label}
+                                </option>
+                            ))}
+                        </select>
+                    ) : field.type === 'multiselect' ? (
+                        <select
+                            id={fieldId}
+                            name={`${field.name}[]`}
+                            multiple
+                            required={field.required}
+                            disabled={field.disabled || mode === 'view'}
+                            class="inti-field-input inti-multiselect"
+                            data-validate="true"
+                        >
+                            {field.options?.map(opt => (
+                                <option 
+                                    value={opt.value}
+                                    selected={(initialValues[field.name] || []).includes(opt.value)}
+                                    disabled={opt.disabled}
+                                >
+                                    {opt.label}
+                                </option>
+                            ))}
+                        </select>
+                    ) : field.type === 'checkbox' ? (
+                        <div class="inti-checkbox-group">
+                            {field.options?.map(opt => (
+                                <label class="inti-checkbox-label">
+                                    <input
+                                        type="checkbox"
+                                        name={`${field.name}[]`}
+                                        value={opt.value}
+                                        checked={(initialValues[field.name] || []).includes(opt.value)}
+                                        disabled={field.disabled || opt.disabled || mode === 'view'}
+                                        class="inti-field-checkbox"
+                                        data-validate="true"
+                                    />
+                                    <span>{opt.label}</span>
+                                </label>
+                            ))}
+                        </div>
+                    ) : field.type === 'radio' ? (
+                        <div class="inti-radio-group">
+                            {field.options?.map(opt => (
+                                <label class="inti-radio-label">
+                                    <input
+                                        type="radio"
+                                        name={field.name}
+                                        value={opt.value}
+                                        checked={initialValues[field.name] === opt.value}
+                                        disabled={field.disabled || opt.disabled || mode === 'view'}
+                                        required={field.required}
+                                        class="inti-field-radio"
+                                        data-validate="true"
+                                    />
+                                    <span>{opt.label}</span>
+                                </label>
+                            ))}
+                        </div>
+                    ) : field.type === 'switch' ? (
+                        <label class="inti-switch-label">
+                            <input
+                                type="checkbox"
+                                name={field.name}
+                                checked={initialValues[field.name] === true}
+                                disabled={field.disabled || mode === 'view'}
+                                class="inti-field-switch"
+                                data-validate="true"
+                            />
+                            <span class="inti-switch-slider"></span>
+                            <span class="inti-switch-text">{field.placeholder}</span>
+                        </label>
+                    ) : field.type === 'slider' ? (
+                        <div class="inti-slider-group">
+                            <input
+                                type="range"
+                                id={fieldId}
+                                name={field.name}
+                                min={field.visual?.options?.[0]?.value || 0}
+                                max={field.visual?.options?.[1]?.value || 100}
+                                step={field.visual?.step || 1}
+                                value={initialValues[field.name] || 0}
+                                disabled={field.disabled || mode === 'view'}
+                                class="inti-field-slider"
+                                data-validate="true"
+                            />
+                            <span class="inti-slider-value">{initialValues[field.name] || 0}</span>
+                        </div>
+                    ) : (
+                        <input
+                            id={fieldId}
+                            type={field.type === 'password' ? 'password' : 
+                                  field.type === 'email' ? 'email' :
+                                  field.type === 'tel' ? 'tel' :
+                                  field.type === 'url' ? 'url' :
+                                  field.type === 'number' ? 'number' :
+                                  field.type === 'date' ? 'date' :
+                                  field.type === 'datetime' ? 'datetime-local' :
+                                  field.type === 'time' ? 'time' :
+                                  field.type === 'hidden' ? 'hidden' :
+                                  'text'}
+                            name={field.name}
+                            value={initialValues[field.name] || ''}
+                            placeholder={field.placeholder}
+                            required={field.required}
+                            disabled={field.disabled || mode === 'view'}
+                            readonly={field.readonly}
+                            class="inti-field-input"
+                            data-validate="true"
+                        />
+                    )}
+                    
+                    {/* Description */}
+                    {field.description && (
+                        <p class="inti-field-description">{field.description}</p>
+                    )}
+                    
+                    {/* Error message */}
+                    <p class="inti-field-error" data-error-for={field.name}></p>
+                </div>
+            );
+        })}
+    </div>
+    
+    {/* Status messages */}
+    <div class="inti-form-messages" aria-live="polite">
+        <div class="inti-success-message" hidden></div>
+        <div class="inti-error-message" hidden></div>
+    </div>
+    
+    {/* Actions */}
+    {mode !== 'view' && (
+        <div class="inti-form-actions">
+            <button 
+                type="submit" 
+                class="inti-submit-btn"
+                disabled={mode === 'view'}
+            >
+                {schema.submitLabel || 'Submit'}
+            </button>
+            <button 
+                type="reset" 
+                class="inti-reset-btn"
+            >
+                {schema.resetLabel || 'Clear'}
+            </button>
+        </div>
+    )}
+</form>
+
+<style>
+    /* Base */
+    .inti-form {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        padding: 1.5rem;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.75rem;
+    }
+    
+    /* Header */
+    .inti-form-header {
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .inti-form-title {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #111827;
+    }
+    
+    .inti-form-description {
+        margin: 0.5rem 0 0 0;
+        color: #6b7280;
+        font-size: 0.875rem;
+    }
+    
+    /* Step Progress */
+    .inti-step-progress {
+        margin-bottom: 1.5rem;
+    }
+    
+    .inti-step-bar {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+    }
+    
+    .inti-step-indicator {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.25rem;
+    }
+    
+    .inti-step-indicator[data-step="0"] .inti-step-number {
+        background: #3b82f6;
+        color: white;
+    }
+    
+    .inti-step-number {
+        width: 2rem;
+        height: 2rem;
+        border-radius: 50%;
+        background: #e5e7eb;
+        color: #6b7280;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 0.875rem;
+    }
+    
+    .inti-step-label {
+        font-size: 0.75rem;
+        color: #6b7280;
+    }
+    
+    .inti-progress-line {
+        height: 0.25rem;
+        background: #e5e7eb;
+        border-radius: 0.125rem;
+        overflow: hidden;
+    }
+    
+    .inti-progress-fill {
+        height: 100%;
+        background: #3b82f6;
+        border-radius: 0.125rem;
+        transition: width 0.3s ease;
+        width: 0%;
+    }
+    
+    /* Honeypot */
+    .inti-honeypot {
+        position: absolute;
+        left: -9999px;
+        opacity: 0;
+    }
+    
+    /* Fields */
+    .inti-form-fields {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .inti-field-wrapper {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .inti-field-wrapper[data-hidden="true"] {
+        display: none;
+    }
+    
+    .inti-field-label {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #374151;
+        margin-bottom: 0.375rem;
+    }
+    
+    .inti-required {
+        color: #ef4444;
+        margin-left: 0.25rem;
+    }
+    
+    /* Inputs */
+    .inti-field-input {
+        padding: 0.625rem 0.875rem;
+        border: 1px solid #d1d5db;
+        border-radius: 0.5rem;
+        font-size: 0.875rem;
+        transition: all 0.2s;
+        background: #ffffff;
+    }
+    
+    .inti-field-input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    .inti-field-input:disabled {
+        background: #f3f4f6;
+        cursor: not-allowed;
+    }
+    
+    .inti-field-input[data-invalid="true"] {
+        border-color: #ef4444;
+    }
+    
+    .inti-field-input[data-valid="true"] {
+        border-color: #10b981;
+    }
+    
+    textarea.inti-field-input {
+        min-height: 100px;
+        resize: vertical;
+    }
+    
+    select.inti-field-input {
+        cursor: pointer;
+    }
+    
+    /* Checkbox & Radio Groups */
+    .inti-checkbox-group,
+    .inti-radio-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .inti-checkbox-label,
+    .inti-radio-label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        font-size: 0.875rem;
+    }
+    
+    /* Switch */
+    .inti-switch-label {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        cursor: pointer;
+    }
+    
+    .inti-field-switch {
+        display: none;
+    }
+    
+    .inti-switch-slider {
+        width: 3rem;
+        height: 1.5rem;
+        background: #d1d5db;
+        border-radius: 9999px;
+        position: relative;
+        transition: background 0.2s;
+    }
+    
+    .inti-switch-slider::after {
+        content: '';
+        position: absolute;
+        top: 0.125rem;
+        left: 0.125rem;
+        width: 1.25rem;
+        height: 1.25rem;
+        background: white;
+        border-radius: 50%;
+        transition: transform 0.2s;
+    }
+    
+    .inti-field-switch:checked + .inti-switch-slider {
+        background: #3b82f6;
+    }
+    
+    .inti-field-switch:checked + .inti-switch-slider::after {
+        transform: translateX(1.5rem);
+    }
+    
+    /* Slider */
+    .inti-slider-group {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    
+    .inti-field-slider {
+        flex: 1;
+        height: 0.5rem;
+        -webkit-appearance: none;
+        appearance: none;
+        background: #e5e7eb;
+        border-radius: 0.25rem;
+        outline: none;
+    }
+    
+    .inti-field-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 1.25rem;
+        height: 1.25rem;
+        background: #3b82f6;
+        border-radius: 50%;
+        cursor: pointer;
+    }
+    
+    .inti-slider-value {
+        min-width: 2.5rem;
+        text-align: center;
+        font-weight: 500;
+        color: #374151;
+    }
+    
+    /* Description */
+    .inti-field-description {
+        margin: 0.25rem 0 0 0;
+        font-size: 0.75rem;
+        color: #6b7280;
+    }
+    
+    /* Error */
+    .inti-field-error {
+        margin: 0.375rem 0 0 0;
+        font-size: 0.75rem;
+        color: #ef4444;
+        min-height: 1rem;
+    }
+    
+    /* Messages */
+    .inti-form-messages {
+        margin-top: 0.5rem;
+    }
+    
+    .inti-success-message {
+        padding: 0.75rem;
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-radius: 0.5rem;
+        color: #166534;
+    }
+    
+    .inti-error-message {
+        padding: 0.75rem;
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        border-radius: 0.5rem;
+        color: #991b1b;
+    }
+    
+    /* Actions */
+    .inti-form-actions {
+        display: flex;
+        gap: 0.75rem;
+        justify-content: flex-end;
+        padding-top: 1rem;
+        border-top: 1px solid #e5e7eb;
+    }
+    
+    .inti-submit-btn {
+        padding: 0.625rem 1.25rem;
+        background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+        color: white;
+        border: none;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .inti-submit-btn:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    }
+    
+    .inti-submit-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    .inti-reset-btn {
+        padding: 0.625rem 1.25rem;
+        background: transparent;
+        border: 1px solid #d1d5db;
+        border-radius: 0.5rem;
+        color: #6b7280;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .inti-reset-btn:hover {
+        background: #f3f4f6;
+        color: #374151;
+    }
+</style>
+
+<script>
+    import { getFormEngine } from '../engine.js';
+    import { getValidationEngine } from '../../validation/engine.js';
+    
+    document.addEventListener('DOMContentLoaded', () => {
+        const forms = document.querySelectorAll('.inti-form');
+        
+        forms.forEach(formEl => {
+            const schemaAttr = formEl.getAttribute('data-schema');
+            if (!schemaAttr) return;
+            
+            const schema = JSON.parse(schemaAttr);
+            const formEngine = getFormEngine();
+            const validationEngine = getValidationEngine();
+            
+            let state = formEngine.createInitialState(schema);
+            const formStartTime = Date.now();
+            
+            // Validate a single field
+            async function validateField(fieldName: string) {
+                const field = schema.fields.find((f: any) => f.name === fieldName);
+                if (!field) return;
+                
+                const value = state.values[fieldName];
+                const error = await formEngine.validateField(field, value, state.values);
+                
+                state.errors[fieldName] = error || '';
+                
+                // Update the UI
+                const wrapper = formEl.querySelector(`[data-field-name="${fieldName}"]`);
+                const input = wrapper?.querySelector('[data-validate="true"]') as HTMLElement;
+                const errorEl = wrapper?.querySelector(`[data-error-for="${fieldName}"]`);
+                
+                if (input) {
+                    if (error) {
+                        input.setAttribute('data-invalid', 'true');
+                        input.removeAttribute('data-valid');
+                    } else {
+                        input.removeAttribute('data-invalid');
+                        input.setAttribute('data-valid', 'true');
+                    }
+                }
+                
+                if (errorEl) {
+                    errorEl.textContent = error || '';
+                }
+            }
+            
+            // Event listeners
+            const inputs = formEl.querySelectorAll('[data-validate="true"]');
+            inputs.forEach(input => {
+                input.addEventListener('input', async (e) => {
+                    const target = e.target as HTMLInputElement;
+                    const fieldName = target.name.replace('[]', '');
+                    
+                    // Update the value
+                    if (target.type === 'checkbox' && target.name.endsWith('[]')) {
+                        const checkboxes = formEl.querySelectorAll(`[name="${target.name}"]`) as NodeListOf<HTMLInputElement>;
+                        state.values[fieldName] = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+                    } else if (target.type === 'checkbox') {
+                        state.values[fieldName] = target.checked;
+                    } else {
+                        state.values[fieldName] = target.value;
+                    }
+                    
+                    state.dirty[fieldName] = true;
+                    await validateField(fieldName);
+                    
+                    // Evaluate the other fields' conditions
+                    evaluateConditions();
+                });
+                
+                input.addEventListener('blur', async (e) => {
+                    const target = e.target as HTMLInputElement;
+                    const fieldName = target.name.replace('[]', '');
+                    state.touched[fieldName] = true;
+                    await validateField(fieldName);
+                });
+            });
+            
+            // Evaluate visibility conditions
+            function evaluateConditions() {
+                schema.fields.forEach((field: any) => {
+                    if (!field.conditions || field.conditions.length === 0) return;
+                    
+                    const isVisible = formEngine.evaluateConditions(field, state.values);
+                    const wrapper = formEl.querySelector(`[data-field-name="${field.name}"]`);
+                    if (wrapper) {
+                        wrapper.setAttribute('data-hidden', String(!isVisible));
+                    }
+                });
+            }
+            
+            // Submit
+            formEl.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const submitBtn = formEl.querySelector('.inti-submit-btn') as HTMLButtonElement;
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Submitting...';
+                
+                // Validate everything
+                const validation = await formEngine.validateForm(schema, state.values);
+                
+                if (!validation.valid) {
+                    // Show the errors
+                    validation.errors.forEach(error => {
+                        if (error.field) {
+                            validateField(error.field);
+                        }
+                    });
+                    
+                    const errorMsg = formEl.querySelector('.inti-error-message');
+                    if (errorMsg) {
+                        errorMsg.textContent = 'Please fix the errors before submitting';
+                        errorMsg.hidden = false;
+                    }
+                    
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = schema.submitLabel || 'Submit';
+                    return;
+                }
+                
+                // Prepare the submission
+                const submission = {
+                    formId: schema.id,
+                    data: state.values,
+                    metadata: {
+                        timestamp: Date.now(),
+                        userAgent: navigator.userAgent,
+                        referrer: document.referrer
+                    }
+                };
+                
+                try {
+                    const result = await formEngine.submit(schema, submission, formStartTime);
+                    
+                    if (result.success) {
+                        const successMsg = formEl.querySelector('.inti-success-message');
+                        if (successMsg) {
+                            successMsg.textContent = result.message;
+                            successMsg.hidden = false;
+                        }
+                        
+                        if (result.redirect) {
+                            setTimeout(() => {
+                                window.location.href = result.redirect!;
+                            }, schema.submission?.redirect?.delay || 0);
+                        }
+                        
+                        state.isSuccess = true;
+                    } else {
+                        const errorMsg = formEl.querySelector('.inti-error-message');
+                        if (errorMsg) {
+                            errorMsg.textContent = result.message;
+                            errorMsg.hidden = false;
+                        }
+                    }
+                } catch (error) {
+                    const errorMsg = formEl.querySelector('.inti-error-message');
+                    if (errorMsg) {
+                        errorMsg.textContent = 'Error submitting the form';
+                        errorMsg.hidden = false;
+                    }
+                }
+                
+                submitBtn.disabled = false;
+                submitBtn.textContent = schema.submitLabel || 'Submit';
+            });
+            
+            // Reset
+            formEl.addEventListener('reset', () => {
+                state = formEngine.createInitialState(schema);
+                formEl.querySelectorAll('.inti-field-error').forEach(el => el.textContent = '');
+                formEl.querySelectorAll('[data-validate="true"]').forEach(el => {
+                    el.removeAttribute('data-invalid');
+                    el.removeAttribute('data-valid');
+                });
+                formEl.querySelector('.inti-success-message')?.setAttribute('hidden', '');
+                formEl.querySelector('.inti-error-message')?.setAttribute('hidden', '');
+                evaluateConditions();
+            });
+            
+            // Evaluate the initial conditions
+            evaluateConditions();
+        });
+    });
+</script>

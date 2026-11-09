@@ -1,0 +1,65 @@
+{
+  "name": "@intijs/cloudflare",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Optional Cloudflare backends for Inti: D1 for content and experiments, Durable Objects for realtime and limits, R2 for media, Workers AI, Image Transformations",
+  "keywords": [
+    "astro",
+    "withastro",
+    "cloudflare",
+    "workers",
+    "durable-objects",
+    "d1",
+    "r2",
+    "visual-editing",
+    "inti"
+  ],
+  "author": "Victor Antinori Broce",
+  "license": "MIT",
+  "homepage": "https://github.com/intijs/inti/tree/main/packages/cloudflare#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/intijs/inti.git",
+    "directory": "packages/cloudflare"
+  },
+  "bugs": {
+    "url": "https://github.com/intijs/inti/issues"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./durable": {
+      "import": "./dist/durable.js",
+      "types": "./dist/durable.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepare": "node ../../scripts/prepare-package.mjs",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "bun test",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "@intijs/core": "^0.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261101.0",
+    "miniflare": "^4.20260730.0",
+    "typescript": "^5.7.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

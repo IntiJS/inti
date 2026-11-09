@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(npm run build)",
+      "Bash(npm run build:*)",
+      "Bash(npm test)",
+      "Bash(npm run test:*)",
+      "Bash(bun test)",
+      "Bash(bun test:*)",
+      "Bash(node scripts/astro-compat.mjs:*)",
+      "Bash(node scripts/create-inti-check.mjs)",
+      "Bash(npx tsc --noEmit:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
+    ],
+    "deny": [
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Bash(git push:*)",
+      "Bash(npm publish:*)"
+    ]
+  }
+}

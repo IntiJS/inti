@@ -1,0 +1,73 @@
+{
+  "name": "@intijs/genui",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Generative UI for Astro sites on any CMS: a model composes from the blocks you declared, and the result is saved to your CMS. No generated HTML, CSS or code",
+  "keywords": [
+    "astro",
+    "withastro",
+    "generative-ui",
+    "ai",
+    "visual-editing",
+    "headless-cms",
+    "inti"
+  ],
+  "author": "Victor Antinori Broce",
+  "license": "MIT",
+  "homepage": "https://github.com/intijs/inti/tree/main/packages/genui#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/intijs/inti.git",
+    "directory": "packages/genui"
+  },
+  "bugs": {
+    "url": "https://github.com/intijs/inti/issues"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./anthropic": {
+      "import": "./dist/anthropic.js",
+      "types": "./dist/anthropic.d.ts"
+    },
+    "./decider": {
+      "import": "./dist/decider.js",
+      "types": "./dist/decider.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepare": "node ../../scripts/prepare-package.mjs",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "@intijs/core": "^0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@intijs/core": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "ai": "^7.0.159",
+    "typescript": "^5.7.3"
+  },
+  "optionalDependencies": {
+    "@anthropic-ai/sdk": "^0.115.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

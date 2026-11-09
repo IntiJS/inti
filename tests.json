@@ -1,0 +1,380 @@
+{
+  "description": "Inti.js behavior specifications. Each scenario declares in 'verifiedBy' which test checks it, and those that carry 'testLogic' are run as they are. packages/core/tests/specs.test.ts fails if a scenario has no verification, if it points to a file that does not exist or if its testLogic does not hold.",
+  "scenarios": [
+    {
+      "feature": "Adapters - Data standardization",
+      "scenario": "Successful mapping of data from Kitsuden CMS to IntiPage",
+      "given": [
+        "the configured active CMS is 'Kitsuden'",
+        "the response of GET /pages/:idOrSlug carries the title 'Inicio' and one block row of type 'hero'"
+      ],
+      "when": "the 'Kitsuden Adapter' processes the raw payload",
+      "then": [
+        "the result must implement the 'IntiPage' interface",
+        "the 'IntiPage.title' field must be exactly 'Inicio'",
+        "the 'IntiPage.blocks' array must contain an 'IntiBlock' of type 'hero' that keeps the row's uuid"
+      ],
+      "verifiedBy": [
+        "packages/adapter-kitsuden/tests/adapter.test.ts"
+      ],
+      "testLogic": {
+        "adapter": "KitsudenAdapter",
+        "mockInput": {
+          "id": "11111111-2222-3333-4444-555555555555",
+          "title": "Inicio",
+          "slug": "inicio",
+          "status": "published",
+          "blocks": [
+            {
+              "id": "b1",
+              "type": "hero",
+              "name": "Portada",
+              "sortOrder": 0,
+              "content": {
+                "headline": "Bienvenidos"
+              }
+            }
+          ]
+        },
+        "expectedResult": {
+          "title": "Inicio",
+          "blocksLength": 1,
+          "blockType": "hero",
+          "blockId": "b1"
+        }
+      }
+    },
+    {
+      "feature": "Adapters - Data standardization",
+      "scenario": "An invalid payload is rejected instead of inventing a page",
+      "given": [
+        "the external data source returns a payload without the required fields"
+      ],
+      "when": "the corresponding Adapter tries to process the payload",
+      "then": [
+        "the adapter must throw an error explaining that the payload is not a page",
+        "no 'IntiPage' with invented values must be returned",
+        "the caller decides whether to serve a 404 or an error page, because only it knows the context"
+      ],
+      "verifiedBy": [
+        "packages/adapter-kitsuden/tests/adapter.test.ts"
+      ],
+      "testLogic": {
+        "adapter": "KitsudenAdapter",
+        "mockInput": {},
+        "expectedResult": {
+          "throws": "Invalid page payload"
+        }
+      }
+    },
+    {
+      "feature": "Adapters - Data standardization",
+      "scenario": "Blocks are sorted by sortOrder even if the API returns them out of order",
+      "given": [
+        "Kitsuden returns the block rows in an order different from their sortOrder"
+      ],
+      "when": "the adapter processes the page and then resolves an index to write",
+      "then": [
+        "the blocks must end up sorted by sortOrder",
+        "index N of the page and index N of the write must point to the same row",
+        "editing block N must never write to another block"
+      ],
+      "verifiedBy": [
+        "packages/adapter-kitsuden/tests/ordering-visibility.test.ts",
+        "packages/adapter-kitsuden/tests/index-addressing.test.ts"
+      ],
+      "testLogic": {
+        "adapter": "KitsudenAdapter",
+        "mockInput": {
+          "id": "p1",
+          "title": "Inicio",
+          "slug": "home",
+          "status": "published",
+          "blocks": [
+            {
+              "id": "c",
+              "type": "footer",
+              "sortOrder": 30,
+              "content": {}
+            },
+            {
+              "id": "a",
+              "type": "hero",
+              "sortOrder": 10,
+              "content": {}
+            },
+            {
+              "id": "b",
+              "type": "richtext",
+              "sortOrder": 20,
+              "content": {}
+            }
+          ]
+        },
+        "expectedResult": {
+          "blocksLength": 3,
+          "blockIds": [
+            "a",
+            "b",
+            "c"
+          ]
+        }
+      }
+    },
+    {
+      "feature": "Block rendering",
+      "scenario": "Rendering a mapped block",
+      "given": [
+        "the 'HeroBanner' block has its component in src/blocks/HeroBanner.astro, registered with registerBlocks"
+      ],
+      "when": "BlockRenderer processes the page",
+      "then": [
+        "it must render the component with the CMS fields as props",
+        "it must wrap it with the attributes the editor uses to know where to write"
+      ],
+      "verifiedBy": [
+        "scripts/astro-compat.mjs",
+        "packages/core/tests/register-blocks.test.ts"
+      ]
+    },
+    {
+      "feature": "Block rendering",
+      "scenario": "Graceful degradation for unregistered blocks (Fallback)",
+      "given": [
+        "the CMS sends a block of a type with no registered component"
+      ],
+      "when": "BlockRenderer tries to process it",
+      "then": [
+        "the system must not throw a 500 error",
+        "in development it must show a box saying which file is missing",
+        "in production it must show nothing"
+      ],
+      "verifiedBy": [
+        "scripts/astro-compat.mjs"
+      ]
+    },
+    {
+      "feature": "Block rendering",
+      "scenario": "Hidden blocks or blocks outside their date window are not published",
+      "given": [
+        "the CMS marks a block as hidden, or gives it a date window that does not include today"
+      ],
+      "when": "BlockRenderer processes the page in production",
+      "then": [
+        "the block must not reach the HTML",
+        "in the editor it must stay visible, marked, so it can be reactivated",
+        "hiding a block must not renumber the others"
+      ],
+      "verifiedBy": [
+        "packages/core/tests/block-visibility.test.ts",
+        "scripts/astro-compat.mjs"
+      ]
+    },
+    {
+      "feature": "Production security",
+      "scenario": "A write with no one to check it is rejected",
+      "given": [
+        "the site is in production and no plugin declares beforeWrite or resolveActor"
+      ],
+      "when": "someone sends a request to a write action",
+      "then": [
+        "the write must be rejected before touching the CMS",
+        "the error must explain how to protect it",
+        "opening it on purpose must require INTI_ALLOW_ANONYMOUS_WRITES=1 and leave a warning"
+      ],
+      "verifiedBy": [
+        "packages/core/tests/write-access.test.ts"
+      ]
+    },
+    {
+      "feature": "Production security",
+      "scenario": "The editor, search and the realtime channel require an editor session",
+      "given": [
+        "the site is in production"
+      ],
+      "when": "a request without an editor session asks for the page, /api/inti/search or /api/inti/sync",
+      "then": [
+        "the page must not include the editor or the block data",
+        "search and the channel must respond 401",
+        "a plugin registered from any copy of the module must open the session to the editor"
+      ],
+      "verifiedBy": [
+        "packages/core/tests/editor-session.test.ts",
+        "scripts/astro-compat.mjs"
+      ]
+    },
+    {
+      "feature": "Production security",
+      "scenario": "A visitor receives no Inti JavaScript",
+      "given": [
+        "an anonymous visitor opens a published page"
+      ],
+      "when": "the production server serves it",
+      "then": [
+        "the page must not load any module script",
+        "images must still arrive with srcset"
+      ],
+      "verifiedBy": [
+        "scripts/astro-compat.mjs"
+      ]
+    },
+    {
+      "feature": "Compatibility",
+      "scenario": "The documented setup works on Astro 5, 6 and 7",
+      "given": [
+        "a clean project with the full setup from AGENTS.md, installed from the packed packages"
+      ],
+      "when": "it is built, started in development and started in production",
+      "then": [
+        "the build must finish without errors",
+        "astro dev must serve the page and all its modules without errors",
+        "production must satisfy the security and rendering scenarios"
+      ],
+      "verifiedBy": [
+        "scripts/astro-compat.mjs",
+        ".github/workflows/ci.yml"
+      ]
+    },
+    {
+      "feature": "Adaptive Style Engine (UnoCSS + Tailwind Compatibility)",
+      "scenario": "Clean project using the native Inti.js engine",
+      "given": [
+        "the project does not use Tailwind: neither a config file nor a dependency"
+      ],
+      "when": "the intiStyles() integration is registered",
+      "then": [
+        "it must enable UnoCSS with Tailwind-compatible classes"
+      ],
+      "verifiedBy": [
+        "packages/core/tests/inti-styles.test.ts"
+      ]
+    },
+    {
+      "feature": "Adaptive Style Engine (UnoCSS + Tailwind Compatibility)",
+      "scenario": "With Tailwind 3 or 4 in the project, UnoCSS steps aside",
+      "given": [
+        "the project uses Tailwind: a tailwind.config.* (v3) or the tailwindcss / @tailwindcss/vite dependency (v4, no file)"
+      ],
+      "when": "the intiStyles() integration is registered",
+      "then": [
+        "it must detect Tailwind and say why it detected it",
+        "it must not enable UnoCSS, to avoid class collisions",
+        "it must say how to include Inti's components in the class scan, depending on the version"
+      ],
+      "verifiedBy": [
+        "packages/core/tests/inti-styles.test.ts"
+      ]
+    },
+    {
+      "feature": "Real WordPress",
+      "scenario": "Saving a page with images and relations",
+      "verifiedBy": [
+        "packages/adapter-wordpress/tests/acf-write.test.ts",
+        "scripts/wordpress-check.mjs"
+      ]
+    },
+    {
+      "feature": "Drafts",
+      "scenario": "Changing a page without the visitor seeing it",
+      "verifiedBy": [
+        "packages/core/tests/drafts.test.ts",
+        "scripts/wordpress-check.mjs"
+      ]
+    },
+    {
+      "feature": "Undo",
+      "scenario": "Undoing a text edit",
+      "verifiedBy": [
+        "packages/core/tests/edit-history.test.ts"
+      ]
+    },
+    {
+      "feature": "Generation",
+      "scenario": "The model cannot invent data or markup",
+      "verifiedBy": [
+        "packages/genui/tests/genui.test.ts"
+      ]
+    },
+    {
+      "feature": "Generation",
+      "scenario": "A proposal writes nothing until accepted",
+      "verifiedBy": [
+        "scripts/genui-check.mjs"
+      ]
+    },
+    {
+      "feature": "Generation",
+      "scenario": "Composition during the visit",
+      "verifiedBy": [
+        "packages/genui/tests/genui.test.ts",
+        "scripts/genui-check.mjs"
+      ]
+    },
+    {
+      "feature": "Personalization",
+      "scenario": "Choosing a zone's version without AI",
+      "verifiedBy": [
+        "packages/core/tests/adapt.test.ts",
+        "scripts/genui-check.mjs"
+      ]
+    },
+    {
+      "feature": "Personalization",
+      "scenario": "The adapted response does not go to a shared cache",
+      "verifiedBy": [
+        "scripts/genui-check.mjs"
+      ]
+    },
+    {
+      "feature": "Personalization",
+      "scenario": "Observing requires consent",
+      "verifiedBy": [
+        "packages/core/tests/adapt.test.ts",
+        "scripts/genui-check.mjs"
+      ]
+    },
+    {
+      "feature": "Agents",
+      "scenario": "An agent composes over MCP",
+      "verifiedBy": [
+        "packages/mcp/tests/server-e2e.test.ts"
+      ]
+    },
+    {
+      "feature": "Real Kitsuden",
+      "scenario": "Editing and publishing against a real instance",
+      "verifiedBy": [
+        "scripts/kitsuden-check.mjs",
+        "packages/adapter-kitsuden/tests/write-back.test.ts"
+      ]
+    },
+    {
+      "feature": "Generation",
+      "scenario": "A model cannot invent a Kitsuden media item",
+      "verifiedBy": [
+        "packages/adapter-kitsuden/tests/ordering-visibility.test.ts"
+      ]
+    },
+    {
+      "feature": "Keystatic",
+      "scenario": "What is written, Keystatic reads",
+      "verifiedBy": [
+        "packages/adapter-keystatic/tests/adapter.test.ts"
+      ]
+    },
+    {
+      "feature": "Cloudflare",
+      "scenario": "A site works on workerd",
+      "verifiedBy": [
+        "scripts/cloudflare-check.mjs"
+      ]
+    },
+    {
+      "feature": "Cloudflare",
+      "scenario": "One editing room per document",
+      "verifiedBy": [
+        "scripts/cloudflare-check.mjs"
+      ]
+    }
+  ]
+}

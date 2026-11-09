@@ -1,0 +1,30 @@
+---
+/**
+ * Emits the JSON-LD of the page and its blocks.
+ *
+ *   <IntiStructuredData
+ *     page={page}
+ *     url={Astro.url.href}
+ *     siteName="My Site"
+ *     blockSchemas={{ FaqSection: faqFromBlock('items') }}
+ *   />
+ *
+ * If there is nothing to declare, the `<script>` is not emitted: an empty
+ * graph is noise for the crawler.
+ */
+
+import { buildStructuredData, serializeJsonLd } from '../seo/structured-data.js';
+import type { StructuredDataOptions } from '../seo/structured-data.js';
+import type { IntiPage } from '../types/index.js';
+
+interface Props extends StructuredDataOptions {
+    page?: Partial<IntiPage> | null;
+}
+
+const { page, ...options } = Astro.props;
+
+const url = options.url ?? Astro.url?.href;
+const payload = serializeJsonLd(buildStructuredData(page, { ...options, url }));
+---
+
+{payload && <script type="application/ld+json" is:inline set:html={payload} />}

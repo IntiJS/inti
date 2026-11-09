@@ -1,0 +1,47 @@
+---
+title: Drafts and undo
+description: Change a page without the visitor seeing it, and go back
+---
+
+## Undo
+
+After a field is saved, "Undo" appears. Ctrl/Cmd+Z undoes and Ctrl/Cmd+Shift+Z redoes, outside a field being edited. Undo is another write with the previous value: it goes through the same permissions and lands in the same audit log.
+
+The history belongs to the tab and covers text edits. It is lost on reload.
+
+## Drafts
+
+On a published page, the draft bar offers "Edit in draft": it creates a working copy and opens it. What you edit there is not seen until you press "Publish", and "Discard" removes it without touching what is published.
+
+The page must read the draft before the published version. `npm create inti` already does:
+
+```astro
+---
+import { readDraftPage } from '@intijs/core/server';
+
+const page = (await readDraftPage(slug, Astro)) ?? (await readPage(slug));
+---
+```
+
+The draft is shown with `?inti-draft=1` and an editor session. Without a session, the parameter does nothing. The response goes out with `noindex` and `no-store`.
+
+## In each CMS
+
+| CMS | Where the copy lives | On publish or discard |
+|---|---|---|
+| WordPress | A page in `draft` status with slug `inti-draft-of-<id>`, visible in wp-admin | Goes to the trash, recoverable |
+| Local | A `<id>--draft` document in the JSON | Deleted |
+| Kitsuden | A clone in `draft` status with slug `inti-draft-of-<uuid>`, visible in its panel | Copied to the page, which keeps its id, and the clone is deleted |
+| Keystatic | A file in `.inti/drafts/pages/`, outside the collection | Copied to the page and deleted |
+| D1 | A `<id>--draft` document | Deleted |
+| Strapi | Not supported yet | The bar does not appear |
+
+## Permissions
+
+`createDraft`, `publishDraft` and `discardDraft` are write operations with their own name, so a plugin can let everyone edit and only a few publish:
+
+```ts
+beforeWrite: (ctx) => ({
+  allowed: ctx.operation === 'publishDraft' ? ctx.actor?.role === 'admin' : Boolean(ctx.actor)
+})
+```

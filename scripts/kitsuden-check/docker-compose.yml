@@ -1,0 +1,52 @@
+# Throwaway Kitsuden for scripts/kitsuden-check.mjs: its own project, network, volumes
+# and ports. It touches no other installation on the machine and is destroyed at the
+# end. The passwords are test-only: it only listens on 127.0.0.1.
+name: inti-kitsuden-check
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: kitsuden
+      POSTGRES_PASSWORD: inti-check-only
+      POSTGRES_DB: kitsuden
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U kitsuden -d kitsuden']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  state:
+    image: valkey/valkey:7-alpine
+    command: ['valkey-server', '--save', '', '--appendonly', 'no']
+
+  api:
+    image: ${KITSUDEN_API_IMAGE:-kitsuden/api:latest}
+    depends_on:
+      db:
+        condition: service_healthy
+      state:
+        condition: service_started
+    ports:
+      - '127.0.0.1:43490:3000'
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      DATABASE_ADMIN_URL: postgresql://kitsuden:inti-check-only@db:5432/kitsuden
+      DATABASE_URL: postgresql://kitsuden_app:inti-check-only@db:5432/kitsuden
+      APP_DB_USER: kitsuden_app
+      APP_DB_PASSWORD: inti-check-only
+      REDIS_URL: redis://state:6379
+      DEFAULT_STORAGE_PROVIDER: local
+      STORAGE_LOCAL_PATH: /app/data
+      STORAGE_LOCAL_URL: /media
+      BETTER_AUTH_SECRET: inti-check-only-inti-check-only-inti-check-only
+      BETTER_AUTH_URL: http://127.0.0.1:43490
+      ADMIN_URL: http://127.0.0.1:43491
+      APP_URL: http://127.0.0.1:43491
+      SITE_URL: http://127.0.0.1:43492
+      ALLOWED_ORIGINS: http://127.0.0.1:43490,http://127.0.0.1:43491,http://127.0.0.1:43492
+      KITSUDEN_PUBLIC: 'false'
+      RATE_LIMIT_ENABLED: 'false'
+      ENABLE_MCP: 'false'
+      LOG_LEVEL: warn

@@ -1,0 +1,116 @@
+---
+title: Installation
+description: Requirements, packages and environment variables for your CMS
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+This page is the reference for what to install and configure for each CMS. The full step-by-step walkthrough is in [First Project](/guides/quickstart/).
+
+## Requirements
+
+- **Astro 5, 6 or 7.** All three are checked on every change, by building a clean project and starting it in development. Node 22 LTS works with all three.
+- **An Astro adapter with a server** (`node`, `vercel`, `netlify`, `cloudflare`) if you are going to edit. Without it actions do not exist and nothing is saved.
+
+## Packages
+
+<Tabs>
+  <TabItem label="WordPress">
+    ```bash
+    npm install @intijs/core @intijs/adapter-wordpress
+    npx astro add node
+    ```
+  </TabItem>
+  <TabItem label="Kitsuden">
+    ```bash
+    npm install @intijs/core @intijs/adapter-kitsuden
+    npx astro add node
+    ```
+  </TabItem>
+  <TabItem label="Strapi">
+    ```bash
+    npm install @intijs/core @intijs/adapter-strapi
+    npx astro add node
+    ```
+  </TabItem>
+  <TabItem label="No CMS">
+    ```bash
+    npm install @intijs/core
+    npx astro add node
+    ```
+    With no CMS configured, Inti writes to `.inti/content.json`. It is for trying out editing, not for production.
+  </TabItem>
+</Tabs>
+
+## Environment variables
+
+They all stay on the server: **never** with a `PUBLIC_` prefix.
+
+<Tabs>
+  <TabItem label="WordPress">
+    ```bash
+    INTI_ADAPTER=wordpress
+    INTI_WP_ENDPOINT=https://cms.yoursite.com
+    INTI_WP_USER=editor
+    INTI_WP_APP_PASSWORD=xxxx xxxx xxxx xxxx xxxx xxxx
+    INTI_WP_BLOCKS_FIELD=content_blocks   # ACF Flexible Content field
+    INTI_WP_POST_TYPE=pages               # optional
+    ```
+  </TabItem>
+  <TabItem label="Kitsuden">
+    ```bash
+    INTI_ADAPTER=kitsuden
+    INTI_KITSUDEN_ENDPOINT=https://cms.yoursite.com
+    INTI_KITSUDEN_TOKEN=kitsuden_agent_xxxxxxxx
+    # INTI_KITSUDEN_MOUNT_PATH=/api/page-builder
+    # INTI_KITSUDEN_STATUS=published
+    # INTI_KITSUDEN_MEDIA_PRESET=large
+    ```
+  </TabItem>
+  <TabItem label="Strapi">
+    ```bash
+    INTI_ADAPTER=strapi
+    INTI_STRAPI_ENDPOINT=https://strapi.yoursite.com
+    INTI_STRAPI_TOKEN=
+    INTI_STRAPI_CONTENT_TYPE=pages        # optional
+    INTI_STRAPI_BLOCKS_FIELD=blocks       # optional
+    ```
+  </TabItem>
+  <TabItem label="No CMS">
+    ```bash
+    # Nothing required. Optional:
+    INTI_LOCAL_STORE=.inti/content.json
+    ```
+  </TabItem>
+</Tabs>
+
+Credentials are only used to **write**. Reading published pages does not need them.
+
+## Types from the CMS (optional)
+
+`inti sync` reads the CMS schema and generates `inti.types.ts` with one interface per block type, so your components know which fields they receive. See [inti sync](/cli/sync/).
+
+## Check that it works
+
+Start with `npm run dev` and open a page. `[VisualBridge] Ready` should appear in the browser console, and hovering over an editable text shows a dotted outline. Double-click, edit, Enter: the change is saved to the CMS.
+
+## If something does not work
+
+**Every block shows up as a box that says "Missing Component".**
+`registerBlocks(...)` is missing or the file name does not match the type. The box itself says which file to create. See [Component Registry](/registry/components/).
+
+**The page shows but nothing is saved.**
+The Astro adapter is missing. On startup, Inti warns: *"No Astro adapter configured"*.
+
+**The editor does not appear.**
+The editor is only enabled in development. Check that `<VisualBridgeAuto />` is on the page and that `INTI_ADAPTER` points to an installed adapter.
+
+**`Adapter "x" not found`.**
+Install the adapter package: `npm install @intijs/adapter-x`.
+
+**`401` when saving to WordPress with Apache.**
+Apache may drop the `Authorization` header. Add to your `.htaccess`:
+
+```apache
+SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+```

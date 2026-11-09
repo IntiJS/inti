@@ -1,0 +1,172 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20, 22]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build core
+        run: npm run build:core
+
+      - name: Build genui
+        run: npm run build:genui
+
+      - name: Build Cloudflare
+        run: npm run build:cloudflare
+
+      - name: Build CLI
+        run: npm run build:cli
+
+      - name: Build adapters
+        run: npm run build:adapters
+
+      - name: Build MCP server
+        run: npm run build:mcp
+
+      # The apps broke without anyone noticing because they were not
+      # here: the docs site is the public documentation and the demo is
+      # the onboarding, so both are part of the product.
+      - name: Build docs site
+        run: npm run build:docs
+
+      - name: Build demo site
+        run: npm run build -w @intijs/demo-site
+
+      - name: Run tests
+        run: bun test packages/
+
+  # Core's `peerDependencies` promises Astro 5, 6 and 7. That promise
+  # was verified only once by hand, so it could break without anyone
+  # noticing. Here the packages are packed with `npm pack` and installed
+  # in a clean project for each major, building the full setup that
+  # AGENTS.md documents.
+  astro-compat:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        astro-major: [5, 6, 7]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # A single Node: the matrix that matters here is Astro's, and 22
+      # satisfies all three majors.
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # `npm pack` packs whatever is in dist/, so it has to be built
+      # first or the test project would install an empty package.
+      - name: Build packages
+        run: npm run build
+
+      - name: Build a clean project against Astro ${{ matrix.astro-major }}
+        run: node scripts/astro-compat.mjs ${{ matrix.astro-major }}
+
+  # `npm create inti` is the first thing a new user runs, and the
+  # previous one did not work in any case without anything detecting it. This
+  # runs it from its packed package for each CMS, builds the project
+  # and, with the local store, edits a page in development and checks
+  # production.
+  create-inti:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build packages
+        run: npm run build
+
+      - name: Generate, build, edit and serve projects
+        run: node scripts/create-inti-check.mjs
+
+  # Generation and personalization in a real project, for each Astro major
+  genui:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        astro-major: [5, 6, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Check on Astro ${{ matrix.astro-major }}
+        run: node scripts/genui-check.mjs ${{ matrix.astro-major }}
+
+  # The adapter's tests mock fetch: this checks what WordPress really does
+  wordpress:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Check against a real WordPress
+        run: node scripts/wordpress-check.mjs
+
+  # In workerd, Cloudflare's runtime, with local D1, R2 and Durable Objects
+  cloudflare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Check in workerd
+        run: node scripts/cloudflare-check.mjs

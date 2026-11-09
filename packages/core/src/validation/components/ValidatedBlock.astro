@@ -1,0 +1,483 @@
+---
+/**
+ * ValidatedBlock - Block with built-in business validation
+ * Renders a form of validated fields based on CMS configuration
+ */
+
+import type { 
+    VisualValidationConfig, 
+    ValidationSummary,
+    ValidationSchema 
+} from '../types.js';
+import ValidatedInput from './ValidatedInput.astro';
+
+interface Props {
+    /** Visual validation configuration */
+    config: VisualValidationConfig;
+    /** Current values */
+    values?: Record<string, any>;
+    /** Validation state (optional, for SSR) */
+    validationState?: ValidationSummary;
+    /** Full schema (alternative to config) */
+    schema?: ValidationSchema;
+    /** Unique block ID */
+    blockId?: string;
+    /** Mode: 'form' | 'display' | 'inline' */
+    mode?: 'form' | 'display' | 'inline';
+    /** Form action */
+    action?: string;
+    /** Form method */
+    method?: 'POST' | 'GET';
+    /** Submit callback */
+    onSubmit?: string;
+}
+
+const { 
+    config, 
+    values = {}, 
+    validationState,
+    schema,
+    blockId = `validated-block-${Math.random().toString(36).substr(2, 9)}`,
+    mode = 'form',
+    action,
+    method = 'POST',
+    onSubmit
+} = Astro.props;
+
+// Use schema if provided, otherwise use config directly
+const visualConfig: VisualValidationConfig = schema ? {
+    fields: Object.fromEntries(
+        schema.fields.map(f => [f.name, f.rules])
+    ),
+    visualInputs: Object.fromEntries(
+        schema.fields.map(f => [f.name, f.visual])
+    ),
+    visualOutputs: schema.output,
+    blockRules: schema.crossFieldRules,
+    showSummary: true,
+    showProgress: true
+} : config;
+
+// Layout
+const layout = visualConfig.layout || { columns: 1, gap: 'medium', direction: 'vertical' };
+const gapClass = {
+    small: 'gap-2',
+    medium: 'gap-4',
+    large: 'gap-6'
+}[layout.gap || 'medium'];
+
+const columnsClass = layout.columns && layout.columns > 1 
+    ? `grid grid-cols-1 md:grid-cols-${layout.columns}` 
+    : 'flex flex-col';
+
+// Validation state to display
+const displayState = validationState || {
+    valid: true,
+    results: [],
+    errors: [],
+    warnings: [],
+    infos: [],
+    timestamp: Date.now()
+};
+
+const progress = {
+    total: Object.keys(visualConfig.visualInputs).length,
+    valid: displayState.results.filter(r => r.valid).length,
+    percentage: Math.round(
+        (displayState.results.filter(r => r.valid).length / 
+         Object.keys(visualConfig.visualInputs).length) * 100
+    ) || 0
+};
+---
+
+{mode === 'form' && (
+    <form 
+        id={blockId}
+        class="inti-validated-block"
+        data-block-type="validated-form"
+        data-validation-config={JSON.stringify(visualConfig)}
+        action={action}
+        method={method}
+        onsubmit={onSubmit}
+    >
+        {/* Header with title and progress */}
+        {visualConfig.showProgress && (
+            <div class="inti-validation-header">
+                <div class="inti-validation-progress">
+                    <div class="inti-progress-bar">
+                        <div 
+                            class="inti-progress-fill"
+                            style={`width: ${progress.percentage}%`}
+                            data-progress={progress.percentage}
+                        />
+                    </div>
+                    <span class="inti-progress-text">
+                        {progress.percentage}% complete
+                    </span>
+                </div>
+            </div>
+        )}
+        
+        {/* Form fields */}
+        <div class={`inti-fields-container ${columnsClass} ${gapClass}`}>
+            {Object.entries(visualConfig.visualInputs).map(([fieldName, inputConfig]) => {
+                const fieldRules = visualConfig.fields[fieldName] || [];
+                const fieldResults = displayState.results.filter(r => r.field === fieldName);
+                
+                return (
+                    <ValidatedInput
+                        name={fieldName}
+                        value={values[fieldName]}
+                        config={inputConfig}
+                        outputConfig={visualConfig.visualOutputs}
+                        rules={fieldRules}
+                        results={fieldResults}
+                    />
+                );
+            })}
+        </div>
+        
+        {/* Validation summary */}
+        {visualConfig.showSummary && displayState.results.length > 0 && (
+            <div class="inti-validation-summary" role="status">
+                {!displayState.valid && displayState.errors.length > 0 && (
+                    <div class="inti-summary-errors">
+                        <strong>❌ There are {displayState.errors.length} error(s):</strong>
+                        <ul>
+                            {displayState.errors.map(error => (
+                                <li>{error.message}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+                
+                {displayState.valid && displayState.warnings.length > 0 && (
+                    <div class="inti-summary-warnings">
+                        <strong>⚠️ Warnings:</strong>
+                        <ul>
+                            {displayState.warnings.map(warning => (
+                                <li>{warning.message}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+                
+                {displayState.valid && displayState.errors.length === 0 && (
+                    <div class="inti-summary-success">
+                        ✅ All fields are valid
+                    </div>
+                )}
+            </div>
+        )}
+        
+        {/* Form actions */}
+        <div class="inti-form-actions">
+            <button 
+                type="submit" 
+                class="inti-submit-btn"
+                disabled={!displayState.valid && visualConfig.fields && Object.keys(visualConfig.fields).length > 0}
+            >
+                Save
+            </button>
+            <button type="reset" class="inti-reset-btn">
+                Clear
+            </button>
+        </div>
+    </form>
+)}
+
+{mode === 'display' && (
+    <div 
+        id={blockId}
+        class="inti-validated-display"
+        data-block-type="validated-display"
+    >
+        <dl class="inti-display-list">
+            {Object.entries(visualConfig.visualInputs).map(([fieldName, inputConfig]) => (
+                <div class="inti-display-item">
+                    <dt class="inti-display-label">{inputConfig.label}</dt>
+                    <dd class="inti-display-value">
+                        {values[fieldName] !== undefined 
+                            ? String(values[fieldName])
+                            : '-'
+                        }
+                    </dd>
+                </div>
+            ))}
+        </dl>
+    </div>
+)}
+
+{mode === 'inline' && (
+    <div 
+        id={blockId}
+        class="inti-validated-inline"
+        data-block-type="validated-inline"
+    >
+        {Object.entries(visualConfig.visualInputs).map(([fieldName, inputConfig]) => (
+            <span class="inti-inline-field">
+                <strong>{inputConfig.label}:</strong>
+                <span>{values[fieldName] !== undefined ? String(values[fieldName]) : '-'}</span>
+            </span>
+        ))}
+    </div>
+)}
+
+<style>
+    .inti-validated-block {
+        padding: 1.5rem;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+    }
+    
+    /* Header and progress */
+    .inti-validation-header {
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .inti-validation-progress {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    
+    .inti-progress-bar {
+        flex: 1;
+        height: 0.5rem;
+        background: #e5e7eb;
+        border-radius: 9999px;
+        overflow: hidden;
+    }
+    
+    .inti-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+        border-radius: 9999px;
+        transition: width 0.3s ease;
+    }
+    
+    .inti-progress-fill[data-progress="100"] {
+        background: linear-gradient(90deg, #10b981, #059669);
+    }
+    
+    .inti-progress-text {
+        font-size: 0.75rem;
+        color: #6b7280;
+        white-space: nowrap;
+    }
+    
+    /* Fields container */
+    .inti-fields-container {
+        margin-bottom: 1.5rem;
+    }
+    
+    /* Validation summary */
+    .inti-validation-summary {
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        border-radius: 0.375rem;
+    }
+    
+    .inti-summary-errors {
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #991b1b;
+        padding: 0.75rem;
+        border-radius: 0.375rem;
+    }
+    
+    .inti-summary-errors ul {
+        margin: 0.5rem 0 0 0;
+        padding-left: 1.25rem;
+    }
+    
+    .inti-summary-warnings {
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        color: #92400e;
+        padding: 0.75rem;
+        border-radius: 0.375rem;
+    }
+    
+    .inti-summary-success {
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        color: #166534;
+        padding: 0.75rem;
+        border-radius: 0.375rem;
+    }
+    
+    /* Actions */
+    .inti-form-actions {
+        display: flex;
+        gap: 0.75rem;
+        justify-content: flex-end;
+    }
+    
+    .inti-submit-btn {
+        padding: 0.5rem 1rem;
+        background: #3b82f6;
+        color: white;
+        border: none;
+        border-radius: 0.375rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    
+    .inti-submit-btn:hover:not(:disabled) {
+        background: #2563eb;
+    }
+    
+    .inti-submit-btn:disabled {
+        background: #9ca3af;
+        cursor: not-allowed;
+    }
+    
+    .inti-reset-btn {
+        padding: 0.5rem 1rem;
+        background: #f3f4f6;
+        color: #374151;
+        border: 1px solid #d1d5db;
+        border-radius: 0.375rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    
+    .inti-reset-btn:hover {
+        background: #e5e7eb;
+    }
+    
+    /* Display mode */
+    .inti-validated-display {
+        padding: 1rem;
+    }
+    
+    .inti-display-list {
+        display: grid;
+        gap: 0.75rem;
+    }
+    
+    .inti-display-item {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .inti-display-label {
+        font-weight: 500;
+        color: #6b7280;
+        min-width: 120px;
+    }
+    
+    .inti-display-value {
+        color: #111827;
+    }
+    
+    /* Inline mode */
+    .inti-validated-inline {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    
+    .inti-inline-field {
+        display: inline-flex;
+        gap: 0.25rem;
+    }
+</style>
+
+<script>
+    // Client-side validation handler
+    import { getValidationEngine } from '../engine.js';
+    
+    document.addEventListener('DOMContentLoaded', () => {
+        const blocks = document.querySelectorAll('[data-block-type="validated-form"]');
+        const engine = getValidationEngine();
+        
+        blocks.forEach(block => {
+            const configAttr = block.getAttribute('data-validation-config');
+            if (!configAttr) return;
+            
+            const config = JSON.parse(configAttr);
+            const inputs = block.querySelectorAll('[data-validate="true"]');
+            
+            // Collect the current values
+            const getValues = () => {
+                const values: Record<string, any> = {};
+                inputs.forEach(input => {
+                    const name = input.getAttribute('name');
+                    if (name) {
+                        if (input instanceof HTMLInputElement) {
+                            if (input.type === 'checkbox') {
+                                values[name] = input.checked;
+                            } else if (input.type === 'number') {
+                                values[name] = input.valueAsNumber;
+                            } else {
+                                values[name] = input.value;
+                            }
+                        } else if (input instanceof HTMLTextAreaElement || input instanceof HTMLSelectElement) {
+                            values[name] = input.value;
+                        }
+                    }
+                });
+                return values;
+            };
+            
+            // Validate in real time
+            const validate = async () => {
+                const values = getValues();
+                const summary = await engine.validateBlock(config, values);
+                
+                // Update the UI
+                summary.results.forEach(result => {
+                    if (result.field) {
+                        const fieldEl = block.querySelector(`[data-field-name="${result.field}"]`);
+                        if (fieldEl) {
+                            const input = fieldEl.querySelector('[data-validate="true"]');
+                            if (input) {
+                                input.classList.remove('inti-input-error', 'inti-input-warning', 'inti-input-success');
+                                if (!result.valid) {
+                                    input.classList.add(result.severity === 'error' ? 'inti-input-error' : 'inti-input-warning');
+                                } else {
+                                    input.classList.add('inti-input-success');
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                // Update progress
+                const progressFill = block.querySelector('.inti-progress-fill');
+                const progressText = block.querySelector('.inti-progress-text');
+                if (progressFill && progressText) {
+                    const total = Object.keys(config.visualInputs || {}).length;
+                    const valid = summary.results.filter(r => r.valid).length;
+                    const percentage = Math.round((valid / total) * 100) || 0;
+                    progressFill.style.width = `${percentage}%`;
+                    progressFill.setAttribute('data-progress', String(percentage));
+                    progressText.textContent = `${percentage}% complete`;
+                }
+                
+                // Update the submit state
+                const submitBtn = block.querySelector('.inti-submit-btn') as HTMLButtonElement;
+                if (submitBtn) {
+                    submitBtn.disabled = !summary.valid;
+                }
+            };
+            
+            // Event listeners
+            inputs.forEach(input => {
+                input.addEventListener('input', validate);
+                input.addEventListener('blur', validate);
+                input.addEventListener('change', validate);
+            });
+            
+            // Initial validation
+            validate();
+        });
+    });
+</script>

@@ -1,0 +1,34 @@
+# Inti.js
+
+> AI for any CMS, without changing the CMS. For sites built with Astro: content stays in your CMS, Inti renders it as Astro components, lets editors change it by double-clicking on the page, and adds AI components that save to the CMS as ordinary blocks. Not a plugin installed inside the CMS. In beta.
+
+Inti is a layer over an existing CMS and never replaces it: no admin UI, no user management, no database of its own. Any adapter implementing `WritableAdapter` gets inline editing. WordPress, Kitsuden, Strapi and Keystatic read and write; Contentful and Sanity only read.
+
+Setup requires four things, and skipping any of them breaks it silently:
+1. `npm install @intijs/core @intijs/adapter-wordpress`
+2. An Astro adapter (`npx astro add node`): without it `astro:actions` doesn't exist and nothing saves
+3. `export const server = { inti: intiActions }` in `src/actions/index.ts`
+4. `registerBlocks(import.meta.glob('/src/blocks/*.astro'))`: without it every block renders a placeholder
+
+`npm create inti@latest` generates all of it. Block type names come from the CMS: WordPress `acf_fc_layout: "hero_banner"` becomes type `HeroBanner`, rendered by `src/blocks/HeroBanner.astro`.
+
+## Docs
+
+- [AGENTS.md](https://github.com/intijs/inti/blob/main/AGENTS.md): Canonical setup, import paths, types, and the three mistakes that break a project. Read this first
+- [README](https://github.com/intijs/inti/blob/main/README.md): Overview, positioning, quick start, architecture
+- [Quickstart](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/quickstart.mdx): Step by step from a WordPress install
+- [WordPress adapter](https://github.com/intijs/inti/blob/main/packages/adapter-wordpress/README.md): ACF Flexible Content, Gutenberg mode, companion plugin
+- [Kitsuden adapter](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/adapters/kitsuden.mdx): Page Builder API, drafts, contracts
+- [Keystatic adapter](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/adapters/keystatic.mdx): Its files, locally or through GitHub
+- [Drafts and undo](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/drafts.mdx): Change a page without visitors seeing it
+- [Personalization](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/personalization.mdx): Versions of a zone per visitor, with or without AI
+- [Generative UI](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/generative-ui.mdx): A model composes from your declared blocks
+- [Cloudflare](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/cloudflare.mdx): Optional D1, Durable Objects, R2, Workers AI and Images
+- [MCP server](https://github.com/intijs/inti/blob/main/packages/mcp/README.md): Tools that let an AI agent read and edit CMS content
+- [Securing writes](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/securing-writes.md): Who can edit in production
+- [Contributing](https://github.com/intijs/inti/blob/main/CONTRIBUTING.md): Development setup, code style, CLA
+- [Security](https://github.com/intijs/inti/blob/main/SECURITY.md): How to report a vulnerability
+- [Changelog](https://github.com/intijs/inti/blob/main/CHANGELOG.md): Release history
+
+## Optional
+

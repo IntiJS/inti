@@ -1,0 +1,108 @@
+---
+title: Personalization
+description: Which version of each area each visitor sees, with or without AI
+---
+
+Each visitor can see a different version of an area of the page. It is decided on the server, without JavaScript, and **no model is needed**: AI is just one more optional decider. If a decider fails, is slow or has no opinion, the default content is shown.
+
+It only chooses among blocks that already exist in the CMS, the same ones an editor can open and correct.
+
+## Declaring versions
+
+Two text fields on the block, which any CMS can store:
+
+| Field | Example | Meaning |
+|---|---|---|
+| `inti_slot` | `hero` | Blocks with the same slot are versions of the same area |
+| `inti_audience` | `device:mobile;pref.diet:vegan` | Who it is aimed at. Between keys it is AND; `device:mobile,tablet` is OR |
+
+The version without an audience is the one shown by default. A block with an audience and no slot either appears or does not.
+
+| Condition | Example |
+|---|---|
+| `device` | `device:mobile` |
+| `country`, `language` | `country:ES,MX` (needs the platform's country header) |
+| `hour` | `hour:22-6` |
+| `campaign` | `campaign:black` (from `utm_campaign`) |
+| `referrer` | `referrer:google` |
+| `returning` | `returning:true` (with consent) |
+| `pref.<key>` | `pref.diet:vegan` |
+| `seen.<category>` | `seen.boots:3` (minimum visits, with consent) |
+
+## On the page
+
+```astro
+---
+import BlockRenderer from '@intijs/core/astro/BlockRenderer.astro';
+import WhyThis from '@intijs/core/astro/WhyThis.astro';
+import { adaptPage } from '@intijs/core/server';
+
+const { blocks, decisions } = await adaptPage(page.blocks, Astro, { holdout: 0.1, track: 'boots' });
+---
+<BlockRenderer blocks={blocks} page={page} />
+<WhyThis decisions={decisions} settingsUrl="/preferences" />
+```
+
+It goes in the page's frontmatter, not in a component: Astro starts sending the response as soon as there is something to write, and a child component's headers are lost. Without `Cache-Control: private`, a shared cache would serve one visitor another visitor's version.
+
+## Preferences
+
+```astro
+---
+import PreferencesForm from '@intijs/core/astro/PreferencesForm.astro';
+---
+<PreferencesForm consent options={{ diet: { label: 'Diet', values: ['vegan', 'omnivore'] } }} />
+```
+
+It is plain HTML. What the visitor chooses always counts, because they asked for it.
+
+## Privacy
+
+Observing requires consent: without the box checked there is no identifier, no `seen.*` and no `returning`. Withdrawing it deletes what was stored. Laws vary by country, so review this with whoever advises you before using `seen.*`.
+
+## Search engines and stability
+
+- A search engine always receives the default content, and a standalone block with an audience does not appear to it.
+- Within a session the chosen version does not change: the interface does not rearrange itself while in use.
+
+## For the editor
+
+The editor sees every version, with its audience in view, and corrects them with a double-click. "View as" shows the page of a specific visitor: type `device:mobile;pref.diet:vegan` or use `?inti-as=` in the URL. It only works with an editor session.
+
+## Measuring
+
+Without a control group you cannot tell whether personalizing helps. `holdout: 0.1` leaves 10% of measured visitors with the default content, always the same group for each visitor.
+
+```ts
+import { computeLift } from '@intijs/core/adapt';
+
+registerIntiPlugin({ name: 'measure', getExperimentStore: () => store });
+
+await store.recordConversion({ visitorId });
+const { lift, enoughData } = computeLift(await store.stats('hero'));
+```
+
+`createMemoryExperimentStore()` is for trying things out; it is lost on restart. In production implement `ExperimentStore` on top of your database. Only visitors who gave consent are measured.
+
+## Deciders
+
+They are tried in order until one chooses:
+
+| Decider | Needs |
+|---|---|
+| `audienceDecider` (default) | Nothing |
+| `bestVariantDecider(store)` | Traffic: with little data it has no opinion |
+| `createAiDecider({ provider })` from `@intijs/genui/decider` | A model |
+
+```ts
+registerIntiPlugin({
+  name: 'deciders',
+  getDeciders: () => [bestVariantDecider(store), createAiDecider({ provider })]
+});
+```
+
+A decider can only choose an existing candidate, and it is abandoned after 500 ms (`timeoutMs`).
+
+## Cost
+
+Each adapted page is rendered per visitor and does not go through a shared cache. Pages without `inti_slot` or `inti_audience` pay nothing. To cache the rest of the page, move the personalized area into a [Server Island](https://docs.astro.build/en/guides/server-islands/).

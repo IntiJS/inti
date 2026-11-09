@@ -1,0 +1,79 @@
+---
+title: Inti.js
+description: AI for any CMS, without changing the CMS. For Astro sites, with on-page editing that saves to your CMS.
+template: splash
+hero:
+  tagline: AI for any CMS, without changing the CMS
+  image:
+    file: ../../assets/inti-hero.svg
+  actions:
+    - text: Get Started
+      link: /guides/quickstart/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/intijs/inti
+      icon: external
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## What is Inti.js?
+
+:::caution[For Astro sites]
+Inti is not a plugin you install inside WordPress or any other CMS, and it does not change its admin panel. It renders your site with Astro and saves edits to the CMS you already have. If your site is still drawn by a WordPress theme, the first step is moving the frontend to Astro, and Inti is the way to do it without migrating the content.
+:::
+
+:::note[Beta]
+Inti is at 0.1: it works and you can try it, and its API may still change before 1.0.
+:::
+
+A layer **on top of** the CMS you already have. The content keeps living in WordPress; Inti renders it as Astro components and lets the editor change it by double-clicking on the page itself. The change is written back to the CMS through its API.
+
+Inti is not a CMS and does not try to be one: it has no admin panel, no users and no database of its own.
+
+<CardGrid stagger>
+  <Card title="Editing on the real page" icon="pencil">
+    Double-click a text, edit, Enter. The editor sees the final design while typing, not a form.
+  </Card>
+  <Card title="Your CMS is still your CMS" icon="puzzle">
+    WordPress (ACF Flexible Content or Gutenberg), Kitsuden, Strapi and Keystatic with read and write. Contentful and Sanity read-only.
+  </Card>
+  <Card title="Block composition" icon="list-format">
+    The developer declares the block types in code; the editor composes with them. No free-form CSS: the page cannot break or bloat.
+  </Card>
+  <Card title="SEO resolved on the server" icon="magnifier">
+    Metadata normalized from Yoast, RankMath, AIOSEO or SEOPress, JSON-LD derived from typed blocks, sitemap and `llms.txt`.
+  </Card>
+  <Card title="Secure by default" icon="approve-check">
+    In production, writes are rejected while no plugin checks who makes them.
+  </Card>
+  <Card title="For AI agents" icon="rocket">
+    An MCP server exposes the same operations as the visual editor, and a vocabulary limits what an agent can insert.
+  </Card>
+  <Card title="Drafts and undo" icon="document">
+    Work on a copy the visitor does not see, and go back with Ctrl+Z. [See guide](/guides/drafts/).
+  </Card>
+  <Card title="Personalization, with or without AI" icon="random">
+    Versions of an area per visitor, decided on the server and without JavaScript. [See guide](/guides/personalization/).
+  </Card>
+  <Card title="Generative UI" icon="star">
+    A model composes with your blocks: no generated HTML or CSS, and your server supplies the data. [See guide](/guides/generative-ui/).
+  </Card>
+</CardGrid>
+
+## How it works
+
+1. An **adapter** reads the page from the CMS and turns it into a list of typed blocks.
+2. `BlockRenderer` draws each block with the Astro component you wrote for that type.
+3. In edit mode, the editor double-clicks, changes the text and saves.
+4. An Astro **action** receives the change on the server and the adapter writes it to the CMS. Credentials never leave the server.
+
+## Installation
+
+```bash
+npm install @intijs/core @intijs/adapter-wordpress
+npx astro add node
+```
+
+The rest —registering the integration, exposing the action and creating the block components— is in the [First Project](/guides/quickstart/). No step is optional.

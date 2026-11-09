@@ -1,0 +1,55 @@
+# Real WordPress for scripts/wordpress-check.mjs. Its own port and project:
+# it must not clash with anything else running on the machine, and is destroyed at the end.
+name: inti-wp-check
+
+services:
+  db:
+    image: mariadb:11
+    environment:
+      MARIADB_DATABASE: wordpress
+      MARIADB_USER: wordpress
+      MARIADB_PASSWORD: wordpress
+      MARIADB_RANDOM_ROOT_PASSWORD: '1'
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 3s
+      timeout: 5s
+      retries: 40
+
+  wordpress:
+    image: wordpress:6-php8.3-apache
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:43480:80'
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+      # Application Passwords require HTTPS except in a local environment
+      WORDPRESS_CONFIG_EXTRA: "define('WP_ENVIRONMENT_TYPE', 'local');"
+    volumes:
+      - wordpress:/var/www/html
+      - ./inti-check-fields.php:/var/www/html/wp-content/mu-plugins/inti-check-fields.php:ro
+      - ../../packages/adapter-wordpress/wordpress-plugin/inti-bridge.php:/var/www/html/wp-content/mu-plugins/inti-bridge.php:ro
+
+  cli:
+    image: wordpress:cli-php8.3
+    profiles: ['tools']
+    user: '33:33'
+    depends_on:
+      - wordpress
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - wordpress:/var/www/html
+      - ./inti-check-fields.php:/var/www/html/wp-content/mu-plugins/inti-check-fields.php:ro
+      - ../../packages/adapter-wordpress/wordpress-plugin/inti-bridge.php:/var/www/html/wp-content/mu-plugins/inti-bridge.php:ro
+
+volumes:
+  wordpress:

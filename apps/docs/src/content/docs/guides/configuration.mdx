@@ -1,0 +1,99 @@
+---
+title: Configuration
+description: Block palette, variants, patterns and inti.config.ts
+---
+
+With the [First Project](/guides/quickstart/) the editor can already change text. This page explains how to turn it into a page builder: which blocks it can add, which values they start with and which options each one has.
+
+## The block palette
+
+Pass `VisualBridgeAuto` the block types the editor can add:
+
+```astro
+<VisualBridgeAuto
+  blockTypes={[
+    {
+      nativeType: 'hero_banner',
+      label: 'Cover',
+      defaults: { heading: 'New headline', variant: 'dark' },
+      variants: { variant: ['dark', 'light'] }
+    },
+    { nativeType: 'two_col_text', label: 'Two columns' }
+  ]}
+/>
+```
+
+| Field | Purpose |
+|---|---|
+| `nativeType` | The **CMS** identifier, not Inti's: `acf_fc_layout` in WordPress (`hero_banner`), the component uid in Strapi, the palette `type` in Kitsuden. |
+| `label` | The name the editor sees in the palette. |
+| `defaults` | The data the block is created with when it is added. |
+| `variants` | Closed options per field. The settings panel shows them as a dropdown. |
+
+Besides the ones you declare, the palette includes the types already on the page. Gutenberg blocks are not offered: they have no template to be created from.
+
+## Variants instead of styles
+
+Variants are the way to give design options without giving free-form CSS. The component decides what each one means:
+
+```astro
+---
+// src/blocks/HeroBanner.astro
+const { heading, variant = 'dark' } = Astro.props;
+---
+<section class:list={['hero', `hero--${variant}`]}>
+  <h1 data-inti-field="heading">{heading}</h1>
+</section>
+```
+
+The editor chooses between `dark` and `light`; they never type a color. The page cannot break or bloat with stray styles.
+
+## Patterns
+
+A pattern is a group of blocks saved for reuse. The ☆ button in any block's toolbar saves **all the blocks on the page** as a named pattern; from the palette's *Patterns* tab it is inserted into any other page. It lets you build a campaign page once and replicate it.
+
+On insert, the pattern goes in **whole or not at all**: if any block fails or a permission denies it, none is written.
+
+By default patterns are stored in each editor's browser. For the whole team to share the same ones, register a server-side store from `@intijs/core/team`:
+
+```ts
+// src/middleware.ts
+import { registerIntiPlugin } from '@intijs/core/plugins';
+import { createFilePatternStore, restrictPatternWrites } from '@intijs/core/team';
+
+// Anyone can use the shared patterns; only these roles can change them
+const patterns = restrictPatternWrites(createFilePatternStore('./data/patterns.json'), ['admin', 'lead']);
+registerIntiPlugin({ name: 'patterns', getPatternStore: () => patterns });
+
+export const onRequest = (_ctx, next) => next();
+```
+
+`createCustomPatternStore` takes your own `list` / `save` / `remove`, to keep them in the CMS or a database instead of a file. The roles come from the actor your `resolveActor` returns.
+
+## `inti.config.ts`
+
+It is **optional**. Editing is configured with environment variables (see [Installation](/guides/installation/)); this file is only needed for two things:
+
+```ts
+// inti.config.ts
+import { defineConfig } from '@intijs/core';
+
+export default defineConfig({
+  adapter: 'wordpress',
+  adapterConfig: {
+    endpoint: process.env.INTI_WP_ENDPOINT,
+    // The visual editor's "edit in the CMS" link
+    adminUrl: 'https://cms.yoursite.com/wp-admin',
+  },
+  // Where `inti sync` writes the generated files
+  outputDir: './src/inti',
+});
+```
+
+| Field | Used by |
+|---|---|
+| `adapter` | `inti sync` and the visual editor, to know which CMS it is. |
+| `adapterConfig` | `inti sync`, to connect and read the schema; the editor, for the admin link. |
+| `outputDir` | `inti sync`. |
+
+Without this file, the editor infers the CMS from `INTI_ADAPTER`.

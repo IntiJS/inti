@@ -1,0 +1,275 @@
+---
+// apps/demo-site/src/components/landing/AdaptersSection.astro
+---
+
+<section id="adapters" class="py-20 sm:py-28 relative bg-[#07090E]/80 border-t border-white/10">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="text-center max-w-3xl mx-auto mb-16">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 text-sky-400 border border-blue-500/20 text-xs font-semibold mb-4">
+        <span>Universal Contract Architecture</span>
+      </div>
+      <h2 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight mb-4">
+        Production-ready adapters.<br />
+        <span class="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-indigo-400 to-purple-400">
+          Any CMS, the same clean contract.
+        </span>
+      </h2>
+      <p class="text-slate-300 text-base sm:text-lg">
+        Inti normalizes your content through the <code class="text-amber-300 font-mono text-sm bg-white/5 px-2 py-0.5 rounded">WritableAdapter</code> interface. Switching CMSs or connecting a new one takes just a few lines of code.
+      </p>
+    </div>
+
+    <!-- Tabs Container -->
+    <div class="rounded-2xl border border-white/10 bg-[#0C101D] shadow-2xl overflow-hidden">
+      <!-- Tabs Navigation -->
+      <div class="flex overflow-x-auto border-b border-white/10 bg-[#090C16] p-2 gap-2 text-xs sm:text-sm font-semibold">
+        <button
+          type="button"
+          class="adapter-tab px-4 py-2.5 rounded-xl bg-white/10 text-white flex items-center gap-2 transition-all whitespace-nowrap"
+          data-adapter="wp"
+        >
+          <span class="w-2.5 h-2.5 rounded-full bg-blue-400"></span>
+          WordPress (ACF + Gutenberg)
+        </button>
+        <button
+          type="button"
+          class="adapter-tab px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 flex items-center gap-2 transition-all whitespace-nowrap"
+          data-adapter="kitsuden"
+        >
+          <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+          Kitsuden (AI-Native)
+        </button>
+        <button
+          type="button"
+          class="adapter-tab px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 flex items-center gap-2 transition-all whitespace-nowrap"
+          data-adapter="strapi"
+        >
+          <span class="w-2.5 h-2.5 rounded-full bg-indigo-400"></span>
+          Strapi (Dynamic Zones)
+        </button>
+        <button
+          type="button"
+          class="adapter-tab px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 flex items-center gap-2 transition-all whitespace-nowrap"
+          data-adapter="keystatic"
+        >
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+          Keystatic (Git-backed)
+        </button>
+        <button
+          type="button"
+          class="adapter-tab px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 flex items-center gap-2 transition-all whitespace-nowrap"
+          data-adapter="local"
+        >
+          <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+          Local Store (JSON)
+        </button>
+      </div>
+
+      <!-- Tab Contents -->
+      <div class="p-6 sm:p-8">
+        <!-- WordPress Tab -->
+        <div id="adapter-panel-wp" class="adapter-panel grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          <div class="lg:col-span-6 space-y-4">
+            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-blue-500/10 text-blue-400 text-xs font-mono">
+              @intijs/adapter-wordpress
+            </div>
+            <h3 class="text-2xl font-bold text-white">Painless Headless WordPress</h3>
+            <p class="text-slate-300 text-sm leading-relaxed">
+              <strong>ACF Flexible Content</strong> layouts map 1:1 to Inti blocks. Read via the standard REST API (<code class="text-amber-300 text-xs font-mono">wp/v2</code>) and written using secure Application Passwords stored in your Astro server's environment variables.
+            </p>
+            <ul class="space-y-2 text-xs sm:text-sm text-slate-300">
+              <li class="flex items-center gap-2">
+                <span class="text-emerald-400">✓</span>
+                <span><strong>Gutenberg Mode:</strong> standard headings and paragraphs are inline-editable with a conservative parser.</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-emerald-400">✓</span>
+                <span><strong>Optional Companion Plugin:</strong> <code class="text-blue-300 font-mono">inti-bridge.php</code> for atomic patches without full-array round-trips.</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-emerald-400">✓</span>
+                <span>Inherits SEO metadata from Yoast, RankMath, SEOPress, or AIOSEO.</span>
+              </li>
+            </ul>
+          </div>
+          <div class="lg:col-span-6 bg-black/60 rounded-xl p-4 border border-white/10 font-mono text-xs overflow-x-auto">
+            <div class="flex items-center justify-between pb-2 mb-2 border-b border-white/10 text-slate-500 text-[11px]">
+              <span>src/pages/[...slug].astro</span>
+              <span>TypeScript</span>
+            </div>
+            <pre class="text-slate-200 leading-relaxed"><code><span class="text-purple-400">import</span> &#123; WordPressAdapter &#125; <span class="text-purple-400">from</span> <span class="text-emerald-300">'@intijs/adapter-wordpress'</span>;
+<span class="text-purple-400">import</span> BlockRenderer <span class="text-purple-400">from</span> <span class="text-emerald-300">'@intijs/core/astro/BlockRenderer.astro'</span>;
+<span class="text-purple-400">import</span> VisualBridgeAuto <span class="text-purple-400">from</span> <span class="text-emerald-300">'@intijs/core/visual-bridge/VisualBridgeAuto.astro'</span>;
+
+<span class="text-blue-400">const</span> adapter = <span class="text-purple-400">new</span> <span class="text-amber-300">WordPressAdapter</span>(&#123;
+  endpoint: import.meta.env.<span class="text-orange-400">INTI_WP_ENDPOINT</span>,
+  auth: &#123;
+    username: import.meta.env.<span class="text-orange-400">INTI_WP_USER</span>,
+    applicationPassword: import.meta.env.<span class="text-orange-400">INTI_WP_APP_PASS</span>,
+  &#125;
+&#125;);
+
+<span class="text-blue-400">const</span> page = <span class="text-purple-400">await</span> adapter.<span class="text-sky-300">fetchPageBySlug</span>(Astro.params.slug ?? <span class="text-emerald-300">'home'</span>);
+---
+&lt;<span class="text-amber-300">BlockRenderer</span> blocks=&#123;page.blocks&#125; /&gt;
+&lt;<span class="text-amber-300">VisualBridgeAuto</span> /&gt;</code></pre>
+          </div>
+        </div>
+
+        <!-- Kitsuden Tab -->
+        <div id="adapter-panel-kitsuden" class="adapter-panel hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          <div class="lg:col-span-6 space-y-4">
+            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-amber-500/10 text-amber-400 text-xs font-mono">
+              @intijs/adapter-kitsuden
+            </div>
+            <h3 class="text-2xl font-bold text-white">Kitsuden Page Builder (AI-Native)</h3>
+            <p class="text-slate-300 text-sm leading-relaxed">
+              Kitsuden is designed from the ground up for AI agents and strict security. Each block row has its own <strong>immutable UUID</strong> and sort order, guaranteeing that a concurrent reorder in the admin never makes an edit land on the wrong block.
+            </p>
+            <ul class="space-y-2 text-xs sm:text-sm text-slate-300">
+              <li class="flex items-center gap-2">
+                <span class="text-emerald-400">✓</span>
+                <span><strong>Single-Scope Agent Key:</strong> agent token restricted strictly to <code class="text-amber-300 font-mono">content:edit</code>.</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-emerald-400">✓</span>
+                <span><strong>Contract Verification:</strong> validates <code class="text-amber-300 font-mono">GET /api/version</code> before executing any write.</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-emerald-400">✓</span>
+                <span>Native support for game editorial sheets and TOON modules.</span>
+              </li>
+            </ul>
+          </div>
+          <div class="lg:col-span-6 bg-black/60 rounded-xl p-4 border border-white/10 font-mono text-xs overflow-x-auto">
+            <div class="flex items-center justify-between pb-2 mb-2 border-b border-white/10 text-slate-500 text-[11px]">
+              <span>astro.config.mjs</span>
+              <span>TypeScript</span>
+            </div>
+            <pre class="text-slate-200 leading-relaxed"><code><span class="text-purple-400">import</span> &#123; KitsudenAdapter &#125; <span class="text-purple-400">from</span> <span class="text-emerald-300">'@intijs/adapter-kitsuden'</span>;
+
+<span class="text-blue-400">const</span> adapter = <span class="text-purple-400">new</span> <span class="text-amber-300">KitsudenAdapter</span>(&#123;
+  endpoint: import.meta.env.<span class="text-orange-400">INTI_KITSUDEN_ENDPOINT</span>,
+  token: import.meta.env.<span class="text-orange-400">INTI_KITSUDEN_TOKEN</span>, <span class="text-slate-500">// kitsuden_agent_...</span>
+  checkCompatibility: <span class="text-orange-400">true</span>, <span class="text-slate-500">// checks GET /api/version</span>
+&#125;);
+
+<span class="text-blue-400">const</span> page = <span class="text-purple-400">await</span> adapter.<span class="text-sky-300">fetchPageBySlug</span>(<span class="text-emerald-300">'campaign-landing'</span>);</code></pre>
+          </div>
+        </div>
+
+        <!-- Strapi Tab -->
+        <div id="adapter-panel-strapi" class="adapter-panel hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          <div class="lg:col-span-6 space-y-4">
+            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-indigo-500/10 text-indigo-400 text-xs font-mono">
+              @intijs/adapter-strapi
+            </div>
+            <h3 class="text-2xl font-bold text-white">Strapi v4 &amp; v5 Dynamic Zones</h3>
+            <p class="text-slate-300 text-sm leading-relaxed">
+              Connect modular components from your Strapi Dynamic Zones directly to your Astro block components.
+            </p>
+            <ul class="space-y-2 text-xs sm:text-sm text-slate-300">
+              <li class="flex items-center gap-2">
+                <span class="text-emerald-400">✓</span>
+                <span>Direct mapping of nested components and relations.</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-emerald-400">✓</span>
+                <span>Support for API tokens with granular content permissions.</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-emerald-400">✓</span>
+                <span>Automatic extraction of Strapi's official SEO component.</span>
+              </li>
+            </ul>
+          </div>
+          <div class="lg:col-span-6 bg-black/60 rounded-xl p-4 border border-white/10 font-mono text-xs overflow-x-auto">
+            <div class="flex items-center justify-between pb-2 mb-2 border-b border-white/10 text-slate-500 text-[11px]">
+              <span>src/actions/index.ts</span>
+              <span>TypeScript</span>
+            </div>
+            <pre class="text-slate-200 leading-relaxed"><code><span class="text-purple-400">import</span> &#123; StrapiAdapter &#125; <span class="text-purple-400">from</span> <span class="text-emerald-300">'@intijs/adapter-strapi'</span>;
+<span class="text-purple-400">import</span> &#123; intiActions &#125; <span class="text-purple-400">from</span> <span class="text-emerald-300">'@intijs/core/actions'</span>;
+
+<span class="text-purple-400">export</span> <span class="text-blue-400">const</span> server = &#123;
+  inti: <span class="text-sky-300">intiActions</span>(&#123;
+    adapter: <span class="text-purple-400">new</span> <span class="text-amber-300">StrapiAdapter</span>(&#123;
+      endpoint: process.env.<span class="text-orange-400">STRAPI_URL</span>,
+      apiToken: process.env.<span class="text-orange-400">STRAPI_API_TOKEN</span>,
+    &#125;),
+  &#125;),
+&#125;;</code></pre>
+          </div>
+        </div>
+
+        <!-- Keystatic Tab -->
+        <div id="adapter-panel-keystatic" class="adapter-panel hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          <div class="lg:col-span-6 space-y-4">
+            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-400 text-xs font-mono">
+              @intijs/adapter-keystatic
+            </div>
+            <h3 class="text-2xl font-bold text-white">Visual Editing on Git</h3>
+            <p class="text-slate-300 text-sm leading-relaxed">
+              Keystatic shines at storing your content in local files or GitHub repositories. Inti adds the missing piece: <strong>editing on the real page</strong>, writing directly to your Markdown/JSON/YAML files or committing to GitHub.
+            </p>
+          </div>
+          <div class="lg:col-span-6 bg-black/60 rounded-xl p-4 border border-white/10 font-mono text-xs overflow-x-auto">
+            <pre class="text-slate-200 leading-relaxed"><code><span class="text-purple-400">import</span> &#123; KeystaticAdapter &#125; <span class="text-purple-400">from</span> <span class="text-emerald-300">'@intijs/adapter-keystatic'</span>;
+
+<span class="text-blue-400">const</span> adapter = <span class="text-purple-400">new</span> <span class="text-amber-300">KeystaticAdapter</span>(&#123;
+  storage: <span class="text-emerald-300">'github'</span>,
+  repo: <span class="text-emerald-300">'my-company/web-content'</span>,
+  token: process.env.<span class="text-orange-400">GITHUB_TOKEN</span>,
+&#125;);</code></pre>
+          </div>
+        </div>
+
+        <!-- Local Store Tab -->
+        <div id="adapter-panel-local" class="adapter-panel hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          <div class="lg:col-span-6 space-y-4">
+            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-slate-500/10 text-slate-300 text-xs font-mono">
+              LocalAdapter (Batteries included)
+            </div>
+            <h3 class="text-2xl font-bold text-white">Try it without connecting any CMS</h3>
+            <p class="text-slate-300 text-sm leading-relaxed">
+              Want to try inline editing before connecting your backend? <code class="text-amber-300 text-xs font-mono">LocalAdapter</code> writes to <code class="text-amber-300 text-xs font-mono">.inti/content.json</code> while satisfying the exact same contract as WordPress or Kitsuden.
+            </p>
+          </div>
+          <div class="lg:col-span-6 bg-black/60 rounded-xl p-4 border border-white/10 font-mono text-xs overflow-x-auto">
+            <pre class="text-slate-200 leading-relaxed"><code><span class="text-slate-500">// Zero setup required locally:</span>
+<span class="text-purple-400">import</span> &#123; LocalAdapter &#125; <span class="text-purple-400">from</span> <span class="text-emerald-300">'@intijs/core/adapters/local'</span>;
+
+<span class="text-blue-400">const</span> adapter = <span class="text-purple-400">new</span> <span class="text-amber-300">LocalAdapter</span>();
+<span class="text-slate-500">// Double-click to edit and watch it save to .inti/content.json</span></code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Tab switching logic
+  const tabs = document.querySelectorAll('.adapter-tab');
+  const panels = document.querySelectorAll('.adapter-panel');
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const adapter = tab.getAttribute('data-adapter');
+      
+      // Update tabs styling
+      tabs.forEach(t => {
+        t.className = 'adapter-tab px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 flex items-center gap-2 transition-all whitespace-nowrap';
+      });
+      tab.className = 'adapter-tab px-4 py-2.5 rounded-xl bg-white/10 text-white flex items-center gap-2 transition-all whitespace-nowrap';
+
+      // Show active panel
+      panels.forEach(p => p.classList.add('hidden'));
+      const activePanel = document.getElementById(`adapter-panel-${adapter}`);
+      if (activePanel) {
+        activePanel.classList.remove('hidden');
+      }
+    });
+  });
+</script>

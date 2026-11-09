@@ -1,0 +1,325 @@
+---
+title: Creating an Adapter
+description: Step-by-step guide to creating your own Inti adapter
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+This guide takes you from scratch to a working adapter for any CMS.
+
+## Project Structure
+
+```
+inti-adapter-mycms/
+├── src/
+│   ├── index.ts          # Main export
+│   ├── types.ts          # CMS types
+│   ├── parser.ts         # Parsing logic
+│   └── introspection.ts  # Schema discovery
+├── package.json
+└── tsconfig.json
+```
+
+<Steps>
+
+1. ### Initialize the Package
+
+   ```bash
+   mkdir inti-adapter-mycms
+   cd inti-adapter-mycms
+   bun init
+   ```
+
+2. ### Configure package.json
+
+   ```json
+   {
+     "name": "inti-adapter-mycms",
+     "version": "0.1.0",
+     "type": "module",
+     "main": "./dist/index.js",
+     "types": "./dist/index.d.ts",
+     "exports": {
+       ".": {
+         "import": "./dist/index.js",
+         "types": "./dist/index.d.ts"
+       }
+     },
+     "scripts": {
+       "build": "tsc",
+       "dev": "tsc --watch"
+     },
+     "peerDependencies": {
+       "@intijs/core": "workspace:*"
+     },
+     "devDependencies": {
+       "typescript": "^5.7.3"
+     }
+   }
+   ```
+
+3. ### Install Dependencies
+
+   ```bash
+   bun add @intijs/core
+   bun add -d typescript @types/node
+   ```
+
+4. ### Define the CMS Types
+
+   ```typescript
+   // src/types.ts
+   export interface MyCMSConfig {
+     apiKey: string;
+     projectId: string;
+     endpoint?: string;
+   }
+
+   export interface MyCMSPage {
+     id: string;
+     attributes: {
+       title: string;
+       slug: string;
+       publishedAt?: string;
+       blocks: MyCMSBlock[];
+       seo?: {
+         metaTitle?: string;
+         metaDescription?: string;
+         ogImage?: { url: string };
+       };
+     };
+   }
+
+   export interface MyCMSBlock {
+     __type: string;
+     id: string;
+     [key: string]: any;
+   }
+   ```
+
+5. ### Implement the Adapter
+
+   ```typescript
+   // src/index.ts
+   import { IntiAdapter } from '@intijs/core/adapters';
+   import type { IntiPage, IntiBlock, IntiNavigation } from '@intijs/core';
+   import type { MyCMSConfig, MyCMSPage } from './types.js';
+
+   export class MyCMSAdapter extends IntiAdapter<MyCMSPage> {
+     constructor(config: MyCMSConfig) {
+       super('MyCMS', config);
+     }
+
+     parsePage(raw: MyCMSPage): IntiPage {
+       const { id, attributes } = raw;
+       
+       return {
+         id,
+         slug: attributes.slug,
+         title: attributes.title,
+         blocks: this.parseBlocks(attributes.blocks),
+         seo: attributes.seo ? {
+           title: attributes.seo.metaTitle,
+           description: attributes.seo.metaDescription,
+           image: attributes.seo.ogImage?.url
+         } : undefined
+       };
+     }
+
+     private parseBlocks(blocks: MyCMSBlock[]): IntiBlock[] {
+       return blocks.map(block => ({
+         type: block.__type,
+         id: block.id,
+         data: Object.fromEntries(
+           Object.entries(block).filter(([key]) => 
+             !['__type', 'id'].includes(key)
+           )
+         )
+       }));
+     }
+
+     async introspect(): Promise<SchemaDefinition> {
+       // Optional but recommended
+       const response = await fetch(
+         `${this.config.endpoint}/schema`,
+         { headers: { 'Authorization': `Bearer ${this.config.apiKey}` } }
+       );
+       
+       const cmsSchema = await response.json();
+       
+       return {
+         source: 'MyCMS',
+         version: '1.0.0',
+         collections: cmsSchema.contentTypes.map((ct: any) => ({
+           name: ct.name,
+           description: ct.description,
+           fields: ct.attributes.map((attr: any) => ({
+             name: attr.name,
+             type: this.mapFieldType(attr.type),
+             required: attr.required,
+             description: attr.description
+           }))
+         }))
+       };
+     }
+
+     private mapFieldType(cmsType: string): FieldType {
+       const mapping: Record<string, FieldType> = {
+         'string': 'string',
+         'text': 'string',
+         'number': 'number',
+         'boolean': 'boolean',
+         'datetime': 'date',
+         'json': 'json',
+         'media': 'media',
+         'relation': 'relation'
+       };
+       return mapping[cmsType] || 'string';
+     }
+   }
+
+   export default MyCMSAdapter;
+   ```
+
+6. ### Export the Types
+
+   ```typescript
+   // src/index.ts (continued)
+   export type { MyCMSConfig, MyCMSPage, MyCMSBlock } from './types.js';
+   ```
+
+7. ### Build
+
+   ```bash
+   bun run build
+   ```
+
+8. ### Publish (optional)
+
+   ```bash
+   npm publish
+   ```
+
+</Steps>
+
+## Testing the Adapter
+
+### Unit Test
+
+```typescript
+// tests/adapter.test.ts
+import { describe, it, expect } from 'bun:test';
+import { MyCMSAdapter } from '../src/index';
+
+describe('MyCMSAdapter', () => {
+  const adapter = new MyCMSAdapter({
+    apiKey: 'test',
+    projectId: 'test'
+  });
+
+  it('should parse page correctly', () => {
+    const raw = {
+      id: '123',
+      attributes: {
+        title: 'Test Page',
+        slug: 'test-page',
+        blocks: [
+          { __type: 'hero', id: 'b1', title: 'Hero Title' }
+        ]
+      }
+    };
+
+    const page = adapter.parsePage(raw);
+
+    expect(page.id).toBe('123');
+    expect(page.title).toBe('Test Page');
+    expect(page.blocks).toHaveLength(1);
+    expect(page.blocks[0].type).toBe('hero');
+  });
+
+  it('should handle missing blocks gracefully', () => {
+    const raw = {
+      id: '456',
+      attributes: {
+        title: 'Empty Page',
+        slug: 'empty',
+        blocks: []
+      }
+    };
+
+    const page = adapter.parsePage(raw);
+    expect(page.blocks).toEqual([]);
+  });
+});
+```
+
+### Integration Test
+
+```typescript
+// tests/integration.test.ts
+import { describe, it, expect } from 'bun:test';
+import { MyCMSAdapter } from '../src/index';
+
+describe('MyCMSAdapter Integration', () => {
+  it('should introspect schema', async () => {
+    const adapter = new MyCMSAdapter({
+      apiKey: process.env.MYCMS_API_KEY!,
+      projectId: process.env.MYCMS_PROJECT_ID!,
+      endpoint: process.env.MYCMS_ENDPOINT
+    });
+
+    const schema = await adapter.introspect();
+
+    expect(schema.source).toBe('MyCMS');
+    expect(schema.collections).toBeDefined();
+    expect(schema.collections.length).toBeGreaterThan(0);
+  });
+});
+```
+
+## Documentation
+
+Include a README with examples:
+
+```markdown
+# inti-adapter-mycms
+
+MyCMS adapter for Inti.js
+
+## Installation
+
+```bash
+bun add inti-adapter-mycms
+```
+
+## Usage
+
+```typescript
+import { MyCMSAdapter } from 'inti-adapter-mycms';
+
+const adapter = new MyCMSAdapter({
+  apiKey: 'your-api-key',
+  projectId: 'your-project-id'
+});
+
+// inti.config.ts
+export default defineConfig({
+  adapter: 'mycms',
+  adapterConfig: {
+    apiKey: process.env.MYCMS_API_KEY,
+    projectId: process.env.MYCMS_PROJECT_ID
+  }
+});
+```
+```
+
+## Checklist
+
+- [ ] Implements `IntiAdapter` or `ContentAdapter`
+- [ ] Defines clear TypeScript types
+- [ ] Implements `introspect()` for code generation
+- [ ] Handles errors gracefully
+- [ ] Includes unit tests
+- [ ] Documents the required configuration
+- [ ] Provides usage examples
+- [ ] Follows the naming convention: `inti-adapter-{cms}`

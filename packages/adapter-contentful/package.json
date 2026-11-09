@@ -1,0 +1,47 @@
+{
+  "name": "@intijs/adapter-contentful",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "author": "Victor Antinori Broce",
+  "homepage": "https://github.com/intijs/inti/tree/main/packages/adapter-contentful#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/intijs/inti.git",
+    "directory": "packages/adapter-contentful"
+  },
+  "bugs": {
+    "url": "https://github.com/intijs/inti/issues"
+  },
+  "description": "Contentful CMS adapter for Inti.js",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepare": "node ../../scripts/prepare-package.mjs",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "bun test",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "@intijs/core": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.7.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

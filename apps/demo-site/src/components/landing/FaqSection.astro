@@ -1,0 +1,79 @@
+---
+// apps/demo-site/src/components/landing/FaqSection.astro
+
+const faqs = [
+  {
+    q: "Does Inti replace my WordPress, Kitsuden, or Strapi?",
+    a: "No. Inti never becomes your CMS. Your database, users, taxonomies, and original admin panel remain 100% intact. Inti is an Astro layer that reads your content and lets you edit it on the real page with direct API write-back.",
+  },
+  {
+    q: "How does Inti guarantee that editors cannot break the design or add messy CSS?",
+    a: "Inti has no free-form or inline CSS editing. Developers define the allowed blocks, fields, and variants in Astro components in code. Editors compose freely with that strict vocabulary, keeping pages fast and true to the design system.",
+  },
+  {
+    q: "What happens if the network drops or the CMS returns an error while editing?",
+    a: "Inti uses Optimistic UI with automatic rollback. If the server returns a validation error or a network failure, the on-screen content reverts immediately to its previous state and displays a toast with the error details.",
+  },
+  {
+    q: "How are CMS credentials protected in production?",
+    a: "WordPress Application Passwords, scoped Kitsuden agent keys, and Strapi tokens never reach the client. Mutations are routed through server-side `astro:actions`. Moreover, in production Inti rejects every write unless a registered plugin authenticates the editor's session.",
+  },
+  {
+    q: "Which Astro versions and deployment targets are supported?",
+    a: "Inti is verified in CI against Astro 5, 6, and 7. It deploys anywhere Astro runs: standalone Node.js, Docker, Vercel, Netlify, or Cloudflare Workers with the optional `@intijs/cloudflare` package.",
+  },
+  {
+    q: "How do AI agents like Claude Code or Cursor integrate with Inti?",
+    a: "Through `@intijs/mcp` (Model Context Protocol). Agents call safe tools like `inti_get_page`, `inti_update_field`, or `inti_create_draft`, always respecting your declared block vocabulary and server permissions.",
+  },
+];
+---
+
+<section id="faq" class="py-20 sm:py-28 relative">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="text-center max-w-3xl mx-auto mb-16">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 text-xs font-semibold mb-4">
+        <span>Frequently Asked Questions</span>
+      </div>
+      <h2 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight mb-4">
+        Everything you need to know.<br />
+        <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400">
+          Clear answers for developers and teams.
+        </span>
+      </h2>
+      <p class="text-slate-300 text-base sm:text-lg">
+        Wondering how Inti fits into your existing stack? Here are answers to the most common questions.
+      </p>
+    </div>
+
+    <!-- Accordion List -->
+    <div class="space-y-4">
+      {
+        faqs.map((faq, index) => (
+          <details
+            class="group rounded-2xl bg-[#0C101D] border border-white/10 hover:border-amber-500/30 transition-all duration-200 overflow-hidden"
+          >
+            <summary class="flex items-center justify-between p-6 cursor-pointer list-none select-none font-semibold text-white text-base sm:text-lg">
+              <span class="flex items-center gap-3">
+                <span class="text-amber-400 text-sm font-mono">0{index + 1}.</span>
+                <span>{faq.q}</span>
+              </span>
+              <svg
+                class="w-5 h-5 text-slate-400 group-open:rotate-180 group-open:text-amber-400 transition-transform duration-200"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </summary>
+            <div class="px-6 pb-6 pt-2 text-slate-300 text-sm sm:text-base leading-relaxed border-t border-white/5">
+              {faq.a}
+            </div>
+          </details>
+        ))
+      }
+    </div>
+  </div>
+</section>

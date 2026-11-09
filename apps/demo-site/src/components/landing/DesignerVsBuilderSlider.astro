@@ -1,0 +1,172 @@
+---
+// apps/demo-site/src/components/landing/DesignerVsBuilderSlider.astro
+// Interactive Before / After Split Slider for Designers & Marketing
+---
+
+<section class="py-20 sm:py-28 relative bg-[#07090F] border-t border-white/10">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="text-center max-w-3xl mx-auto mb-16">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-semibold mb-4">
+        <span>The Real Agency Pain Point</span>
+      </div>
+      <h2 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight mb-4">
+        The end of client-broken websites.<br />
+        <span class="text-transparent bg-clip-text bg-gradient-to-r from-rose-400 via-amber-400 to-emerald-400">
+          Slide to compare the reality.
+        </span>
+      </h2>
+      <p class="text-slate-300 text-base sm:text-lg">
+        You craft a masterpiece in Figma... and two weeks later the client or copywriter breaks the fonts and fills the page with inline CSS in Elementor. See the difference with Inti.
+      </p>
+    </div>
+
+    <!-- Interactive Comparison Slider Container -->
+    <div class="rounded-2xl border border-white/15 bg-[#0A0D17] shadow-2xl overflow-hidden relative">
+      <!-- Top Badges Bar -->
+      <div class="px-6 py-4 bg-[#090C16] border-b border-white/10 flex items-center justify-between text-xs font-bold font-mono">
+        <span class="text-rose-400 flex items-center gap-2">
+          <span>❌</span> Traditional Page Builder Chaos
+        </span>
+        <span class="text-emerald-400 flex items-center gap-2">
+          Peace of Mind with Inti.js <span>☀️</span>
+        </span>
+      </div>
+
+      <!-- Split Viewport -->
+      <div id="split-container" class="relative w-full h-[460px] sm:h-[400px] select-none overflow-hidden cursor-ew-resize">
+        <!-- LEFT: The Old Painful Way -->
+        <div class="absolute inset-0 bg-gradient-to-br from-rose-950/40 via-[#140C12] to-black p-6 sm:p-10 flex flex-col justify-between">
+          <div class="max-w-md space-y-4">
+            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-rose-500/20 text-rose-400 text-xs font-bold font-mono">
+              PageSpeed: 28/100 · 4.2 MB DOM
+            </div>
+            <h3 class="text-2xl font-black text-rose-300">
+              "The client added Comic Sans fonts and broke the mobile layout"
+            </h3>
+            <ul class="space-y-2 text-xs sm:text-sm text-slate-300">
+              <li class="flex items-center gap-2">
+                <span class="text-rose-400 font-bold">✕</span>
+                <span>89 WordPress plugins slowing down the server.</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-rose-400 font-bold">✕</span>
+                <span>Editors free to inject arbitrary CSS that distorts Figma designs.</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-rose-400 font-bold">✕</span>
+                <span>Every marketing copy tweak takes 2 weeks in engineering tickets.</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-rose-400 font-bold">✕</span>
+                <span>3.8 seconds of render-blocking scripts (terrible TBT).</span>
+              </li>
+            </ul>
+          </div>
+          <div class="p-3 rounded-lg bg-black/60 border border-rose-500/30 text-[11px] font-mono text-rose-300">
+            Google Ads Quality Score penalty &amp; 64% bounce rate
+          </div>
+        </div>
+
+        <!-- RIGHT: The Inti.js Way (Clipped by slider handle) -->
+        <div
+          id="split-overlay"
+          class="absolute inset-0 bg-gradient-to-br from-emerald-950/50 via-[#0B1516] to-[#0A0D18] p-6 sm:p-10 flex flex-col justify-between overflow-hidden"
+          style="clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%);"
+        >
+          <div class="max-w-md ml-auto text-right space-y-4">
+            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-400 text-xs font-bold font-mono">
+              Lighthouse: 100/100 · 0 KB Client JS
+            </div>
+            <h3 class="text-2xl font-black text-emerald-300">
+              "Immutable Figma-to-Code with Canva-simple live editing"
+            </h3>
+            <ul class="space-y-2 text-xs sm:text-sm text-slate-300 inline-block text-left">
+              <li class="flex items-center gap-2">
+                <span class="text-emerald-400 font-bold">✓</span>
+                <span><strong>Code-defined vocabulary:</strong> impossible to break the design system.</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-emerald-400 font-bold">✓</span>
+                <span><strong>Double-click &amp; Enter:</strong> editors publish without filing support tickets.</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-emerald-400 font-bold">✓</span>
+                <span><strong>Astro Islands SSR:</strong> instant page loads and pristine SEO.</span>
+              </li>
+              <li class="flex items-center gap-2">
+                <span class="text-emerald-400 font-bold">✓</span>
+                <span><strong>AI with your blocks:</strong> campaigns composed in 10 seconds.</span>
+              </li>
+            </ul>
+          </div>
+          <div class="p-3 rounded-lg bg-black/60 border border-emerald-500/30 text-[11px] font-mono text-emerald-300 text-right ml-auto">
+            100% On-Brand · Maximum ad conversion
+          </div>
+        </div>
+
+        <!-- The Draggable Divider Handle -->
+        <div
+          id="slider-handle"
+          class="absolute top-0 bottom-0 w-1 bg-gradient-to-b from-amber-400 via-white to-amber-400 shadow-[0_0_20px_rgba(255,184,0,0.8)] z-30 flex items-center justify-center -translate-x-1/2 pointer-events-none"
+          style="left: 50%;"
+        >
+          <div class="w-9 h-9 rounded-full bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center shadow-2xl border-2 border-white pointer-events-auto cursor-grab active:cursor-grabbing">
+            ↔
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Split Slider Logic
+  const container = document.getElementById('split-container');
+  const overlay = document.getElementById('split-overlay');
+  const handle = document.getElementById('slider-handle');
+
+  let isDragging = false;
+
+  function updateSlider(clientX: number) {
+    if (!container || !overlay || !handle) return;
+    const rect = container.getBoundingClientRect();
+    let x = clientX - rect.left;
+    x = Math.max(0, Math.min(x, rect.width));
+    const percent = (x / rect.width) * 100;
+
+    handle.style.left = `${percent}%`;
+    overlay.style.clipPath = `polygon(${percent}% 0, 100% 0, 100% 100%, ${percent}% 100%)`;
+  }
+
+  container?.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    updateSlider(e.clientX);
+  });
+
+  window.addEventListener('mouseup', () => {
+    isDragging = false;
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (isDragging) {
+      updateSlider(e.clientX);
+    }
+  });
+
+  // Touch support for mobile
+  container?.addEventListener('touchstart', (e) => {
+    isDragging = true;
+    if (e.touches[0]) updateSlider(e.touches[0].clientX);
+  });
+
+  window.addEventListener('touchend', () => {
+    isDragging = false;
+  });
+
+  window.addEventListener('touchmove', (e) => {
+    if (isDragging && e.touches[0]) {
+      updateSlider(e.touches[0].clientX);
+    }
+  });
+</script>

@@ -1,0 +1,93 @@
+---
+title: Overview
+description: Understanding the philosophy behind Inti.js
+---
+
+Inti.js comes from a concrete agency problem: **moving WordPress to headless takes away the client's way of editing their site**. The Astro frontend is faster and more secure, but the editor loses the preview and goes back to a form.
+
+Inti brings visual editing back on top of the frontend: the editor double-clicks on the real page, changes the text and the change is written to the CMS. The content keeps living where it was.
+
+## What it is and what it is not
+
+Inti is a **layer over the CMS you already have**. It has no admin panel, no users and no database of its own, and it does not try to replace the CMS: it reads and writes through its API.
+
+It is universal by contract —any adapter that implements `WritableAdapter` gets inline editing— and WordPress-first by focus.
+
+## How it fits
+
+```
+            CMS (WordPress, Kitsuden, Strapi…)
+                 ▲                     │
+        writes   │                     │  reads
+                 │                     ▼
+          ┌──────┴─────────────────────────────┐
+          │              ADAPTER               │  ← translates the CMS
+          └──────▲─────────────────────┬───────┘     into IntiBlock[]
+                 │                     │
+      Astro action                IntiBlock[]
+     (on the server)                   │
+                 │                     ▼
+          ┌──────┴──────┐      ┌───────────────┐
+          │   EDITOR    │◀─────│ BlockRenderer │  ← one Astro
+          │ double-click│      │               │     component per type
+          └─────────────┘      └───────────────┘
+```
+
+## Core Principles
+
+### 1. The Agnostic Contract
+
+Everything in Inti.js is based on strict TypeScript interfaces:
+
+```typescript
+// The base contract every adapter must meet
+abstract class IntiAdapter<TRawPage, TRawNav> {
+  abstract parsePage(raw: TRawPage): IntiPage;
+  abstract parseNavigation?(raw: TRawNav): IntiNavigation;
+}
+```
+
+This guarantees that, whatever the CMS, your frontend always receives the same data structure.
+
+### 2. Hot-Swap by Design
+
+The Component Registry lets you change implementations without touching the rendering code:
+
+```astro
+---
+// You register a folder once
+registerBlocks(import.meta.glob('/src/blocks/*.astro'));
+---
+<!-- And you always render the same way, whatever CMS it comes from -->
+<BlockRenderer blocks={page.blocks} page={page} />
+```
+
+### 3. Types from the CMS
+
+`inti sync` reads the CMS schema and generates `inti.types.ts`, with one interface per block type. That way the component knows which fields it receives:
+
+```astro
+---
+import type { HeroBlock } from '../lib/inti/inti.types';
+
+const { heading, cta } = Astro.props as HeroBlock;
+---
+```
+
+Content is always read with the adapter. See [inti sync](/cli/sync/).
+
+## Comparison
+
+| | Classic WordPress | Headless without Inti | Headless with Inti |
+|---|---|---|---|
+| The editor sees the final design while editing | Yes | No | Yes |
+| Fast frontend (SSR/SSG, little JS) | No | Yes | Yes |
+| Content lives in the CMS | Yes | Yes | Yes |
+| The page does not break when edited | Depends on the theme | Yes | Yes: no free CSS |
+| SEO handled on the server | Plugins | By hand | Normalized |
+
+## Next Steps
+
+- [First Project](/guides/quickstart/) — from WordPress to an editable frontend, step by step
+- [Block Orchestrator](/core/block-orchestrator/) — how a page is painted
+- [Securing writes](/guides/securing-writes/) — before taking it to production

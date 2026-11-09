@@ -1,0 +1,203 @@
+---
+title: Runtime Compatibility
+description: Inti.js works with Node.js, Bun and Deno
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+Inti.js is **runtime-agnostic**. It is built on standard web APIs and plain TypeScript, which means it works with:
+
+- ✅ **Node.js** 18+ (LTS recommended)
+- ✅ **Bun** 1.0+ (faster, recommended for development)
+- ✅ **Deno** (experimental, with import maps)
+
+## Comparison Table
+
+| Feature | Node.js | Bun | Deno |
+|---------------|---------|-----|------|
+| Installation | `npm/pnpm/yarn` | `bun` | `deno` |
+| Build speed | ⚡⚡ | ⚡⚡⚡ | ⚡⚡ |
+| Cold start | Good | Excellent | Good |
+| Native TypeScript | ❌ (requires tsc) | ✅ | ✅ |
+| Workspace support | ✅ | ✅ | ✅ |
+| Recommended for | Production | Development | Edge |
+
+## Installation by Runtime
+
+<Tabs>
+  <TabItem label="Node.js (npm)">
+    ```bash
+    # Install the CLI globally
+    npm install -g @intijs/cli
+
+    # Or in your project
+    npm install @intijs/core @intijs/cli @intijs/adapter-kitsuden
+
+    # Usage
+    npx inti sync
+    npm run dev
+    ```
+  </TabItem>
+  <TabItem label="Bun (Recommended)">
+    ```bash
+    # Install the CLI globally
+    bun add -g @intijs/cli
+
+    # Or in your project
+    bun add @intijs/core @intijs/cli @intijs/adapter-kitsuden
+
+    # Usage
+    bunx inti sync
+    bun run dev
+    ```
+  </TabItem>
+  <TabItem label="pnpm">
+    ```bash
+    # Install the CLI globally
+    pnpm add -g @intijs/cli
+
+    # Or in your project
+    pnpm add @intijs/core @intijs/cli @intijs/adapter-kitsuden
+
+    # Usage
+    pnpm inti sync
+    pnpm dev
+    ```
+  </TabItem>
+</Tabs>
+
+## Package Manager Configuration
+
+### npm / yarn / pnpm
+
+Your `package.json` works the same:
+
+```json
+{
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "sync": "inti sync"
+  }
+}
+```
+
+### Bun
+
+Bun can run npm scripts directly:
+
+```bash
+# This works with Bun
+bun run dev        # Runs "astro dev"
+bun run build      # Runs "astro build"
+```
+
+## Why Bun in the Monorepo?
+
+In the Inti.js repository we use Bun for:
+
+1. **Speed**: Builds are 3-5x faster
+2. **Workspace filtering**: `bun run --filter` is very efficient
+3. **Native TypeScript**: No `tsc` needed in development
+
+**But the published packages are 100% compatible with Node.js.**
+
+## Compatibility Check
+
+To make sure your project works on any runtime:
+
+### 1. Use Standard Web APIs
+
+```typescript
+// ✅ Good - native Fetch API
+const response = await fetch('https://api.cms.com');
+
+// ❌ Avoid - Node.js-specific APIs
+import { request } from 'http';  // Not portable
+```
+
+### 2. ESM Only
+
+```json
+{
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  }
+}
+```
+
+### 3. Declare `engines`
+
+```json
+{
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+```
+
+## Multi-Runtime CI/CD
+
+### GitHub Actions
+
+```yaml
+name: Test Multi-Runtime
+
+strategy:
+  matrix:
+    runtime: [node, bun]
+    include:
+      - runtime: node
+        cmd: npx
+      - runtime: bun
+        cmd: bunx
+
+steps:
+  - uses: actions/checkout@v4
+  
+  - name: Setup ${{ matrix.runtime }}
+    uses: oven-sh/setup-bun@v1
+    if: matrix.runtime == 'bun'
+    
+  - name: Setup Node
+    uses: actions/setup-node@v4
+    if: matrix.runtime == 'node'
+    
+  - run: ${{ matrix.cmd }} inti sync
+  - run: ${{ matrix.cmd }} astro build
+```
+
+## Edge Runtime (Deno/Cloudflare)
+
+To deploy to edge functions:
+
+```typescript
+// adapter.ts for Deno
+import { KitsudenAdapter } from '@intijs/adapter-kitsuden';
+
+const adapter = new KitsudenAdapter({
+  endpoint: Deno.env.get('INTI_KITSUDEN_ENDPOINT')!,
+  token: Deno.env.get('INTI_KITSUDEN_TOKEN')!
+});
+
+Deno.serve(async (req) => {
+  const page = await adapter.parsePage(await fetch(...));
+  return new Response(JSON.stringify(page));
+});
+```
+
+## Summary
+
+| Scenario | Recommended Runtime |
+|-----------|---------------------|
+| Local development | Bun (faster) |
+| Production VPS/Docker | Node.js LTS |
+| Serverless/Vercel | Node.js 18+ |
+| Edge/Cloudflare | Bun or Deno |
+| CI/CD | Any (test both) |
+
+**The golden rule**: If it works with Node.js 18+, it works with Inti.js.

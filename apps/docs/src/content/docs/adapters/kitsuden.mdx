@@ -1,0 +1,425 @@
+---
+title: Kitsuden Adapter
+description: Official adapter for Kitsuden CMS (Page Builder)
+---
+
+import { Code } from '@astrojs/starlight/components';
+import kitsudenCode from '../../../../../../packages/adapter-kitsuden/src/index.ts?raw';
+
+The **Kitsuden Adapter** connects Inti.js to Kitsuden's page builder
+(the `kon-blocks` kon, mounted by default at `/api/page-builder`).
+
+Kitsuden ships no frontend: its Svelte panel is an admin interface.
+This adapter is the other half — the Astro site reads the pages, renders them with
+your components and sends edits made on the real page back to the CMS.
+
+## Installation
+
+```bash
+bun add @intijs/adapter-kitsuden
+```
+
+## Configuration
+
+```typescript
+// inti.config.ts
+import { defineConfig } from '@intijs/core';
+
+export default defineConfig({
+  adapter: 'kitsuden',
+  adapterConfig: {
+    endpoint: process.env.INTI_KITSUDEN_ENDPOINT,
+    token: process.env.INTI_KITSUDEN_TOKEN,
+  }
+});
+```
+
+| Option | Default | What for |
+|---|---|---|
+| `endpoint` | — | CMS origin (`https://cms.mydomain.com`). Required and absolute |
+| `token` | — | Agent key. **Only for writing**: reading published pages is public |
+| `mountPath` | `/api/page-builder` | Mount point of the blocks kon |
+| `gamesPath` | `/api/games` | Route of the games kon (`game:<uuid>` game pages) |
+| `status` | `published` | Status used to list and look up pages |
+| `mediaPreset` | `large` | kon-media preset for the social image |
+| `timeoutMs` | `10000` | Timeout for each request |
+| `versionPath` | `/api/version` | Where Kitsuden publishes its version and its contracts |
+| `checkCompatibility` | `true` | Check the contracts before the first write ([see below](#versions-and-compatibility)) |
+
+### Environment variables
+
+```bash
+# .env
+INTI_ADAPTER=kitsuden
+INTI_KITSUDEN_ENDPOINT=https://cms.mydomain.com
+INTI_KITSUDEN_TOKEN=kitsuden_agent_...
+```
+
+These are the names the server reads when **writing**. `inti.config.ts` is only used by `inti sync`: if you give them other names there, editing will not find them.
+
+:::caution[The key must be an agent key]
+The kon's routes require an agent identity (`kitsuden_agent_…`). Old
+machine keys (`kitsuden_sk_…`) do not leave that identity in the context, so
+they fall through to the cookie path and get an unexplained `401`. The adapter
+rejects them before calling, so the error says what is going on.
+
+Issue the key with just the scope it needs: the `content:edit` scope, which only opens
+the page builder's writes and the editorial layer of the game
+pages (everything else answers 403). It is not an admin session. And it never leaves the server — edits travel through
+`astro:actions`, never from the browser.
+:::
+
+## Usage in the frontend
+
+```astro
+---
+// src/pages/[...slug].astro
+import { KitsudenAdapter } from '@intijs/adapter-kitsuden';
+import { registerBlocks } from '@intijs/core/registry';
+import BlockRenderer from '@intijs/core/astro/BlockRenderer.astro';
+import VisualBridgeAuto from '@intijs/core/visual-bridge/VisualBridgeAuto.astro';
+
+registerBlocks(import.meta.glob('/src/blocks/*.astro'));
+
+const adapter = new KitsudenAdapter({
+  endpoint: import.meta.env.INTI_KITSUDEN_ENDPOINT,
+});
+
+// `GET /pages/:idOrSlug` accepts a uuid or a slug; returns the already normalized page
+const page = await adapter.getPage(Astro.params.slug ?? 'home');
+---
+
+<BlockRenderer blocks={page.blocks} page={page} />
+<VisualBridgeAuto />
+```
+
+Reading needs no key: published pages are public. Only writes use the key, on the server:
+
+```bash
+# .env — no PUBLIC_ prefix
+INTI_ADAPTER=kitsuden
+INTI_KITSUDEN_ENDPOINT=https://cms.mydomain.com
+INTI_KITSUDEN_TOKEN=kitsuden_agent_xxxxxxxx
+# Optional
+# INTI_KITSUDEN_MOUNT_PATH=/api/page-builder
+# INTI_KITSUDEN_STATUS=published
+# INTI_KITSUDEN_MEDIA_PRESET=large
+```
+
+### Component names
+
+The block type is the `type` from Kitsuden's palette **as is**, without converting to PascalCase the way the WordPress adapter does. A `hero` block is rendered with `src/blocks/hero.astro`, and a `tier-list` one with `src/blocks/tier-list.astro`.
+
+If you prefer other file names, map them when registering:
+
+```ts
+// File name → palette type
+const types: Record<string, string> = { HeroSection: 'hero' };
+
+registerBlocks(import.meta.glob('/src/blocks/*.astro'), {
+  typeFromPath: (path) => {
+    const file = path.split('/').pop()!.replace('.astro', '');
+    return types[file] ?? file;
+  },
+});
+```
+
+### Scheduled visibility
+
+Kitsuden rows carry `isVisible`, `visibleFrom` and `visibleUntil`. The adapter passes them to `BlockRenderer`, which in production does not render blocks that are hidden or outside their window. In the editor they stay visible, marked, so they can be re-enabled.
+
+For the sitemap, `listPages()` returns the CMS's real slug and `updatedAt`,
+so `<lastmod>` is no longer made up.
+
+## Structure of a page in Kitsuden
+
+Unlike a CMS with a *dynamic zone*, blocks are **not** an array
+inside the document: they are rows with their own uuid.
+
+```json
+{
+  "id": "11111111-2222-3333-4444-555555555555",
+  "title": "Home",
+  "slug": "home",
+  "status": "published",
+  "metaTitle": "Home · Kitsuden",
+  "metaDescription": "Description for search engines",
+  "ogImageId": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "blocks": [
+    {
+      "id": "b1",
+      "type": "hero",
+      "name": "Cover",
+      "sortOrder": 0,
+      "content": { "headline": "Welcome" }
+    },
+    {
+      "id": "b2",
+      "type": "richtext",
+      "sortOrder": 5,
+      "content": { "text": "<p>Hello</p>" }
+    }
+  ]
+}
+```
+
+It is transformed into:
+
+```typescript
+{
+  id: "11111111-2222-3333-4444-555555555555",
+  slug: "home",
+  title: "Home",
+  blocks: [
+    { id: "b1", type: "hero", data: { headline: "Welcome" }, meta: { index: 0, total: 2 } },
+    { id: "b2", type: "richtext", data: { text: "<p>Hello</p>" }, meta: { index: 1, total: 2 } }
+  ],
+  seo: { title: "Home · Kitsuden", description: "…", image: "https://…/api/media/preset/…/large" }
+}
+```
+
+The row's `type` is the type you register in the registry; the `content` is the
+block's `data`.
+
+## Writing (inline editing)
+
+| Inti operation | Kitsuden endpoint |
+|---|---|
+| `updateBlockField` / `updateBlock` | `PATCH /blocks/:id` |
+| `insertBlock` | `POST /pages/:pageId/blocks` (+ reorder) |
+| `moveBlock` | `POST /pages/:pageId/blocks/reorder` |
+| `duplicateBlock` | `POST /blocks/:id/duplicate` (+ reorder) |
+| `removeBlock` | `DELETE /blocks/:id` |
+
+### How the position is translated to the uuid
+
+Inti addresses blocks by position ("block 1 of this page");
+Kitsuden only understands uuids. The adapter **re-reads the page on every write**
+to translate one into the other, instead of trusting the order of the previous
+read.
+
+There are two reasons, and both matter:
+
+1. `GET /pages/:id` **hides** invisible blocks and scheduled blocks outside their
+   window. The array Inti indexes is exactly the one that was rendered — which is
+   what makes the position mean something.
+2. The read is always by uuid, never by slug: the server caches the
+   response for 120 s under the key that was requested, but on write it invalidates by
+   uuid. Re-reading by slug could return the previous order, and writing against
+   that order would move the wrong block.
+
+### Reordering does not renumber
+
+When moving a block, the adapter **swaps the `sortOrder` values that already existed** instead
+of renumbering from 0 to n-1. Hidden blocks share that scale and do not appear
+in the read: renumbering the visible ones would shift them out of place without anyone
+noticing until they were shown again. Only when there are repeated values —which the API
+allows— is there no choice but to renumber.
+
+### Patterns and atomicity
+
+Kitsuden has no bulk create. `insertBlocks` creates the blocks one by one and does
+**one** reorder at the end; if one of the creates fails, it deletes the ones it had already
+created. It is as close to atomic as you can get without CMS support, and
+it avoids publishing half a pattern.
+
+## Drafts
+
+`createDraft` copies the page with `POST /pages/:id/clone`, which the CMS leaves in `draft`, with the slug `inti-draft-of-<uuid>`. It can also be seen and edited from the Kitsuden panel. See [Drafts and undo](/guides/drafts/).
+
+Publishing keeps the page's id, its slug and whether it is the homepage. The API has no atomic replace: the new blocks are created hidden and only once all of them exist are the old ones removed. If creation fails it is rolled back; a later failure leaves the copy so you can retry.
+
+The API does not return hidden or scheduled blocks to anyone, not even with a token. That is why the editor does not see them, they cannot be edited in a draft, and publishing leaves them as they were in the original page, in their position.
+
+An agent key has 60 requests per minute by default, and publishing makes several per block: on a large page, or with several editors, raise its quota.
+
+## AI generation
+
+`generatorBlockTypes()` derives the `@intijs/genui` vocabulary from the CMS palette, with rich text, objects, lists and numeric limits. Fields ending in `Url` are validated as links.
+
+A media field (`media`, or a `string` named `mediaId`, `imageId`…) is omitted unless you say where to pick from, because a made-up id points to nothing:
+
+```ts
+const vocabulary = await adapter.generatorBlockTypes({ mediaSource: 'media' });
+const sources = { media: adapter.mediaAsData([{ id: 'uuid', summary: 'Team photo' }]) };
+```
+
+`mediaAsData` takes the list because Kitsuden reserves the catalog for its team: an agent key gets 403 on `GET /api/media`.
+
+## Game pages (`game:<uuid>`)
+
+Besides the page builder's pages, the adapter edits the game pages of the games
+kon (`/api/games`). Their blocks are not rows: they are the `games.blocks` array
+(`{ id, type, order, data }`) that **the loaders regenerate** on every reload, with
+deterministic ids such as `crimson-desert-smart-grid-1`. That is why the editor never touches
+`data`: it writes to a per-block layer that the reload preserves.
+
+```ts
+editorial?: { title?: string; description?: string; hidden?: boolean; order?: number }
+```
+
+The document is told apart by its prefix: `game:<uuid>` is a game page; a uuid without
+a prefix is still a page builder page.
+
+```ts
+const game = await kitsuden.getGame('crimson-desert');   // or getGame(uuid)
+const same = await kitsuden.getPage('game:01bd1555-…');   // getPage delegates
+game.id;                          // 'game:01bd1555-…'
+game.blocks[0].data.title;        // editorial.title ?? data.title
+game.blocks[0].original?.title;   // the loader's one, untouched
+game.blocks[0].editorial;         // the layer as is (if it exists)
+```
+
+The read (`GET /api/games/slug/:slug`, or `GET /api/games/:id` with a uuid) applies
+the layer the same way the site does: it skips blocks with `hidden: true`, sorts by
+`editorial.order ?? order` and renders the editorial `title`/`description` on top of
+`data`. `meta.index`/`meta.total` count over that visible list, and
+`meta.contentType` is `'game'`.
+
+| Inti operation | Kitsuden endpoint |
+|---|---|
+| `updateBlockField(doc, i, 'title' \| 'description', value)` | `PATCH /api/games/:id/blocks/:blockId/editorial` with `{ [field]: value }` (`null` goes back to the loader's text) |
+| `updateBlock(doc, i, data)` | the same `PATCH`, only with the `title`/`description` that change relative to what is visible; the rest of `data` is ignored |
+| `moveBlock(doc, from, to)` | `PUT /api/games/:id/blocks/order` with `{ ids }`: **all** ids, hidden ones included (they keep their slot) |
+| `removeBlock(doc, i)` | `PATCH …/editorial` with `{ hidden: true }`: **hides**, never deletes |
+| `insertBlock` / `insertBlocks` / `duplicateBlock` | error: "game blocks cannot be created from the editor: the loader generates them" |
+
+As with pages, every write **re-reads the game by uuid** (`GET /api/games/:id`,
+with no server cache) and translates the visible index to a block id against that
+fresh read; a `game:<slug>` `documentId` is rejected for writing. Writing
+still requires a `kitsuden_agent_…` agent key; in Kitsuden the
+`content:edit` scope is enough (or a staff session). Up to Kitsuden 0.8 the editorial keys were `titulo`, `descripcion`, `oculto` and `orden`; the adapter still reads them for one version so un-migrated game rows render.
+
+## Introspection
+
+`introspect()` reads `GET /block-types`, which is **the same palette the panel sees**,
+so the generated types and the editor cannot disagree. Each palette type
+becomes an interface and is included in `IntiTypedBlock`:
+
+```bash
+npx inti sync
+```
+
+That same palette is used when inserting: a type that is not in it is rejected
+**before** calling the CMS. Saving it would give a 500 for an invalid enum value and
+the editor would only see "something went wrong".
+
+### Type mapping
+
+| Kitsuden type | Inti type |
+|---|---|
+| `string`, `enum` | `string` |
+| `text` | `text` |
+| `richtext` | `richtext` |
+| `number` | `number` |
+| `boolean` | `boolean` |
+| `date` / `datetime` | `date` / `datetime` |
+| `media` | `media` |
+| `relation` | `relation` |
+| `object`, `array`, anything else | `json` |
+
+## SEO
+
+`metaTitle` and `metaDescription` take precedence over the page's title and
+description. `ogImageId` is a media id, not a URL: the adapter builds the URL against
+the kon-media presets (`/api/media/preset/:id/:preset`).
+
+A draft (`status !== 'published'`) and a page with `requireAuth` go out with
+`robots: { index: false, follow: false }`. Both values already lived in the row and never
+left the CMS: a frontend that only read the title and blocks published
+`index,follow` on a private or half-written page.
+
+## Versions and compatibility
+
+The adapter and Kitsuden are released separately, so each carries its
+own **semver** version and between them something else rules: the **contract
+versions**. Kitsuden publishes at `GET /api/version` (public, no session) an
+integer —the major version— for each surface that outside clients consume:
+
+```json
+{
+  "product": "kitsuden",
+  "version": "0.9.0-beta",
+  "contracts": { "page-builder": 1, "games": 2, "games-editorial": 2, "admin-registry": 1 }
+}
+```
+
+| Contract | Routes | The adapter uses it to |
+|---|---|---|
+| `page-builder` | `/api/page-builder/pages`, `/pages/:id`, `/block-types`, block writes | read and edit pages |
+| `games` | `GET /api/games/slug/:slug`, `GET /api/games/:id` | read `game:<uuid>` game pages |
+| `games-editorial` | `PATCH /api/games/:id/blocks/:blockId/editorial`, `PUT /api/games/:id/blocks/order` | edit game pages |
+
+Each adapter version declares which versions it understands
+(`SUPPORTED_CONTRACTS`, exported). The check is **lazy**: constructing
+the adapter and **reading** query nothing —the public site works against
+any Kitsuden—; before the **first write** `/api/version` is requested
+once and:
+
+- a contract **higher** than the one the adapter understands → the write
+  returns `success: false` with a message saying what to upgrade
+  (`Kitsuden 2.0.0 speaks "page-builder" v2 and @intijs/adapter-kitsuden 0.1.0 only understands v1…`)
+  and **nothing is written**; the same with one **lower** than the minimum, or if the
+  API **does not declare** a contract that write needs (a Kitsuden without
+  the editorial layer does not allow editing game pages, but does allow pages);
+- the route **does not exist** (404/405, a Kitsuden older than the check) →
+  a warning in the server console, once, and writing continues;
+- network error, 5xx or a response that is not from Kitsuden → warning, the write goes ahead,
+  and it asks again on the next write.
+
+`await adapter.checkCompatibility()` runs the same check by hand (for
+example at startup, to fail early); `checkCompatibility: false`
+disables it.
+
+### Versioning policy
+
+- **`@intijs/adapter-kitsuden`** follows semver. Supporting a new contract version
+  **in addition to** the previous ones is a *minor*; dropping support for one is a
+  *major*. While it is on `0.x`, a *minor* may break (the semver rule
+  for 0.x), and the changelog will say so.
+- **Kitsuden** bumps a contract's number when the change is
+  **incompatible**: removing or renaming a field of a response or of a
+  body, changing its type or its meaning, making something optional required,
+  changing a response's envelope, moving or removing a route, changing the
+  status code of a documented case or requiring a different permission. It does **not** bump it
+  for adding fields, routes, optional parameters or block types.
+- A new contract is announced in `contracts`; a retired one stops appearing.
+
+### Compatibility matrix
+
+| `@intijs/adapter-kitsuden` | `page-builder` | `games` | `games-editorial` | Kitsuden |
+|---|---|---|---|---|
+| 0.1.x | 1 | 2 | 2 | 0.9.0-beta onwards; against 0.8 (`games` v1) pages work and game pages are read-only |
+
+The full policy (including the one for the Kitsuden API) and the same matrix
+live in the Kitsuden repository, in `docs/install/versions.md`.
+
+### Contract test
+
+`npm run test:kitsuden` brings up a real, disposable Kitsuden in Docker, with its own project and port, goes through every operation and compares its responses with the reference file. It covers the `page-builder` contract; `games` requires the games kon to be enabled.
+
+The adapter is tested against the API's **real responses**, not against
+hand-written objects: `tests/contract.test.ts` reads
+`tests/contract/reference-responses.json`, which Kitsuden's suite generates
+by mounting its real routers (`tests/unit/inti-contract.test.ts`) and which that
+same suite checks on every run. The canonical copy lives in Kitsuden
+(`packages/shared/contracts/inti/reference-responses.json`); if the Kitsuden
+repo sits next to this one (`../cms`, or `KITSUDEN_REPO=/path`), the test uses that one and
+requires the copy here to be identical.
+
+## Known limits
+
+- **Interactive blocks are not edited inline.** `tier-list`,
+  `character-builder` and `comments` are applications, not text: they are mounted as
+  islands and their content is managed in their own kon.
+- **No menus endpoint.** `parseNavigation()` derives navigation from the page
+  listing; the homepage (`isHomepage`) hangs off `/`.
+- **The relation picker only searches pages.** It is the only collection the
+  builder exposes with text search.
+- **Public reads cached for 120 s.** After an edit, a read by slug may
+  keep serving the old version for that time. Inline editing does not suffer from it
+  because the adapter works by uuid.
+
+## Implementation
+
+<Code code={kitsudenCode} lang="ts" title="packages/adapter-kitsuden/src/index.ts" />

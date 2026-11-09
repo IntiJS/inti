@@ -1,0 +1,79 @@
+---
+title: Keystatic
+description: Edit Keystatic content by double-clicking on the page
+---
+
+Keystatic stores content in files in your repo and edits it in a panel. Inti adds what it lacks: editing on the page itself. The panel keeps working and both work on the same files.
+
+Keystatic has no write API, so the adapter writes its files directly, and its tests read every write back with the official reader.
+
+```bash
+npm create inti@latest my-site -- --cms keystatic
+```
+
+## The collection
+
+A page is an entry with a `fields.blocks` field:
+
+```ts
+// keystatic.config.ts
+pages: collection({
+  label: 'Pages',
+  slugField: 'title',
+  path: 'content/pages/*',
+  format: { data: 'yaml' },
+  schema: {
+    title: fields.slug({ name: { label: 'Title' } }),
+    metaTitle: fields.text({ label: 'Meta title' }),
+    blocks: fields.blocks({
+      hero: {
+        label: 'Hero',
+        schema: fields.object({ heading: fields.text({ label: 'Heading' }) })
+      }
+    }, { label: 'Blocks' })
+  }
+})
+```
+
+The `discriminant` is the block type, as is: `hero` is rendered with `src/blocks/hero.astro`. `documentId` is the slug.
+
+## Connecting
+
+```ts
+import { KeystaticAdapter } from '@intijs/adapter-keystatic';
+
+const adapter = new KeystaticAdapter();
+const page = await adapter.fetchPageBySlug('home');
+```
+
+| Option | Default | What for |
+|---|---|---|
+| `collection` | `content/pages/*` | The collection's `path`. `content/pages/*/` saves to `<slug>/index.yaml` |
+| `format` | `yaml` | `yaml` or `json`, the collection's `format.data` |
+| `blocksField` | `blocks` | The `fields.blocks` field |
+| `titleField` | `title` | The field holding the title |
+| `seo` | `metaTitle`, `metaDescription`, `ogImage` | Where the SEO fields are |
+
+The actions read `INTI_ADAPTER=keystatic`, `INTI_KEYSTATIC_COLLECTION` and `INTI_KEYSTATIC_BLOCKS_FIELD`.
+
+## In production, through GitHub
+
+A server without a persistent disk would lose whatever was written to a local folder. Through GitHub, every edit is a commit, so real undo and history are git's:
+
+```bash
+INTI_ADAPTER=keystatic
+INTI_KEYSTATIC_REPO=owner/repo
+INTI_KEYSTATIC_TOKEN=          # with write permission on the repo. Server only
+INTI_KEYSTATIC_BRANCH=main
+```
+
+If someone else changed the file in the meantime, GitHub rejects the write and the editor sees it: nothing gets overwritten. The site takes as long to show the change as it takes to read it from GitHub, and the GitHub API is rate-limited, so a site with traffic should cache reads.
+
+## Drafts
+
+They are stored in `.inti/drafts/pages/`, outside the collection, so neither the panel nor the reader takes them for pages. Publishing is a single change to the page's file. See [Drafts and undo](/guides/drafts/).
+
+## What you should know
+
+- Rewriting a YAML file keeps the data, but not the comments or the style.
+- `fields.document` and `fields.mdx` fields live in separate files and are not edited from the page.

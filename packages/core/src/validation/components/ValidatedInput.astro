@@ -1,0 +1,429 @@
+---
+/**
+ * ValidatedInput - Input component with built-in validation
+ * Provides real-time visual validation feedback
+ */
+
+import type { 
+    ValidationInputConfig, 
+    ValidationOutputConfig, 
+    ValidationResult,
+    ValidationRule 
+} from '../types.js';
+
+interface Props {
+    name: string;
+    value?: any;
+    config: ValidationInputConfig;
+    outputConfig: ValidationOutputConfig;
+    rules?: ValidationRule[];
+    results?: ValidationResult[];
+    disabled?: boolean;
+    readonly?: boolean;
+    onValidate?: (name: string, value: any) => void;
+}
+
+const { 
+    name, 
+    value = '', 
+    config, 
+    outputConfig,
+    rules = [],
+    results = [],
+    disabled = false,
+    readonly = false
+} = Astro.props;
+
+// Determine the validation state
+const errors = results.filter(r => !r.valid && r.severity === 'error');
+const warnings = results.filter(r => !r.valid && r.severity === 'warning');
+const infos = results.filter(r => !r.valid && r.severity === 'info');
+
+const hasError = errors.length > 0;
+const hasWarning = warnings.length > 0;
+const hasInfo = infos.length > 0;
+const isValid = results.length > 0 && !hasError && !hasWarning;
+
+// Generate CSS classes based on state
+const baseInputClass = `inti-validated-input ${outputConfig.classes?.input || ''}`;
+const stateClasses = [
+    hasError ? `inti-input-error ${outputConfig.classes?.error || ''}` : '',
+    hasWarning ? `inti-input-warning ${outputConfig.classes?.warning || ''}` : '',
+    isValid ? `inti-input-success ${outputConfig.classes?.success || ''}` : ''
+].filter(Boolean).join(' ');
+
+const inputClass = `${baseInputClass} ${stateClasses}`.trim();
+
+// Messages to show according to the configuration
+const errorMessage = outputConfig.errorDisplay !== 'border' && outputConfig.errorDisplay !== 'summary' 
+    ? errors[0]?.message 
+    : null;
+const warningMessage = outputConfig.warningDisplay !== 'border' && outputConfig.warningDisplay !== 'summary'
+    ? warnings[0]?.message
+    : null;
+const infoMessage = outputConfig.infoDisplay !== 'border' && outputConfig.infoDisplay !== 'summary'
+    ? infos[0]?.message
+    : null;
+
+// Icons
+const icons = outputConfig.icons || {};
+---
+
+<div class="inti-validated-field" data-field-name={name}>
+    {/* Label */}
+    {config.label && (
+        <label class="inti-field-label" for={`input-${name}`}>
+            {config.icon && (
+                <span class="inti-field-icon">
+                    {/* Icon here - use a sprite or SVG */}
+                    🏷️
+                </span>
+            )}
+            {config.label}
+            {rules.some(r => r.type === 'required') && (
+                <span class="inti-required-indicator">*</span>
+            )}
+        </label>
+    )}
+    
+    {/* Input with prefix/suffix */}
+    <div class="inti-input-wrapper">
+        {config.prefix && (
+            <span class="inti-input-prefix">{config.prefix}</span>
+        )}
+        
+        {config.inputType === 'textarea' ? (
+            <textarea
+                id={`input-${name}`}
+                name={name}
+                class={inputClass}
+                placeholder={config.placeholder}
+                disabled={disabled || config.disabled}
+                readonly={readonly || config.readonly}
+                autocomplete={config.autocomplete}
+                data-validate="true"
+            >{value}</textarea>
+        ) : config.inputType === 'select' ? (
+            <select
+                id={`input-${name}`}
+                name={name}
+                class={inputClass}
+                disabled={disabled || config.disabled}
+                data-validate="true"
+            >
+                <option value="">{config.placeholder || 'Select...'}</option>
+                {config.options?.map(opt => (
+                    <option value={String(opt.value)} selected={value === opt.value}>
+                        {opt.label}
+                    </option>
+                ))}
+            </select>
+        ) : config.inputType === 'checkbox' ? (
+            <div class="inti-checkbox-group">
+                {config.options?.map(opt => (
+                    <label class="inti-checkbox-label">
+                        <input
+                            type="checkbox"
+                            name={`${name}[]`}
+                            value={String(opt.value)}
+                            checked={Array.isArray(value) && value.includes(opt.value)}
+                            disabled={disabled || config.disabled || opt.disabled}
+                            class={inputClass}
+                            data-validate="true"
+                        />
+                        <span>{opt.label}</span>
+                    </label>
+                ))}
+            </div>
+        ) : config.inputType === 'radio' ? (
+            <div class="inti-radio-group">
+                {config.options?.map(opt => (
+                    <label class="inti-radio-label">
+                        <input
+                            type="radio"
+                            name={name}
+                            value={String(opt.value)}
+                            checked={value === opt.value}
+                            disabled={disabled || config.disabled || opt.disabled}
+                            class={inputClass}
+                            data-validate="true"
+                        />
+                        <span>{opt.label}</span>
+                    </label>
+                ))}
+            </div>
+        ) : (
+            <input
+                id={`input-${name}`}
+                type={
+                    config.inputType === 'currency' || config.inputType === 'percentage' || config.inputType === 'rating'
+                        ? 'number'
+                        : config.inputType
+                }
+                name={name}
+                value={value}
+                class={inputClass}
+                placeholder={config.placeholder}
+                step={config.step}
+                disabled={disabled || config.disabled}
+                readonly={readonly || config.readonly}
+                autocomplete={config.autocomplete}
+                data-validate="true"
+                data-input-type={config.inputType}
+            />
+        )}
+        
+        {config.suffix && (
+            <span class="inti-input-suffix">{config.suffix}</span>
+        )}
+        
+        {/* Status icons */}
+        {(isValid || hasError) && (
+            <span class="inti-input-status-icon">
+                {isValid ? (icons.valid || '✅') : (icons.invalid || '❌')}
+            </span>
+        )}
+    </div>
+    
+    {/* Description / Help text */}
+    {config.description && !errorMessage && !warningMessage && (
+        <p class="inti-field-description">{config.description}</p>
+    )}
+    
+    {/* Example */}
+    {config.example && !value && (
+        <p class="inti-field-example">
+            Example: <code>{config.example}</code>
+        </p>
+    )}
+    
+    {/* Validation messages */}
+    {errorMessage && (
+        <p class="inti-validation-message inti-error-message" role="alert">
+            {icons.error && <span class="inti-message-icon">{icons.error}</span>}
+            {errorMessage}
+        </p>
+    )}
+    
+    {warningMessage && (
+        <p class="inti-validation-message inti-warning-message" role="status">
+            {icons.warning && <span class="inti-message-icon">{icons.warning}</span>}
+            {warningMessage}
+        </p>
+    )}
+    
+    {infoMessage && (
+        <p class="inti-validation-message inti-info-message" role="status">
+            {icons.info && <span class="inti-message-icon">{icons.info}</span>}
+            {infoMessage}
+        </p>
+    )}
+</div>
+
+<style>
+    /* Base styles */
+    .inti-validated-field {
+        margin-bottom: 1rem;
+    }
+    
+    .inti-field-label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        color: #374151;
+    }
+    
+    .inti-field-icon {
+        margin-right: 0.5rem;
+    }
+    
+    .inti-required-indicator {
+        color: #ef4444;
+        margin-left: 0.25rem;
+    }
+    
+    /* Input wrapper */
+    .inti-input-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+    
+    .inti-input-prefix,
+    .inti-input-suffix {
+        padding: 0.5rem 0.75rem;
+        background: #f3f4f6;
+        border: 1px solid #d1d5db;
+        color: #6b7280;
+        font-size: 0.875rem;
+    }
+    
+    .inti-input-prefix {
+        border-right: none;
+        border-radius: 0.375rem 0 0 0.375rem;
+    }
+    
+    .inti-input-suffix {
+        border-left: none;
+        border-radius: 0 0.375rem 0.375rem 0;
+    }
+    
+    /* Input base */
+    .inti-validated-input {
+        flex: 1;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 0.375rem;
+        font-size: 0.875rem;
+        transition: all 0.2s;
+        width: 100%;
+    }
+    
+    .inti-validated-input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        ring: 2px solid #bfdbfe;
+    }
+    
+    /* Validation states */
+    .inti-input-error {
+        border-color: #ef4444;
+        background-color: #fef2f2;
+    }
+    
+    .inti-input-error:focus {
+        border-color: #ef4444;
+        ring: 2px solid #fecaca;
+    }
+    
+    .inti-input-warning {
+        border-color: #f59e0b;
+        background-color: #fffbeb;
+    }
+    
+    .inti-input-warning:focus {
+        border-color: #f59e0b;
+        ring: 2px solid #fde68a;
+    }
+    
+    .inti-input-success {
+        border-color: #10b981;
+        background-color: #f0fdf4;
+    }
+    
+    /* Status icon */
+    .inti-input-status-icon {
+        position: absolute;
+        right: 0.75rem;
+        pointer-events: none;
+    }
+    
+    /* Checkbox and Radio groups */
+    .inti-checkbox-group,
+    .inti-radio-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .inti-checkbox-label,
+    .inti-radio-label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+    
+    /* Description and example */
+    .inti-field-description {
+        margin-top: 0.25rem;
+        font-size: 0.75rem;
+        color: #6b7280;
+    }
+    
+    .inti-field-example {
+        margin-top: 0.25rem;
+        font-size: 0.75rem;
+        color: #9ca3af;
+    }
+    
+    .inti-field-example code {
+        background: #f3f4f6;
+        padding: 0.125rem 0.375rem;
+        border-radius: 0.25rem;
+        font-family: monospace;
+    }
+    
+    /* Validation messages */
+    .inti-validation-message {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        margin-top: 0.375rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+    
+    .inti-message-icon {
+        flex-shrink: 0;
+    }
+    
+    .inti-error-message {
+        color: #ef4444;
+    }
+    
+    .inti-warning-message {
+        color: #f59e0b;
+    }
+    
+    .inti-info-message {
+        color: #3b82f6;
+    }
+    
+    /* Animations */
+    @keyframes inti-shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-4px); }
+        75% { transform: translateX(4px); }
+    }
+    
+    .inti-input-error[data-animate="true"] {
+        animation: inti-shake 0.3s ease-in-out;
+    }
+    
+    @keyframes inti-pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+        50% { box-shadow: 0 0 0 4px rgba(16, 185, 129, 0); }
+    }
+    
+    .inti-input-success[data-animate="true"] {
+        animation: inti-pulse 0.5s ease-in-out;
+    }
+</style>
+
+<script>
+    // Client-side validation interactivity
+    document.addEventListener('DOMContentLoaded', () => {
+        const inputs = document.querySelectorAll('[data-validate="true"]');
+        
+        inputs.forEach(input => {
+            const field = input.closest('.inti-validated-field');
+            const fieldName = field?.getAttribute('data-field-name');
+            
+            // Emit a change event for validation
+            input.addEventListener('input', (e) => {
+                const target = e.target as HTMLInputElement;
+                window.dispatchEvent(new CustomEvent('inti:field-change', {
+                    detail: { name: fieldName, value: target.value }
+                }));
+            });
+            
+            input.addEventListener('blur', (e) => {
+                const target = e.target as HTMLInputElement;
+                window.dispatchEvent(new CustomEvent('inti:field-blur', {
+                    detail: { name: fieldName, value: target.value }
+                }));
+            });
+        });
+    });
+</script>

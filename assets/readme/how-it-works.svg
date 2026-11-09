@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 660" width="1200" height="660" role="img" aria-labelledby="t d">
+<title id="t">How an edit reaches the CMS</title>
+<desc id="d">An editor double-clicks text on the Astro page and presses Enter. The edit goes to an astro:actions endpoint on the site's server, which holds the CMS credentials and lets a plugin decide who may write. The action calls the adapter's WritableAdapter methods, which write the change back to the CMS: WordPress, Kitsuden, Strapi or Keystatic. AI agents reach the same adapter through @intijs/mcp.</desc>
+<style>.s{font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif}.m{font-family:ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace}</style>
+<rect x="1" y="1" width="1198" height="658" rx="28" fill="#0f1520" stroke="#2a3446" stroke-width="2"/>
+<text class="s" x="40" y="66" font-size="30" font-weight="800" fill="#f1f5f9">From a double-click to your CMS</text>
+<rect x="40" y="100" width="320" height="236" rx="18" fill="#161e2c" stroke="#2a3446" stroke-width="2"/>
+<rect x="64" y="114" width="48" height="6" rx="3" fill="#fbbf24"/>
+<text class="s" x="64" y="152" font-size="20" fill="#a8b3c4">1  Your Astro site</text>
+<text class="s" x="64" y="184" font-size="24" font-weight="700" fill="#f1f5f9">Edit on the page</text>
+<text class="s" x="64" y="230" font-size="20" fill="#f1f5f9">double-click a text,</text>
+<text class="s" x="64" y="262" font-size="20" fill="#f1f5f9">type, press Enter</text>
+<text class="s" x="64" y="294" font-size="20" fill="#f1f5f9">undo with Ctrl/Cmd+Z</text>
+<rect x="440" y="100" width="320" height="236" rx="18" fill="#161e2c" stroke="#2a3446" stroke-width="2"/>
+<rect x="464" y="114" width="48" height="6" rx="3" fill="#ff8a4c"/>
+<text class="s" x="464" y="152" font-size="20" fill="#a8b3c4">2  Your server</text>
+<text class="m" x="464" y="184" font-size="21" font-weight="700" fill="#f1f5f9">astro:actions</text>
+<text class="s" x="464" y="230" font-size="20" fill="#f1f5f9">holds the credentials</text>
+<text class="s" x="464" y="262" font-size="20" fill="#f1f5f9">a plugin decides who</text>
+<text class="s" x="464" y="294" font-size="20" fill="#f1f5f9">may write, else 403</text>
+<rect x="840" y="100" width="320" height="236" rx="18" fill="#161e2c" stroke="#2a3446" stroke-width="2"/>
+<rect x="864" y="114" width="48" height="6" rx="3" fill="#a78bfa"/>
+<text class="s" x="864" y="152" font-size="20" fill="#a8b3c4">3  The adapter</text>
+<text class="m" x="864" y="184" font-size="21" font-weight="700" fill="#f1f5f9">WritableAdapter</text>
+<text class="m" x="864" y="230" font-size="20" fill="#f1f5f9">updateBlockField</text>
+<text class="m" x="864" y="262" font-size="20" fill="#f1f5f9">moveBlock, insertBlock</text>
+<text class="m" x="864" y="294" font-size="20" fill="#f1f5f9">createDraft</text>
+<line x1="370" y1="218.0" x2="422" y2="218.0" stroke="#ff8a4c" stroke-width="3" stroke-linecap="round"/><path d="M418 209.0 L432 218.0 L418 227.0 Z" fill="#ff8a4c"/>
+<line x1="770" y1="218.0" x2="822" y2="218.0" stroke="#ff8a4c" stroke-width="3" stroke-linecap="round"/><path d="M818 209.0 L832 218.0 L818 227.0 Z" fill="#ff8a4c"/>
+<line x1="1000.0" y1="346" x2="1000.0" y2="398" stroke="#ff8a4c" stroke-width="3" stroke-linecap="round"/><path d="M991.0 394 L1000.0 408 L1009.0 394 Z" fill="#ff8a4c"/>
+<text class="s" x="982.0" y="380" font-size="20" text-anchor="end" fill="#a8b3c4">written back</text>
+<text class="s" x="40" y="380" font-size="20" fill="#a8b3c4">AI agents reach the same adapter through <tspan font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" fill="#f1f5f9">@intijs/mcp</tspan></text>
+<rect x="40" y="416" width="1120" height="204" rx="18" fill="#161e2c" stroke="#2a3446" stroke-width="2"/>
+<text class="s" x="64" y="460" font-size="20" fill="#a8b3c4">4  Saved in the CMS you already have, as ordinary blocks</text>
+<rect x="64.0" y="482" width="256.0" height="116" rx="14" fill="#0f1520" stroke="#60a5fa" stroke-width="2"/>
+<text class="s" x="84.0" y="518" font-size="22" font-weight="700" fill="#f1f5f9">WordPress</text>
+<text class="s" x="84.0" y="554" font-size="20" fill="#a8b3c4">ACF Flexible Content</text>
+<text class="s" x="84.0" y="582" font-size="20" fill="#a8b3c4">over REST</text>
+<rect x="336.0" y="482" width="256.0" height="116" rx="14" fill="#0f1520" stroke="#34d399" stroke-width="2"/>
+<text class="s" x="356.0" y="518" font-size="22" font-weight="700" fill="#f1f5f9">Kitsuden</text>
+<text class="s" x="356.0" y="554" font-size="20" fill="#a8b3c4">page-builder API,</text>
+<text class="s" x="356.0" y="582" font-size="20" fill="#a8b3c4">agent key</text>
+<rect x="608.0" y="482" width="256.0" height="116" rx="14" fill="#0f1520" stroke="#a78bfa" stroke-width="2"/>
+<text class="s" x="628.0" y="518" font-size="22" font-weight="700" fill="#f1f5f9">Strapi</text>
+<text class="s" x="628.0" y="554" font-size="20" fill="#a8b3c4">dynamic zones,</text>
+<text class="s" x="628.0" y="582" font-size="20" fill="#a8b3c4">v4 and v5</text>
+<rect x="880.0" y="482" width="256.0" height="116" rx="14" fill="#0f1520" stroke="#f472b6" stroke-width="2"/>
+<text class="s" x="900.0" y="518" font-size="22" font-weight="700" fill="#f1f5f9">Keystatic</text>
+<text class="s" x="900.0" y="554" font-size="20" fill="#a8b3c4">its files, locally</text>
+<text class="s" x="900.0" y="582" font-size="20" fill="#a8b3c4">or a GitHub commit</text>
+</svg>

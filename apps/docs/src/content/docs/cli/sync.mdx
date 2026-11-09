@@ -1,0 +1,141 @@
+---
+title: inti sync
+description: Main command for syncing and code generation
+---
+
+import { Code } from '@astrojs/starlight/components';
+
+The `inti sync` command is the heart of the Inti.js workflow. It connects to your CMS, introspects the schema and generates typed code.
+
+## Basic Usage
+
+```bash
+npx inti sync
+```
+
+## What Does It Do?
+
+1. Loads `inti.config.ts` and creates the adapter it names.
+2. Asks the adapter for the CMS schema (`introspect()`).
+3. Writes to `outputDir` (by default `./src/lib/inti`):
+
+| File | Contents |
+|---|---|
+| `inti.types.ts` | One interface per collection and per block type, plus `IntiTypedBlock` |
+| `inti-manifest.json` | Block manifest for AI tools |
+| `inti-mocks.ts` | Sample data |
+
+`inti sync` does **not** generate functions to read content: the adapter always does that. If your `outputDir` holds an `inti-sdk.ts` from an earlier development version, `inti sync` will warn you: delete it, its functions requested a route that no supported CMS has.
+
+## Typed blocks
+
+The adapter returns `page.blocks` as `IntiBlock[]`, with untyped `data`. `inti.types.ts` includes `IntiTypedBlock`, a union discriminated by `type`: once you check a block's type, its data is typed.
+
+```astro
+---
+import type { IntiTypedBlock } from '../lib/inti/inti.types';
+
+const page = await adapter.getPage('home');
+const blocks = page.blocks as IntiTypedBlock[];
+
+for (const block of blocks) {
+  if (block.type === 'hero') {
+    block.data.headline;   // string — and an error if the field does not exist
+  }
+}
+---
+```
+
+It changes nothing at runtime: it only gives a shape to what the adapter already returns.
+
+Which block types can be described depends on the CMS:
+
+| CMS | Typed blocks |
+|---|---|
+| Kitsuden | Every block in the palette, with the fields its schema declares |
+| WordPress | The Flexible Content layouts that appear on the sample page `inti sync` reads. Fields are inferred from their values |
+| Others | None: `IntiTypedBlock` is just `IntiBlock` |
+
+In WordPress, a layout that does not appear on the sample page is not described. Use a page that contains all of them as the sample.
+
+### Field types
+
+They describe what the adapter returns, not the CMS API:
+
+| CMS field | Type |
+|---|---|
+| text, long text, HTML | `string` |
+| date, date and time | `string` (ISO 8601: they arrive in JSON, not as `Date`) |
+| image or file | `IntiMedia`: an id or an object with `url`, depending on the CMS |
+| relation | `string` (id of the entry) |
+| blocks | `IntiBlock[]` |
+
+## CLI Options
+
+```bash
+# Help
+npx inti help
+
+# Use another configuration file (default ./inti.config.ts)
+npx inti sync --config ./config/inti.ts
+```
+
+`inti sync` needs an `inti.config.ts` with `adapter` and `adapterConfig` to know which CMS to connect to. It writes to `outputDir`, by default `./src/lib/inti`.
+
+## package.json Integration
+
+```json
+{
+  "scripts": {
+    "dev": "astro dev",
+    "build": "inti sync && astro build",
+    "sync": "inti sync",
+    "typecheck": "tsc --noEmit"
+  }
+}
+```
+
+## CI/CD
+
+### GitHub Actions
+
+```yaml
+# .github/workflows/build.yml
+name: Build
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      
+      - run: bun install
+      
+      - name: Sync CMS Schema
+        run: npx inti sync
+        env:
+          INTI_KITSUDEN_ENDPOINT: ${{ secrets.INTI_KITSUDEN_ENDPOINT }}
+          INTI_KITSUDEN_TOKEN: ${{ secrets.INTI_KITSUDEN_TOKEN }}
+      
+      - run: bun run build
+```
+
+## Errors
+
+`inti sync` has two error outputs:
+
+**`❌ Config file not found at …`** — there is no `inti.config.ts` in the current directory (or at the `--config` path). See [Configuration](/guides/configuration/).
+
+**`❌ Sync failed:`** followed by the cause — usually the CMS does not respond, the `adapterConfig` credentials are not valid, or the adapter is not installed. The message on the next line is the original error.
+
+The command exits with a non-zero code in both cases, so in CI it stops the build.
+
+## What to commit
+
+Commit `inti.types.ts`: that way the build and the type check do not depend on the CMS being reachable from CI. Regenerate with `npx inti sync` when the CMS schema changes.

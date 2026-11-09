@@ -1,0 +1,57 @@
+{
+  "name": "inti-monorepo",
+  "private": true,
+  "license": "MIT",
+  "author": "Victor Antinori Broce",
+  "homepage": "https://github.com/intijs/inti#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/intijs/inti.git"
+  },
+  "bugs": {
+    "url": "https://github.com/intijs/inti/issues"
+  },
+  "type": "module",
+  "version": "0.1.0",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @intijs/demo-site",
+    "dev:all": "concurrently \"npm run dev -w @intijs/docs\" \"npm run dev -w @intijs/demo-site\"",
+    "dev:docs": "npm run dev -w @intijs/docs",
+    "build": "npm run build:core && npm run build:genui && npm run build:cloudflare && npm run build:cli && npm run build:adapters && npm run build:mcp",
+    "build:core": "npm run build -w @intijs/core",
+    "build:genui": "npm run build -w @intijs/genui",
+    "build:cloudflare": "npm run build -w @intijs/cloudflare",
+    "build:cli": "npm run build -w @intijs/cli",
+    "build:mcp": "npm run build -w @intijs/mcp",
+    "build:docs": "npm run build -w @intijs/docs",
+    "build:adapter-wordpress": "npm run build -w @intijs/adapter-wordpress",
+    "build:adapter-kitsuden": "npm run build -w @intijs/adapter-kitsuden",
+    "build:adapter-strapi": "npm run build -w @intijs/adapter-strapi",
+    "build:adapter-contentful": "npm run build -w @intijs/adapter-contentful",
+    "build:adapter-sanity": "npm run build -w @intijs/adapter-sanity",
+    "build:adapter-keystatic": "npm run build -w @intijs/adapter-keystatic",
+    "build:adapters": "npm run build:adapter-wordpress && npm run build:adapter-strapi && npm run build:adapter-contentful && npm run build:adapter-sanity && npm run build:adapter-kitsuden && npm run build:adapter-keystatic",
+    "build:apps": "npm run build:docs && npm run build -w @intijs/demo-site",
+    "build:all": "npm run build && npm run build:apps",
+    "sync": "npm run sync -w @intijs/cli",
+    "test": "bun test packages/",
+    "test:astro-compat": "node scripts/astro-compat.mjs",
+    "test:wordpress": "node scripts/wordpress-check.mjs",
+    "test:genui": "node scripts/genui-check.mjs",
+    "test:kitsuden": "node scripts/kitsuden-check.mjs",
+    "test:cloudflare": "node scripts/cloudflare-check.mjs",
+    "clean": "rm -rf node_modules packages/*/node_modules apps/*/node_modules"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "bun": ">=1.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.7.3"
+  }
+}

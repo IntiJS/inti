@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs. Never committed: a git install builds them in `prepare`
+# (scripts/prepare-package.mjs) and an npm publish in `prepublishOnly`.
+dist/
+**/dist/
+*.tsbuildinfo
+*.tgz
+
+# Astro
+.astro/
+**/.astro/
+
+# Environment variables: only the example is committed
+.env
+.env.*
+!.env.example
+
+# Keys and certificates must never be committed
+*.pem
+*.key
+
+# Local data written while developing
+# (local adapter store .inti/content.json, file pattern stores)
+.inti/
+/data/
+/apps/*/data/
+coverage/
+
+# Per-user tool settings (absolute paths, local permissions). Only the shared
+# Claude Code permissions and the skills under .claude/ are committed.
+.claude/*
+!.claude/settings.json
+!.claude/skills/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Single lockfile: the repo installs with npm (`npm ci` in CI). A bun.lock or
+# pnpm-lock.yaml alongside it silently diverges. Bun is only used as the test
+# runner.
+bun.lock
+bun.lockb
+pnpm-lock.yaml

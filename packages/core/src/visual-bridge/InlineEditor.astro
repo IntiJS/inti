@@ -1,0 +1,149 @@
+---
+/**
+ * InlineEditor - Enables inline editing on the page
+ *
+ * Usage (in the layout, typically next to VisualBridgeAuto):
+ *   <InlineEditor />
+ *
+ * Requires:
+ * - BlockRenderer with `editable` on (default in dev) for auto-binding,
+ *   and/or elements marked with data-inti-field in the block components
+ * - The `inti.updateBlockField` action registered in src/actions/index.ts:
+ *     import { intiActions } from '@intijs/core/actions';
+ *     export const server = { inti: intiActions };
+ */
+
+import type { ComposerBlockType } from './block-composer.js';
+import { resolveEditorSession } from '../server/editor-session.js';
+import { resolveWriteAdapter } from '../server/write-adapter.js';
+import { isDraftableAdapter } from '../adapters/index.js';
+
+interface Props {
+    /** Enable the editor (default: dev only) */
+    enabled?: boolean;
+    /** HTTP path of the write-back action */
+    actionPath?: string;
+    /**
+     * Block vocabulary for the composer palette:
+     * [{ nativeType: 'hero_banner', label: 'Hero', defaults: {...},
+     *    variants: { variant: ['dark','light'] } }]
+     */
+    blockTypes?: ComposerBlockType[];
+}
+
+const {
+    enabled: enabledProp = import.meta.env.DEV,
+    actionPath = '/_actions/inti.updateBlockField',
+    blockTypes = []
+} = Astro.props;
+
+// Outside dev, `enabled` is honored only with an editor session: other
+// visitors receive neither the marker nor the editor chunks.
+const enabled =
+    enabledProp &&
+    (import.meta.env.DEV ||
+        (await resolveEditorSession({
+            request: Astro.request,
+            cookies: Astro.cookies,
+            prerendered: Astro.isPrerendered
+        })).allowed);
+
+const drafts = enabled && isDraftableAdapter(await resolveWriteAdapter());
+---
+
+{enabled && (
+    <div
+        data-inti-inline-editor
+        data-action-path={actionPath}
+        data-block-types={JSON.stringify(blockTypes)}
+        data-drafts={drafts ? 'true' : 'false'}
+        style="display: none;"
+    />
+)}
+
+<script>
+    // Only initialize if the marker is present (enabled === true).
+    //
+    // The editor modules are imported DYNAMICALLY on purpose: with static
+    // imports, Astro bundles them into the entry chunk and every visitor of
+    // the published site downloads ~50 KB of editor they will never run.
+    // Inside the guard they stay in separate chunks that are only requested
+    // when the editor is actually active.
+    const marker = document.querySelector('[data-inti-inline-editor]');
+
+    if (marker) {
+        const [{ initInlineEditor }, { initBlockReorder }, { initBlockComposer }, { initSeoOverlay }, { initDraftBar }, { initViewAs }] =
+            await Promise.all([
+                import('./inline-editor.js'),
+                import('./block-reorder.js'),
+                import('./block-composer.js'),
+                import('./seo-overlay.js'),
+                import('./draft-bar.js'),
+                import('./view-as.js')
+            ]);
+
+        // SEO warnings on the block that causes them
+        initSeoOverlay();
+
+        // Only if the adapter knows about drafts
+        if (marker.getAttribute('data-drafts') === 'true') initDraftBar();
+
+        // Only on pages with per-visitor versions
+        initViewAs();
+
+        // This tab's ID, so it does not react to its own broadcasts
+        const senderId = crypto.randomUUID();
+
+        // Realtime dev: broadcast edits to other tabs via Vite WS
+        const broadcast = (payload: Record<string, unknown>) => {
+            if (import.meta.hot) {
+                import.meta.hot.send('inti:content-updated', { ...payload, senderId });
+            }
+        };
+
+        initInlineEditor({
+            actionPath: marker.getAttribute('data-action-path') || undefined,
+            onSave: (result) => {
+                if (result.success) broadcast(result as unknown as Record<string, unknown>);
+            }
+        });
+
+        // Block drag & drop with write-back
+        initBlockReorder({
+            onMove: (result) => {
+                if (result.success) broadcast(result as unknown as Record<string, unknown>);
+            }
+        });
+
+        // Composer: add/duplicate/delete blocks + settings panel + patterns
+        let blockTypes = [];
+        try {
+            blockTypes = JSON.parse(marker.getAttribute('data-block-types') || '[]');
+        } catch { /* no declared types */ }
+        initBlockComposer({ blockTypes });
+
+        // Listen for edits from other tabs/users (dev only)
+        if (import.meta.hot) {
+            import.meta.hot.on('inti:content-updated', (data: any) => {
+                if (data?.senderId === senderId) return;
+
+                const toast = document.createElement('div');
+                toast.textContent = '✏️ Content updated by another editor — reloading…';
+                toast.style.cssText =
+                    'position:fixed;top:1rem;left:50%;transform:translateX(-50%);background:#2563eb;color:white;' +
+                    'padding:0.5rem 1rem;border-radius:0.5rem;font-size:0.875rem;font-family:system-ui,sans-serif;' +
+                    'box-shadow:0 4px 12px rgba(0,0,0,0.25);z-index:9999999;pointer-events:none;';
+                document.body.appendChild(toast);
+
+                setTimeout(() => window.location.reload(), 1200);
+            });
+        }
+
+        // Re-bind after Astro View Transitions
+        document.addEventListener('astro:page-load', () => {
+            initInlineEditor().rescan();
+            initBlockReorder().rescan();
+            initBlockComposer().rescan();
+        });
+    }
+</script>

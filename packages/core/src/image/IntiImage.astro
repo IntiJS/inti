@@ -1,0 +1,232 @@
+---
+import { getImage } from 'astro:assets';
+import type { MediaAsset, ImageTransformOptions, ResponsiveImageOptions } from '../types/media.js';
+import { getImageService } from './service.js';
+
+interface Props {
+    src: MediaAsset | string;
+    alt?: string;
+    width?: number;
+    height?: number;
+    quality?: number;
+    format?: 'auto' | 'webp' | 'avif' | 'jpeg' | 'png';
+    fit?: 'cover' | 'contain' | 'fill' | 'inside' | 'outside';
+    /**
+     * Generates `srcset`. On by default: without it the browser downloads
+     * the original at any screen size, which in a product grid is the
+     * dominant cost of the page.
+     */
+    responsive?: boolean;
+    /**
+     * How wide the image will be. The `100vw` default is only correct
+     * for a full-bleed image; in a grid it has to be declared
+     * (`sizes="(max-width: 768px) 50vw, 25vw"`) or the browser will pick
+     * a larger candidate than needed.
+     */
+    sizes?: string;
+    breakpoints?: number[];
+    loading?: 'eager' | 'lazy';
+    priority?: boolean;
+    class?: string;
+    placeholder?: 'blur' | 'empty' | 'color';
+}
+
+const {
+    src,
+    alt = '',
+    width,
+    height,
+    quality = 80,
+    format = 'auto',
+    fit = 'cover',
+    responsive = true,
+    sizes,
+    breakpoints,
+    loading = 'lazy',
+    priority = false,
+    class: className,
+    placeholder = 'blur'
+} = Astro.props;
+
+// Convert string URL to MediaAsset
+const asset: MediaAsset = typeof src === 'string' 
+    ? { id: 'external', url: src, alt, width: width || 800, height: height || 600 }
+    : src;
+
+// Get image service
+let imageService;
+try {
+    imageService = getImageService();
+} catch {
+    // Fallback to direct URL if service not configured
+    imageService = null;
+}
+
+const options: ImageTransformOptions = {
+    width,
+    height,
+    quality,
+    format,
+    fit
+};
+
+let optimized: any = null;
+let placeholderUrl: string | undefined;
+
+if (imageService) {
+    try {
+        if (responsive) {
+            const responsiveOptions: ResponsiveImageOptions = {
+                ...options,
+                sizes,
+                breakpoints
+            };
+            optimized = await imageService.generateResponsive(asset, responsiveOptions);
+        } else {
+            optimized = await imageService.optimize(asset, options);
+        }
+        
+        if (placeholder === 'blur') {
+            placeholderUrl = await imageService.generatePlaceholder(asset);
+        }
+    } catch (e) {
+        console.warn('Image optimization failed, using fallback:', e);
+    }
+}
+
+/**
+ * With no service configured it delegates to `astro:assets`, which Astro
+ * ships built in and which handles `srcset` and WebP/AVIF conversion with
+ * no configuration.
+ *
+ * Before, not configuring an external endpoint meant serving the original
+ * to every screen: no `srcset` and no modern format. In a product grid
+ * that weighs more than all the page's JavaScript put together.
+ *
+ * For a remote image, Astro requires its domain to be authorized in
+ * `image.domains` or `image.remotePatterns`. If it is not, it throws — and
+ * here that becomes a warning that says exactly what to add, because
+ * Astro's error does not mention where the URL came from.
+ */
+if (!optimized) {
+    try {
+        const hasDimensions = Boolean((asset.width && asset.height) || (width && height));
+
+        const base = {
+            src: asset.url,
+            format: format === 'auto' ? 'webp' : format,
+            quality,
+            // With no declared dimensions they must be read from the source:
+            // inventing a default 800x600 is exactly what causes the CLS this
+            // component exists to prevent.
+            ...(hasDimensions
+                ? { width: width ?? asset.width, height: height ?? asset.height }
+                : { inferSize: true as const })
+        };
+
+        if (responsive) {
+            const sourceWidth = width ?? asset.width;
+            const candidates = breakpoints ?? [400, 800, 1200, 1600];
+            // Astro warns when asked to upscale: a candidate larger than the
+            // original adds no sharpness, only bytes.
+            const widths = sourceWidth
+                ? candidates.filter((w) => w <= sourceWidth)
+                : candidates;
+
+            const generated = await getImage({
+                ...base,
+                widths: widths.length > 0 ? widths : undefined,
+                sizes: sizes ?? '100vw'
+            } as any);
+
+            optimized = {
+                src: generated.src,
+                srcset: generated.srcSet?.attribute || undefined,
+                sizes: sizes ?? '100vw',
+                width: generated.attributes?.width,
+                height: generated.attributes?.height
+            };
+        } else {
+            const generated = await getImage(base as any);
+            optimized = {
+                src: generated.src,
+                width: generated.attributes?.width,
+                height: generated.attributes?.height
+            };
+        }
+    } catch (e) {
+        if (import.meta.env.DEV) {
+            const host = (() => {
+                try {
+                    return new URL(asset.url).host;
+                } catch {
+                    return null;
+                }
+            })();
+
+            const hint = host
+                ? `Authorize the domain in astro.config.mjs:\n` +
+                  `    image: { domains: ['${host}'] }`
+                : 'Check that the image URL is valid.';
+
+            console.warn(
+                `[Inti] <IntiImage> serves ${asset.url} unoptimized ` +
+                `(no srcset, no WebP).\n${hint}\n  Reason: ${e instanceof Error ? e.message : e}`
+            );
+        }
+    }
+}
+
+// Fallback to original asset if optimization failed
+const imageSrc = optimized?.src || asset.url;
+const imageWidth = optimized?.width || asset.width || width || 800;
+const imageHeight = optimized?.height || asset.height || height || 600;
+const imageLoading = priority ? 'eager' : loading;
+
+// The first block's image is usually the LCP: loading it lazily delays it,
+// so `priority` also raises its priority in the network queue.
+const fetchPriority = priority ? 'high' : undefined;
+
+const resolvedAlt = alt || asset.alt || '';
+
+// An empty alt is valid ONLY on decorative images. Since here it almost
+// always comes from the CMS, we warn in dev instead of letting it pass silently.
+if (import.meta.env.DEV && !resolvedAlt) {
+    console.warn(`[Inti] <IntiImage> without alt: ${imageSrc}. Add an explicit alt="" if it is decorative.`);
+}
+---
+
+{optimized?.srcset ? (
+    <img
+        src={imageSrc}
+        srcset={optimized.srcset}
+        sizes={optimized.sizes}
+        width={imageWidth}
+        height={imageHeight}
+        alt={resolvedAlt}
+        loading={imageLoading}
+        fetchpriority={fetchPriority}
+        decoding="async"
+        class={className}
+        style={placeholder === 'blur' && placeholderUrl ? `background-image: url(${placeholderUrl}); background-size: cover;` : undefined}
+    />
+) : (
+    <img
+        src={imageSrc}
+        width={imageWidth}
+        height={imageHeight}
+        alt={resolvedAlt}
+        loading={imageLoading}
+        fetchpriority={fetchPriority}
+        decoding="async"
+        class={className}
+        style={placeholder === 'blur' && placeholderUrl ? `background-image: url(${placeholderUrl}); background-size: cover;` : undefined}
+    />
+)}
+
+<style>
+    img {
+        max-width: 100%;
+        height: auto;
+    }
+</style>

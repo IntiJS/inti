@@ -12,7 +12,7 @@ async function main() {
             await syncCommand();
             break;
         case 'dev':
-            await devCommand();
+            await devCommand(args.slice(1));
             break;
         case 'help':
         case '--help':
@@ -25,7 +25,7 @@ async function main() {
 
 Commands:
   inti sync    Generate TypeScript types from CMS schema
-  inti dev     Start development server with hot reload
+  inti dev     Run "astro dev" (its arguments are passed through)
   inti help    Show this help message
 
 Examples:

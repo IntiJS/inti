@@ -86,12 +86,13 @@ export * from './astro/index.js';
 ### Commands
 
 ```bash
-inti sync [options]
-  --force        # Ignore cache
-  --watch        # Watch mode
-  --types-only   # Only generate types
-  --output       # Output directory
+inti sync                      # Generate types from ./inti.config.ts
+inti sync --config <path>      # Use another config file
+inti dev                       # Runs `astro dev`, passing its arguments through
+inti help
 ```
+
+The output folder is `outputDir` in `inti.config.ts`.
 
 ### Generation Flow
 

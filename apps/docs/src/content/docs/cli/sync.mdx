@@ -9,9 +9,16 @@ The `inti sync` command is the heart of the Inti.js workflow. It connects to you
 
 ## Basic Usage
 
+:::caution[Not on npm yet]
+The `@intijs` packages will be published on npm. Until then `npm install @intijs/…` answers 404: install the same packages from git, as described under [Installation](https://github.com/intijs/inti#-installation) in the repository README.
+:::
+
 ```bash
-npx inti sync
+npm install -D @intijs/cli
+npx @intijs/cli sync
 ```
+
+The command inside the package is `inti`, so in a `package.json` script it is just `inti sync`. Write `npx @intijs/cli`, not `npx inti`: `inti` is the name of an unrelated package on npm.
 
 ## What Does It Do?
 
@@ -74,10 +81,10 @@ They describe what the adapter returns, not the CMS API:
 
 ```bash
 # Help
-npx inti help
+npx @intijs/cli help
 
 # Use another configuration file (default ./inti.config.ts)
-npx inti sync --config ./config/inti.ts
+npx @intijs/cli sync --config ./config/inti.ts
 ```
 
 `inti sync` needs an `inti.config.ts` with `adapter` and `adapterConfig` to know which CMS to connect to. It writes to `outputDir`, by default `./src/lib/inti`.
@@ -111,19 +118,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - uses: oven-sh/setup-bun@v1
+      - uses: actions/setup-node@v4
         with:
-          bun-version: latest
+          node-version: 22
       
-      - run: bun install
+      - run: npm ci
       
       - name: Sync CMS Schema
-        run: npx inti sync
+        run: npx @intijs/cli sync
         env:
           INTI_KITSUDEN_ENDPOINT: ${{ secrets.INTI_KITSUDEN_ENDPOINT }}
           INTI_KITSUDEN_TOKEN: ${{ secrets.INTI_KITSUDEN_TOKEN }}
       
-      - run: bun run build
+      - run: npm run build
 ```
 
 ## Errors
@@ -138,4 +145,4 @@ The command exits with a non-zero code in both cases, so in CI it stops the buil
 
 ## What to commit
 
-Commit `inti.types.ts`: that way the build and the type check do not depend on the CMS being reachable from CI. Regenerate with `npx inti sync` when the CMS schema changes.
+Commit `inti.types.ts`: that way the build and the type check do not depend on the CMS being reachable from CI. Regenerate with `npx @intijs/cli sync` when the CMS schema changes.

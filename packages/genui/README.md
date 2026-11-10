@@ -2,6 +2,8 @@
 
 A model composes page sections from the blocks you declared. It picks components and fills their fields. It generates no HTML, CSS or code, and everything it returns is validated in shape and in content before use.
 
+> **Not on npm yet.** The `@intijs` packages will be published there. Until then the `npm install` command below answers 404: install from git as described under [Installation](https://github.com/intijs/inti#-installation) in the repository README.
+
 The result is the same JSON a human editor saves, rendered by the same `BlockRenderer`, and saved to whatever CMS the site uses. It runs on an Astro site, not inside the CMS. Part of [Inti](https://github.com/intijs/inti), currently in beta.
 
 ```bash

@@ -86,13 +86,22 @@ export function validateName(name) {
 // Files
 // ============================================
 
-function packageJson(name, cms) {
+/** The @intijs packages a project for this CMS depends on */
+export function intiPackages(cms) {
+    return ['@intijs/core', ...(CMS[cms]?.package ? [CMS[cms].package] : [])];
+}
+
+/**
+ * @param {Record<string, string>} [packages] dependency spec per @intijs package
+ *   (for example `file:../tarballs/intijs-core-0.1.0.tgz`), for installing from
+ *   local tarballs while the packages are not on npm. Default: the npm range.
+ */
+function packageJson(name, cms, packages = {}) {
     const dependencies = {
         '@astrojs/node': VERSIONS.node,
-        '@intijs/core': VERSIONS.inti,
         astro: VERSIONS.astro
     };
-    if (CMS[cms].package) dependencies[CMS[cms].package] = VERSIONS.inti;
+    for (const dep of intiPackages(cms)) dependencies[dep] = packages[dep] ?? VERSIONS.inti;
 
     const sorted = Object.fromEntries(Object.entries(dependencies).sort(([a], [b]) => a.localeCompare(b)));
 
@@ -540,13 +549,13 @@ npm start
  * All the project's files.
  * @returns {Record<string, string>} relative path → content
  */
-export function generateProject({ name, cms }) {
+export function generateProject({ name, cms, packages }) {
     const nameError = validateName(name);
     if (nameError) throw new Error(`Invalid project name: ${nameError}`);
     if (!CMS[cms]) throw new Error(`Unknown CMS: "${cms}". Options: ${CMS_IDS.join(', ')}`);
 
     const files = {
-        'package.json': packageJson(name, cms),
+        'package.json': packageJson(name, cms, packages),
         'astro.config.mjs': ASTRO_CONFIG,
         'tsconfig.json': TSCONFIG,
         '.gitignore': GITIGNORE,

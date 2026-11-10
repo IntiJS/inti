@@ -91,6 +91,7 @@ export class BlockReorder {
         handle.className = HANDLE_CLASS;
         handle.textContent = '⠿';
         handle.title = 'Drag to reorder';
+        handle.setAttribute('aria-label', 'Drag to reorder');
         handle.draggable = true;
 
         handle.addEventListener('dragstart', (event) => {
@@ -196,6 +197,8 @@ export class BlockReorder {
         const toast = document.createElement('div');
         toast.className = 'inti-inline-toast';
         toast.textContent = message;
+        toast.setAttribute('role', 'status');
+        toast.setAttribute('aria-live', 'polite');
         toast.style.cssText = [
             'position: fixed',
             'bottom: 1.5rem',

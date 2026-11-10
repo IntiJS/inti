@@ -2,7 +2,7 @@
  * VisualBridge - Universal Visual Editing System for Inti.js
  * 
  * Lets you edit content visually from Astro, working
- * with any CMS (Strapi, Contentful, Sanity, Gremius, etc.)
+ * with any CMS (WordPress, Kitsuden, Strapi, Contentful, Sanity, etc.)
  * 
  * Features:
  * - Visual overlay on the page
@@ -19,7 +19,7 @@
 export interface VisualBridgeConfig {
     /** Enable/disable */
     enabled: boolean;
-    /** Active CMS (strapi, contentful, sanity, gremius, etc.) */
+    /** Active CMS (wordpress, kitsuden, strapi, contentful, sanity, etc.) */
     cms: string;
     /** CMS-specific configuration */
     cmsConfig?: {

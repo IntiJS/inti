@@ -14,7 +14,7 @@ In a traditional workflow, AI often "hallucinates" CMS field names or component 
 
 ## AI Discovery Manifest
 
-When you run `npx inti sync`, an `inti-manifest.json` file is generated in your output folder (by default `./src/lib/inti/`).
+When you run `npx @intijs/cli sync`, an `inti-manifest.json` file is generated in your output folder (by default `./src/lib/inti/`).
 
 This file contains:
 - A list of all the blocks registered in your `ComponentRegistry`.
@@ -41,7 +41,10 @@ They are extremely useful for:
 The above helps the AI **write code**. The `@intijs/mcp` package goes one step further: it exposes your CMS as [Model Context Protocol](https://modelcontextprotocol.io) tools, so the agent can **read and edit the content** directly.
 
 ```bash
-npm install -D @intijs/mcp
+# today, from a clone of the repository that is installed and built:
+claude mcp add inti -- node /absolute/path/to/inti/packages/mcp/bin/inti-mcp.js
+
+# once the packages are published:
 claude mcp add inti -- npx -y @intijs/mcp
 ```
 
@@ -63,7 +66,7 @@ See the [`@intijs/mcp` README](https://github.com/intijs/inti/tree/main/packages
 ## Example AI Workflow
 
 1.  **Define your model in the CMS** (e.g. Strapi).
-2.  **Run** `npx inti sync`.
+2.  **Run** `npx @intijs/cli sync`.
 3.  **Ask the AI**: "Create the Astro component for the new 'TournamentBracket' block we just synced. Use the types from `inti.types.ts`."
 4.  **The AI will generate** correct code because it knows the schema and the block inventory.
 5.  **With the MCP server active**, you can also ask it: "read the home page and shorten the hero headline" — and the change lands in the CMS.

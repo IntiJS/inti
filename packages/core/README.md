@@ -1,168 +1,117 @@
 # @intijs/core
 
-> **The visual editing layer for headless WordPress on Astro.** Content stays in your CMS; editors change it by double-clicking on the rendered page.
+> **AI for any CMS, without changing the CMS** — for sites built with Astro. Inti is not a plugin you install inside your CMS: it renders your site with Astro and saves edits back to the CMS you already have.
 
-[![npm version](https://img.shields.io/npm/v/@intijs/core.svg)](https://www.npmjs.com/package/@intijs/core)
 [![Astro](https://img.shields.io/badge/Astro-5%20%7C%206%20%7C%207-BC52EE?logo=astro)](https://astro.build)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> **AI for any CMS, without changing the CMS** — for sites built with Astro. Inti is not a plugin you install inside your CMS: it renders your site with Astro and saves edits back to the CMS you already have.
+The core package of [Inti](https://github.com/intijs/inti): the adapter contract, `BlockRenderer`, the on-page editor, the write actions and the plugin API. Content stays in your CMS; editors change it by double-clicking on the rendered page.
 
 > **Beta.** Inti is at 0.1: it works and is ready to try, and its APIs may still change before 1.0.
 
----
-
-## ✨ Features
-
-- 🔌 **Universal CMS Adapter** - Connect WordPress, Kitsuden, Strapi, Contentful, Sanity, or any headless CMS
-- ✅ **ValidatedBlocks** - Math validation engine for business-logic blocks
-- 📝 **Smart Forms** - Schema-driven forms with spam protection
-- 🎨 **Visual Bridge** - In-site editing overlay for any CMS
-- ⚡ **Real-time Collaboration** - Live cursors, presence, optimistic updates
-- 🚀 **Zero-JS by Default** - Only hydrate interactive blocks
+> **Not on npm yet.** The `@intijs` packages will be published there. Until then `npm install @intijs/…` answers 404: install from git as described under [Installation](https://github.com/intijs/inti#-installation) in the repository README, or scaffold a whole project with its Quick start.
 
 ---
 
-## 📦 Installation
+## Install
 
-### Automatic (Recommended)
-
-```bash
-npx astro add inti
-```
-
-### Manual
+Once the packages are published:
 
 ```bash
-npm install @intijs/core
+npm install @intijs/core @intijs/adapter-wordpress    # or the adapter you use
+npx astro add node                                    # node | vercel | cloudflare | netlify
 ```
 
-Then add to `astro.config.mjs`:
+The Astro adapter is required for editing: edits are saved through `astro:actions`, which only exist when Astro has an adapter.
 
-```ts
+## Setup: no step is optional
+
+```js
+// astro.config.mjs
 import { defineConfig } from 'astro/config';
+import node from '@astrojs/node';
 import inti from '@intijs/core';
 
 export default defineConfig({
+  output: 'server',                        // pages are read from the CMS per request
+  adapter: node({ mode: 'standalone' }),   // required for editing
   integrations: [inti()]
 });
 ```
 
----
-
-## 🚀 Quick Start
-
-### 1. Configure your CMS
-
-Create `inti.config.ts`:
-
 ```ts
-import { defineConfig } from '@intijs/core';
-import { StrapiAdapter } from '@intijs/adapter-strapi';
-
-export default defineConfig({
-  adapter: new StrapiAdapter({
-    endpoint: 'https://api.example.com',
-    apiToken: process.env.STRAPI_TOKEN
-  })
-});
+// src/actions/index.ts: the actions that receive the edits, on the server
+import { intiActions } from '@intijs/core/actions';
+export const server = { inti: intiActions };
 ```
-
-### 2. Fetch content in your page
 
 ```astro
 ---
-// src/pages/[slug].astro
-import { ContentAdapter } from '@intijs/core';
+// src/pages/[...slug].astro
+import { WordPressAdapter } from '@intijs/adapter-wordpress';
+import { registerBlocks } from '@intijs/core/registry';
+import BlockRenderer from '@intijs/core/astro/BlockRenderer.astro';
+import VisualBridgeAuto from '@intijs/core/visual-bridge/VisualBridgeAuto.astro';
 
-const adapter = new ContentAdapter();
-const page = await adapter.fetchPage(Astro.params.slug);
+// Each file in src/blocks is a block type: the file name is the type
+registerBlocks(import.meta.glob('/src/blocks/*.astro'));
+
+const adapter = new WordPressAdapter({ endpoint: import.meta.env.INTI_WP_ENDPOINT });
+const page = await adapter.fetchPageBySlug(Astro.params.slug ?? 'home');
 ---
-
-<article>
-  <h1>{page.title}</h1>
-  {page.blocks.map(block => (
-    <div data-inti-block={block.id}>
-      {block.rendered}
-    </div>
-  ))}
-</article>
+<BlockRenderer blocks={page.blocks} />
+<VisualBridgeAuto />
 ```
-
-### 3. Enable Visual Editing (Dev Only)
-
-```ts
-// astro.config.mjs
-export default defineConfig({
-  integrations: [
-    inti({
-      visualBridge: true  // Shows edit overlay in dev
-    })
-  ]
-});
-```
-
-Hover over any block to edit directly in your CMS!
-
----
-
-## 🧩 ValidatedBlocks Example
-
-```ts
-import { ValidationEngine } from '@intijs/core';
-
-const engine = new ValidationEngine();
-
-const result = await engine.validateBlock({
-  fields: [
-    { name: 'price', type: 'number', value: 100 },
-    { name: 'discount', type: 'number', value: 20 }
-  ],
-  rules: [
-    {
-      type: 'math',
-      expression: 'discount < price * 0.5',
-      message: 'Discount cannot exceed 50%'
-    }
-  ]
-}, data);
-
-if (!result.valid) {
-  console.log(result.errors); // [{ field: null, message: '...' }]
-}
-```
-
----
-
-## 📋 Smart Forms Example
 
 ```astro
 ---
-import { FormEngine } from '@intijs/core';
-
-const formEngine = new FormEngine();
+// src/blocks/HeroBanner.astro: the CMS fields arrive as props
+const { heading, subheading } = Astro.props;
 ---
-
-<form 
-  data-inti-form
-  action="/api/submit"
-  method="POST"
->
-  <input name="email" type="email" required />
-  <input name="honeypot" style="display:none" /> <!-- Anti-spam -->
-  <button type="submit">Submit</button>
-</form>
-
-<script>
-  import { FormEngine } from '@intijs/core';
-  const engine = new FormEngine();
-  engine.attachTo(document.querySelector('[data-inti-form]'));
-</script>
+<section>
+  <h1 data-inti-field="heading">{heading}</h1>
+  <p data-inti-field="subheading">{subheading}</p>
+</section>
 ```
 
----
+In development, hover a text, double-click, edit and press Enter: the change is written to the CMS. A block type with no component renders a labelled placeholder in development that names the file to add.
 
-## 🏝️ Interactive components
+The canonical version of this setup, with every import path, is [`AGENTS.md`](https://github.com/intijs/inti/blob/main/AGENTS.md).
+
+## With no CMS
+
+`LocalAdapter` stores pages in `.inti/content.json` and implements the same write contract as the CMS adapters. It is for trying out editing and for examples, not a CMS.
+
+```ts
+import { LocalAdapter } from '@intijs/core/adapters/local';
+
+const adapter = new LocalAdapter();
+const page = await adapter.fetchPageBySlug('home');
+```
+
+## Who may edit
+
+In development anyone can edit. In production Inti refuses every write, and does not show the editor, until a plugin decides who is editing. Register it in `src/middleware.ts` (not in `src/actions/index.ts`: Astro only loads that module with the first action):
+
+```ts
+// src/middleware.ts
+import { defineMiddleware } from 'astro:middleware';
+import { registerIntiPlugin } from '@intijs/core/plugins';
+
+registerIntiPlugin({
+  name: 'session',
+  // Who is asking: null = nobody identified
+  resolveActor: async (ctx) => (await mySession(ctx.request)) ?? null,
+  // Whether they may write
+  beforeWrite: (ctx) => ({ allowed: Boolean(ctx.actor) })
+});
+
+export const onRequest = defineMiddleware((_context, next) => next());
+```
+
+`mySession` is yours: Inti has no user management. See [securing writes](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/securing-writes.md).
+
+## Interactive components
 
 Astro already mixes React, Vue, Svelte and Solid on one page. Put the `client:*` directive inside the block, on a statically imported component:
 
@@ -176,60 +125,46 @@ const { title, slides } = Astro.props;
 <Carousel client:visible slides={slides} />
 ```
 
----
+## Entry points
 
-## ⚡ Real-time Collaboration
+| Import | What it gives you |
+|---|---|
+| `@intijs/core` | The Astro integration (`inti()`, default export) and `defineConfig` for `inti.config.ts` |
+| `@intijs/core/actions` | `intiActions`, the write actions |
+| `@intijs/core/registry` | `registerBlocks` |
+| `@intijs/core/astro/BlockRenderer.astro` | Renders a page's blocks with your components |
+| `@intijs/core/astro/IntiSeo.astro`, `IntiStructuredData.astro` | Head tags and JSON-LD from `page.seo` |
+| `@intijs/core/visual-bridge/VisualBridgeAuto.astro` | The on-page editor |
+| `@intijs/core/adapters` | `IntiAdapter` and the `WritableAdapter` contract, to write an adapter |
+| `@intijs/core/adapters/local` | `LocalAdapter` |
+| `@intijs/core/server` | Server helpers such as `env` and `readDraftPage` |
+| `@intijs/core/plugins` | `registerIntiPlugin` (`resolveActor`, `beforeWrite`, `afterWrite`) |
+| `@intijs/core/types` | `IntiPage`, `IntiBlock` and the other shared types |
 
-```ts
-import { initRealtime } from '@intijs/core';
+## Adapters
 
-const realtime = initRealtime({
-  roomId: 'page-home',
-  userId: 'user-123',
-  userName: 'John Doe'
-});
+| CMS | Package | Write-back |
+|---|---|---|
+| WordPress | `@intijs/adapter-wordpress` | yes |
+| Kitsuden | `@intijs/adapter-kitsuden` | yes |
+| Strapi v4 and v5 | `@intijs/adapter-strapi` | yes |
+| Keystatic | `@intijs/adapter-keystatic` | yes |
+| Contentful | `@intijs/adapter-contentful` | read only |
+| Sanity | `@intijs/adapter-sanity` | read only |
 
-// Listen for live updates
-realtime.on('update', (event) => {
-  console.log(`${event.userName} updated content`);
-});
+Any adapter that implements `WritableAdapter` gets inline editing.
 
-// Show presence
-realtime.on('presence', (users) => {
-  console.log(`${users.length} users editing`);
-});
-```
+## Documentation
 
----
-
-## 🔌 Supported CMS
-
-| CMS | Package | Visual Bridge | Real-time |
-|-----|---------|---------------|-----------|
-| WordPress | `@intijs/adapter-wordpress` | ✅ | ✅ |
-| Kitsuden | `@intijs/adapter-kitsuden` | ✅ | ✅ |
-| Strapi | `@intijs/adapter-strapi` | ✅ | ✅ |
-| Contentful | `@intijs/adapter-contentful` | ✅ | ⚡ |
-| Sanity | `@intijs/adapter-sanity` | ✅ | ⚡ |
-| Custom | `@intijs/core` | ✅ | ⚡ |
-
----
-
-## 📚 Documentation
-
-- [Getting Started](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/quickstart.mdx)
+- [Getting started](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/quickstart.mdx)
 - [Adapters](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/adapters/contract.mdx)
 - [Securing writes](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/securing-writes.md)
 - [Deployment](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/deployment.md)
 
----
+## Contributing
 
-## 🤝 Contributing
+See the [contributing guide](https://github.com/intijs/inti/blob/main/CONTRIBUTING.md).
 
-We welcome contributions! Please see our [Contributing Guide](https://github.com/intijs/inti/blob/main/CONTRIBUTING.md).
+## License
 
----
-
-## 📄 License
-
-MIT © [Inti](https://github.com/intijs/inti)
+MIT

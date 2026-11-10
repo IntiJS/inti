@@ -26,67 +26,36 @@
         <table class="w-full text-left border-collapse text-xs sm:text-sm">
           <thead>
             <tr class="border-b border-white/10 bg-white/[0.02]">
-              <th class="py-4 px-6 text-slate-400 font-semibold uppercase tracking-wider text-xs">Tool</th>
-              <th class="py-4 px-6 text-slate-300 font-semibold">Real On-Page Editing</th>
-              <th class="py-4 px-6 text-slate-300 font-semibold">Keeps Your Existing CMS</th>
-              <th class="py-4 px-6 text-slate-300 font-semibold">Zero Destructive CSS</th>
-              <th class="py-4 px-6 text-slate-300 font-semibold">AI Agents (MCP)</th>
-              <th class="py-4 px-6 text-slate-300 font-semibold">Cost Model</th>
+              <th scope="col" class="py-4 px-6 text-slate-400 font-semibold uppercase tracking-wider text-xs">Tool</th>
+              <th scope="col" class="py-4 px-6 text-slate-300 font-semibold">What it does</th>
+              <th scope="col" class="py-4 px-6 text-slate-300 font-semibold">What it does not</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-white/5">
-            <!-- Astro Content Layer -->
             <tr class="hover:bg-white/[0.01] transition-colors">
-              <td class="py-4 px-6 font-semibold text-slate-200">Astro Content Layer</td>
-              <td class="py-4 px-6 text-rose-400">❌ Read-only (no write-back)</td>
-              <td class="py-4 px-6 text-emerald-400">✅ Yes</td>
-              <td class="py-4 px-6 text-slate-400">—</td>
-              <td class="py-4 px-6 text-rose-400">❌ No</td>
-              <td class="py-4 px-6 text-emerald-400">Open Source</td>
+              <th scope="row" class="py-4 px-6 font-semibold text-slate-200">Astro Content Layer</th>
+              <td class="py-4 px-6 text-slate-300">Typed read from any source</td>
+              <td class="py-4 px-6 text-slate-400">No write path, no editing</td>
             </tr>
-
-            <!-- Keystatic -->
             <tr class="hover:bg-white/[0.01] transition-colors">
-              <td class="py-4 px-6 font-semibold text-slate-200">Keystatic</td>
-              <td class="py-4 px-6 text-rose-400">❌ Separate admin panel only</td>
-              <td class="py-4 px-6 text-amber-300">⚠️ Local/Git files only</td>
-              <td class="py-4 px-6 text-emerald-400">✅ Yes</td>
-              <td class="py-4 px-6 text-rose-400">❌ No</td>
-              <td class="py-4 px-6 text-emerald-400">Open Source</td>
+              <th scope="row" class="py-4 px-6 font-semibold text-slate-200">Keystatic</th>
+              <td class="py-4 px-6 text-slate-300">In-repo admin UI</td>
+              <td class="py-4 px-6 text-slate-400">No editing on the page (Inti adds it, with its adapter)</td>
             </tr>
-
-            <!-- TinaCMS -->
             <tr class="hover:bg-white/[0.01] transition-colors">
-              <td class="py-4 px-6 font-semibold text-slate-200">TinaCMS</td>
-              <td class="py-4 px-6 text-emerald-400">✅ Yes</td>
-              <td class="py-4 px-6 text-rose-400">❌ Git-based only (no WP/Strapi)</td>
-              <td class="py-4 px-6 text-slate-300">Partial</td>
-              <td class="py-4 px-6 text-rose-400">❌ No</td>
-              <td class="py-4 px-6 text-amber-300">Freemium / Cloud</td>
+              <th scope="row" class="py-4 px-6 font-semibold text-slate-200">TinaCMS</th>
+              <td class="py-4 px-6 text-slate-300">Visual editing</td>
+              <td class="py-4 px-6 text-slate-400">Git-based only: it does not reach your existing headless CMS</td>
             </tr>
-
-            <!-- Storyblok -->
             <tr class="hover:bg-white/[0.01] transition-colors">
-              <td class="py-4 px-6 font-semibold text-slate-200">Storyblok</td>
-              <td class="py-4 px-6 text-emerald-400">✅ Yes</td>
-              <td class="py-4 px-6 text-rose-400">❌ Only their own SaaS CMS</td>
-              <td class="py-4 px-6 text-slate-300">Partial</td>
-              <td class="py-4 px-6 text-rose-400">❌ No</td>
-              <td class="py-4 px-6 text-rose-400">SaaS ($$$ + Lock-in)</td>
+              <th scope="row" class="py-4 px-6 font-semibold text-slate-200">Storyblok</th>
+              <td class="py-4 px-6 text-slate-300">Visual editing</td>
+              <td class="py-4 px-6 text-slate-400">Only on their own SaaS</td>
             </tr>
-
-            <!-- Inti.js Highlight Row -->
             <tr class="bg-gradient-to-r from-orange-500/15 via-rose-500/10 to-transparent border-t-2 border-orange-500/40">
-              <td class="py-5 px-6 font-bold text-white flex items-center gap-2">
-                <span class="text-amber-400 text-lg">☀️</span>
-                <span class="text-amber-300 font-extrabold text-base">Inti.js</span>
-                <span class="px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-[10px] font-bold">Your solution</span>
-              </td>
-              <td class="py-5 px-6 font-semibold text-emerald-400">✅ Live double-click &amp; write-back</td>
-              <td class="py-5 px-6 font-semibold text-emerald-400">✅ WordPress, Kitsuden, Strapi, Keystatic</td>
-              <td class="py-5 px-6 font-semibold text-emerald-400">✅ Typed code vocabulary</td>
-              <td class="py-5 px-6 font-semibold text-emerald-400">✅ Native via MCP + GenUI</td>
-              <td class="py-5 px-6 font-semibold text-amber-300">100% MIT Open Source</td>
+              <th scope="row" class="py-5 px-6 font-extrabold text-amber-300 text-base">Inti.js</th>
+              <td class="py-5 px-6 font-semibold text-emerald-400">Editing on the rendered page, written back to WordPress, Kitsuden, Strapi or Keystatic. AI that composes with your blocks, and an MCP server.</td>
+              <td class="py-5 px-6 text-slate-300">It is not a CMS: no admin UI, no user management, no database of its own. In beta.</td>
             </tr>
           </tbody>
         </table>
@@ -101,7 +70,7 @@
           <span class="text-amber-400 font-mono text-sm">Powerful like Oxygen, simple like Elementor</span>
         </h4>
         <p class="text-slate-300 text-sm max-w-2xl leading-relaxed">
-          Developers define the component vocabulary in TypeScript and Astro code (full control and performance). Editors compose freely with that vocabulary. Because there is no free-form CSS editing, pages never break layout, never get bloated, and always stay true to the design system.
+          Developers define the component vocabulary in TypeScript and Astro code (full control and performance). Editors compose freely with that vocabulary. Because there is no free-form CSS editing, editors cannot break the design or bloat the page.
         </p>
       </div>
       <a

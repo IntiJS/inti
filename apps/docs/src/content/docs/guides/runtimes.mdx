@@ -5,6 +5,10 @@ description: Inti.js works with Node.js, Bun and Deno
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
+:::caution[Not on npm yet]
+The `@intijs` packages will be published on npm. Until then `npm install @intijs/…` answers 404: install the same packages from git, as described under [Installation](https://github.com/intijs/inti#-installation) in the repository README.
+:::
+
 Inti.js is **runtime-agnostic**. It is built on standard web APIs and plain TypeScript, which means it works with:
 
 - ✅ **Node.js** 18+ (LTS recommended)
@@ -34,7 +38,7 @@ Inti.js is **runtime-agnostic**. It is built on standard web APIs and plain Type
     npm install @intijs/core @intijs/cli @intijs/adapter-kitsuden
 
     # Usage
-    npx inti sync
+    npx @intijs/cli sync
     npm run dev
     ```
   </TabItem>

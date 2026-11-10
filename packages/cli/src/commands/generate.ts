@@ -178,7 +178,7 @@ async function resolveAdapterClass(adapterName: string): Promise<any> {
     }
 
     // Fallback to internal core adapters if name matches
-    if (adapterName === 'contentful' || adapterName === 'strapi' || adapterName === 'sanity' || adapterName === 'gremius') {
+    if (adapterName === 'contentful' || adapterName === 'strapi' || adapterName === 'sanity') {
         try {
             const pkg = `@intijs/core/adapters`;
             const module = await import(pkg);

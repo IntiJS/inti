@@ -1,35 +1,45 @@
 ---
 // apps/demo-site/src/components/landing/SolarCanvas3D.astro
-// Interactive 3D WebGL / Canvas Solar Core with orbital rings & reactive physics
+// Decorative 2D canvas: a point sphere with orbital rings. It runs only while it is
+// on screen, and draws a single still frame under prefers-reduced-motion.
 ---
 
 <div class="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-center -z-10">
   <canvas
     id="solar-3d-canvas"
+    aria-hidden="true"
     class="w-full h-full max-w-[1200px] max-h-[700px] opacity-80 transition-opacity duration-1000"
   ></canvas>
 </div>
 
 <script>
-  // High-performance 3D Canvas Solar Engine
+  // Canvas animation (decorative)
   const canvas = document.getElementById('solar-3d-canvas') as HTMLCanvasElement;
   if (canvas) {
     const ctx = canvas.getContext('2d');
     if (ctx) {
-      let width = (canvas.width = canvas.parentElement?.clientWidth || 1000);
-      let height = (canvas.height = canvas.parentElement?.clientHeight || 600);
+      // Drawing units are CSS pixels of the parent; the backing store follows devicePixelRatio
+      let width = 0;
+      let height = 0;
+      const resize = () => {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        width = canvas.parentElement?.clientWidth || 1000;
+        height = canvas.parentElement?.clientHeight || 600;
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      };
+      resize();
 
       // Mouse tracking with smooth spring inertia
-      let mouseX = 0;
-      let mouseY = 0;
       let targetRotX = 0;
       let targetRotY = 0;
       let rotX = 0.25;
       let rotY = 0;
 
       window.addEventListener('resize', () => {
-        width = canvas.width = canvas.parentElement?.clientWidth || 1000;
-        height = canvas.height = canvas.parentElement?.clientHeight || 600;
+        resize();
+        if (!running) render();
       });
 
       window.addEventListener('mousemove', (e) => {
@@ -113,6 +123,8 @@
       // Projection parameters
       const fov = 400;
       let time = 0;
+      let running = false;
+      let frame = 0;
 
       function render() {
         if (!ctx) return;
@@ -258,10 +270,29 @@
         });
 
         ctx.globalAlpha = 1.0;
-        requestAnimationFrame(render);
+        frame = running ? requestAnimationFrame(render) : 0;
       }
 
-      render();
+      // The loop runs only while the canvas is on screen, the tab is visible and the
+      // visitor has not asked for reduced motion. Otherwise it keeps one still frame.
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      let onScreen = true;
+      const update = () => {
+        const shouldRun = onScreen && !document.hidden && !reduceMotion.matches;
+        if (shouldRun === running) return;
+        running = shouldRun;
+        cancelAnimationFrame(frame);
+        if (running) frame = requestAnimationFrame(render);
+      };
+      new IntersectionObserver((entries) => {
+        onScreen = entries[0]?.isIntersecting ?? true;
+        update();
+      }).observe(canvas);
+      document.addEventListener('visibilitychange', update);
+      reduceMotion.addEventListener('change', update);
+
+      render(); // first frame; the only one under reduced motion
+      update();
     }
   }
 </script>

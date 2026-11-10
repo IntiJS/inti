@@ -1,6 +1,6 @@
 ---
 // apps/demo-site/src/components/landing/Isometric3DStack.astro
-// Interactive 3D Isometric Exploded View for Designers & Marketing Teams
+// Interactive isometric view of the three layers
 ---
 
 <section class="py-24 sm:py-32 relative overflow-hidden bg-[#05070D]">
@@ -8,19 +8,19 @@
   <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-gradient-to-tr from-amber-500/10 via-purple-600/10 to-rose-500/10 rounded-full blur-[160px] pointer-events-none -z-10"></div>
 
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <!-- Section Header for Designers & Marketers -->
+    <!-- Section Header -->
     <div class="text-center max-w-3xl mx-auto mb-16">
       <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-amber-500/10 via-purple-500/10 to-rose-500/10 border border-amber-500/20 text-xs font-semibold text-amber-300 mb-4">
         <span>Exploded 3D Architecture</span>
       </div>
       <h2 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight mb-4">
-        How Figma design,<br />
+        How your Astro frontend,<br />
         <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-orange-400 to-purple-400">
-          marketing agility, and your CMS come together.
+          Inti and your CMS fit together.
         </span>
       </h2>
       <p class="text-slate-300 text-base sm:text-lg">
-        Three independent layers suspended in space. Interact with the layers to explore how Inti protects your design system while giving your editors superpowers.
+        Three layers. Your frontend and your CMS stay yours; Inti sits between them.
       </p>
     </div>
 
@@ -28,14 +28,15 @@
     <div class="relative py-12 flex flex-col items-center justify-center">
       <!-- 3D Controls Bar -->
       <div class="mb-8 flex items-center gap-3 bg-[#0B0F1D] px-4 py-2 rounded-xl border border-white/10 text-xs text-slate-300 font-mono z-20">
-        <span class="text-amber-400 font-bold">Hover over the layers to separate them in 3D</span>
+        <span class="text-amber-400 font-bold">Hover a layer to lift it, or use the button</span>
         <span class="text-slate-600">|</span>
         <button
           type="button"
           id="btn-explode-toggle"
+          aria-pressed="false"
           class="px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-semibold transition-all"
         >
-          💥 Exploded View
+          Exploded view
         </button>
       </div>
 
@@ -50,7 +51,7 @@
           class="relative w-full max-w-[560px] h-[360px] transition-transform duration-700 ease-out transform-gpu"
           style="transform-style: preserve-3d; transform: rotateX(55deg) rotateZ(-38deg) translateY(-20px);"
         >
-          <!-- LAYER 3 (TOP): The Figma Design System & Astro Frontend -->
+          <!-- LAYER 3 (TOP): the Astro frontend -->
           <div
             id="iso-layer-top"
             class="iso-layer absolute inset-0 rounded-2xl p-6 bg-[#0E1529]/90 border-2 border-cyan-400/50 shadow-2xl backdrop-blur-xl transition-all duration-500 cursor-pointer group"
@@ -59,20 +60,20 @@
             <div class="flex items-center justify-between pb-3 mb-4 border-b border-cyan-500/30">
               <div class="flex items-center gap-2.5">
                 <span class="w-3.5 h-3.5 rounded-full bg-cyan-400 animate-pulse"></span>
-                <span class="text-cyan-300 font-mono font-bold text-xs uppercase tracking-wider">Layer 3 · Frontend &amp; Design System</span>
+                <span class="text-cyan-300 font-mono font-bold text-xs uppercase tracking-wider">Layer 3 · Your Astro frontend</span>
               </div>
-              <span class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[10px] font-bold">Figma-to-Code</span>
+              <span class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[10px] font-bold">Your code</span>
             </div>
             <h4 class="text-xl font-bold text-white mb-2 group-hover:text-cyan-300 transition-colors">
-              Astro Pages &amp; Untouched Blocks
+              Astro pages and your block components
             </h4>
             <p class="text-slate-300 text-xs leading-relaxed mb-4">
-              Pixel-perfect typography, design tokens, and <strong>0 KB of JS for visitors</strong>. Clients can never inject Comic Sans or break padding with arbitrary CSS.
+              Your components render every block. Visitors get the page with <strong>nothing from the editor</strong> (checked in CI), and editors have no free-form CSS to break the layout with.
             </p>
             <div class="flex flex-wrap gap-2 text-[10px] font-mono text-cyan-200">
-              <span class="px-2 py-1 rounded bg-black/40 border border-cyan-500/30">Astro 5 Islands</span>
-              <span class="px-2 py-1 rounded bg-black/40 border border-cyan-500/30">UnoCSS Engine</span>
-              <span class="px-2 py-1 rounded bg-black/40 border border-cyan-500/30">100/100 Lighthouse</span>
+              <span class="px-2 py-1 rounded bg-black/40 border border-cyan-500/30">Astro 5, 6, 7</span>
+              <span class="px-2 py-1 rounded bg-black/40 border border-cyan-500/30">Server-rendered</span>
+              <span class="px-2 py-1 rounded bg-black/40 border border-cyan-500/30">No free-form CSS</span>
             </div>
           </div>
 
@@ -87,18 +88,18 @@
                 <span class="w-3.5 h-3.5 rounded-full bg-purple-400 animate-pulse"></span>
                 <span class="text-purple-300 font-mono font-bold text-xs uppercase tracking-wider">Layer 2 · Inti Live Visual Bridge</span>
               </div>
-              <span class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px] font-bold">Live Magic</span>
+              <span class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px] font-bold">Editing layer</span>
             </div>
             <h4 class="text-xl font-bold text-white mb-2 group-hover:text-purple-300 transition-colors">
               On-Page Editing &amp; AI (GenUI)
             </h4>
             <p class="text-slate-300 text-xs leading-relaxed mb-4">
-              Double-click for editors, visual composition with controlled variants, and AI models that build campaigns using only approved brand blocks.
+              Double-click editing, composition with controlled variants, and a model that composes sections using only the blocks you declared.
             </p>
             <div class="flex flex-wrap gap-2 text-[10px] font-mono text-purple-200">
-              <span class="px-2 py-1 rounded bg-black/40 border border-purple-500/30">Optimistic UI Sync</span>
+              <span class="px-2 py-1 rounded bg-black/40 border border-purple-500/30">Optimistic UI</span>
               <span class="px-2 py-1 rounded bg-black/40 border border-purple-500/30">Model Context Protocol (MCP)</span>
-              <span class="px-2 py-1 rounded bg-black/40 border border-purple-500/30">Server Actions Proxy</span>
+              <span class="px-2 py-1 rounded bg-black/40 border border-purple-500/30">astro:actions</span>
             </div>
           </div>
 
@@ -111,7 +112,7 @@
             <div class="flex items-center justify-between pb-3 mb-4 border-b border-amber-500/30">
               <div class="flex items-center gap-2.5">
                 <span class="w-3.5 h-3.5 rounded-full bg-amber-400 animate-pulse"></span>
-                <span class="text-amber-300 font-mono font-bold text-xs uppercase tracking-wider">Layer 1 · Your Origin CMS (Immutable)</span>
+                <span class="text-amber-300 font-mono font-bold text-xs uppercase tracking-wider">Layer 1 · Your CMS</span>
               </div>
               <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold">Source of Truth</span>
             </div>
@@ -119,12 +120,12 @@
               WordPress ACF, Kitsuden, Strapi, or Keystatic
             </h4>
             <p class="text-slate-300 text-xs leading-relaxed mb-4">
-              Your articles, field schemas, taxonomies, users, and roles do not move an inch. Zero migration cost and zero risk of data loss.
+              Your content, field schemas, users and admin stay where they are. Edits are saved as the same blocks an editor would add by hand.
             </p>
             <div class="flex flex-wrap gap-2 text-[10px] font-mono text-amber-200">
-              <span class="px-2 py-1 rounded bg-black/40 border border-amber-500/30">REST / GraphQL</span>
-              <span class="px-2 py-1 rounded bg-black/40 border border-amber-500/30">Row UUID Addressing</span>
-              <span class="px-2 py-1 rounded bg-black/40 border border-amber-500/30">Zero Lock-in</span>
+              <span class="px-2 py-1 rounded bg-black/40 border border-amber-500/30">REST APIs or files</span>
+              <span class="px-2 py-1 rounded bg-black/40 border border-amber-500/30">Ordinary CMS blocks</span>
+              <span class="px-2 py-1 rounded bg-black/40 border border-amber-500/30">No content migration</span>
             </div>
           </div>
         </div>
@@ -135,7 +136,6 @@
 
 <script>
   // Interactive 3D Stack Elevation & Tilt
-  const stack = document.getElementById('isometric-stack');
   const topLayer = document.getElementById('iso-layer-top');
   const midLayer = document.getElementById('iso-layer-mid');
   const botLayer = document.getElementById('iso-layer-bot');
@@ -145,14 +145,15 @@
 
   explodeBtn?.addEventListener('click', () => {
     isExploded = !isExploded;
+    explodeBtn.setAttribute('aria-pressed', String(isExploded));
     if (isExploded) {
-      explodeBtn.textContent = '🔒 Collapsed View';
+      explodeBtn.textContent = 'Collapsed view';
       explodeBtn.className = 'px-2.5 py-1 rounded bg-cyan-500/20 text-cyan-300 font-semibold transition-all';
       topLayer && (topLayer.style.transform = 'translateZ(240px)');
       midLayer && (midLayer.style.transform = 'translateZ(0px)');
       botLayer && (botLayer.style.transform = 'translateZ(-240px)');
     } else {
-      explodeBtn.textContent = '💥 Exploded View';
+      explodeBtn.textContent = 'Exploded view';
       explodeBtn.className = 'px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-semibold transition-all';
       topLayer && (topLayer.style.transform = 'translateZ(140px)');
       midLayer && (midLayer.style.transform = 'translateZ(0px)');
@@ -166,6 +167,13 @@
   });
   topLayer?.addEventListener('mouseleave', () => {
     if (!isExploded) topLayer.style.transform = 'translateZ(140px) scale(1)';
+  });
+
+  midLayer?.addEventListener('mouseenter', () => {
+    midLayer.style.transform = 'translateZ(0px) scale(1.02)';
+  });
+  midLayer?.addEventListener('mouseleave', () => {
+    midLayer.style.transform = 'translateZ(0px) scale(1)';
   });
 
   botLayer?.addEventListener('mouseenter', () => {

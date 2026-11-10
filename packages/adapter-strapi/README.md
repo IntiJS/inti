@@ -2,6 +2,8 @@
 
 Edit [Strapi](https://strapi.io) v4 and v5 content by double-clicking the rendered page. Part of [Inti](https://github.com/intijs/inti), currently in beta.
 
+> **Not on npm yet.** The `@intijs` packages will be published there. Until then the `npm install` command below answers 404: install from git as described under [Installation](https://github.com/intijs/inti#-installation) in the repository README.
+
 ```bash
 npm install @intijs/core @intijs/adapter-strapi
 ```

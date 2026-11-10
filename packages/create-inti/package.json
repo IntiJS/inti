@@ -1,7 +1,7 @@
 {
   "name": "create-inti",
   "version": "0.1.0",
-  "description": "Creates an Astro project with Inti: visual editing on top of WordPress, Kitsuden or Strapi",
+  "description": "Creates an Astro project with Inti: visual editing on top of WordPress, Kitsuden, Strapi or Keystatic",
   "type": "module",
   "bin": {
     "create-inti": "./bin/create-inti.js"

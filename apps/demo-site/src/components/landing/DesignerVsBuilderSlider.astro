@@ -1,6 +1,6 @@
 ---
 // apps/demo-site/src/components/landing/DesignerVsBuilderSlider.astro
-// Interactive Before / After Split Slider for Designers & Marketing
+// Split slider: a free-form page builder next to declared blocks
 ---
 
 <section class="py-20 sm:py-28 relative bg-[#07090F] border-t border-white/10">
@@ -8,111 +8,98 @@
     <!-- Header -->
     <div class="text-center max-w-3xl mx-auto mb-16">
       <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-semibold mb-4">
-        <span>The Real Agency Pain Point</span>
+        <span>Free-form builder vs. declared blocks</span>
       </div>
       <h2 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight mb-4">
-        The end of client-broken websites.<br />
+        Editors compose. The design stays in code.<br />
         <span class="text-transparent bg-clip-text bg-gradient-to-r from-rose-400 via-amber-400 to-emerald-400">
-          Slide to compare the reality.
+          Slide to compare the two approaches.
         </span>
       </h2>
       <p class="text-slate-300 text-base sm:text-lg">
-        You craft a masterpiece in Figma... and two weeks later the client or copywriter breaks the fonts and fills the page with inline CSS in Elementor. See the difference with Inti.
+        A free-form page builder lets anyone add CSS and markup to a page. Inti has no free-form CSS editing: editors work with the blocks, fields and variants your developers declared.
       </p>
     </div>
 
-    <!-- Interactive Comparison Slider Container -->
+    <!-- Comparison slider -->
     <div class="rounded-2xl border border-white/15 bg-[#0A0D17] shadow-2xl overflow-hidden relative">
       <!-- Top Badges Bar -->
       <div class="px-6 py-4 bg-[#090C16] border-b border-white/10 flex items-center justify-between text-xs font-bold font-mono">
-        <span class="text-rose-400 flex items-center gap-2">
-          <span>❌</span> Traditional Page Builder Chaos
-        </span>
-        <span class="text-emerald-400 flex items-center gap-2">
-          Peace of Mind with Inti.js <span>☀️</span>
-        </span>
+        <span class="text-rose-400">Free-form page builder</span>
+        <span class="text-emerald-400">Declared blocks with Inti</span>
       </div>
 
       <!-- Split Viewport -->
       <div id="split-container" class="relative w-full h-[460px] sm:h-[400px] select-none overflow-hidden cursor-ew-resize">
-        <!-- LEFT: The Old Painful Way -->
-        <div class="absolute inset-0 bg-gradient-to-br from-rose-950/40 via-[#140C12] to-black p-6 sm:p-10 flex flex-col justify-between">
+        <!-- LEFT: free-form builder -->
+        <div class="absolute inset-0 bg-gradient-to-br from-rose-950/40 via-[#140C12] to-black p-6 sm:p-10 flex flex-col justify-center">
           <div class="max-w-md space-y-4">
-            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-rose-500/20 text-rose-400 text-xs font-bold font-mono">
-              PageSpeed: 28/100 · 4.2 MB DOM
-            </div>
             <h3 class="text-2xl font-black text-rose-300">
-              "The client added Comic Sans fonts and broke the mobile layout"
+              Anything can be changed, including the design
             </h3>
             <ul class="space-y-2 text-xs sm:text-sm text-slate-300">
               <li class="flex items-center gap-2">
-                <span class="text-rose-400 font-bold">✕</span>
-                <span>89 WordPress plugins slowing down the server.</span>
+                <span class="text-rose-400 font-bold" aria-hidden="true">✕</span>
+                <span>Editors can add arbitrary CSS and markup to a page.</span>
               </li>
               <li class="flex items-center gap-2">
-                <span class="text-rose-400 font-bold">✕</span>
-                <span>Editors free to inject arbitrary CSS that distorts Figma designs.</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <span class="text-rose-400 font-bold">✕</span>
-                <span>Every marketing copy tweak takes 2 weeks in engineering tickets.</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <span class="text-rose-400 font-bold">✕</span>
-                <span>3.8 seconds of render-blocking scripts (terrible TBT).</span>
+                <span class="text-rose-400 font-bold" aria-hidden="true">✕</span>
+                <span>Fonts, spacing and layout can drift away from the design system.</span>
               </li>
             </ul>
           </div>
-          <div class="p-3 rounded-lg bg-black/60 border border-rose-500/30 text-[11px] font-mono text-rose-300">
-            Google Ads Quality Score penalty &amp; 64% bounce rate
-          </div>
         </div>
 
-        <!-- RIGHT: The Inti.js Way (Clipped by slider handle) -->
+        <!-- RIGHT: declared blocks (clipped by the slider) -->
         <div
           id="split-overlay"
-          class="absolute inset-0 bg-gradient-to-br from-emerald-950/50 via-[#0B1516] to-[#0A0D18] p-6 sm:p-10 flex flex-col justify-between overflow-hidden"
+          class="absolute inset-0 bg-gradient-to-br from-emerald-950/50 via-[#0B1516] to-[#0A0D18] p-6 sm:p-10 flex flex-col justify-center overflow-hidden"
           style="clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%);"
         >
           <div class="max-w-md ml-auto text-right space-y-4">
-            <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-400 text-xs font-bold font-mono">
-              Lighthouse: 100/100 · 0 KB Client JS
-            </div>
             <h3 class="text-2xl font-black text-emerald-300">
-              "Immutable Figma-to-Code with Canva-simple live editing"
+              Editors change the content, not the design
             </h3>
             <ul class="space-y-2 text-xs sm:text-sm text-slate-300 inline-block text-left">
               <li class="flex items-center gap-2">
-                <span class="text-emerald-400 font-bold">✓</span>
-                <span><strong>Code-defined vocabulary:</strong> impossible to break the design system.</span>
+                <span class="text-emerald-400 font-bold" aria-hidden="true">✓</span>
+                <span><strong>Vocabulary in code:</strong> blocks, fields and variants are declared by developers.</span>
               </li>
               <li class="flex items-center gap-2">
-                <span class="text-emerald-400 font-bold">✓</span>
-                <span><strong>Double-click &amp; Enter:</strong> editors publish without filing support tickets.</span>
+                <span class="text-emerald-400 font-bold" aria-hidden="true">✓</span>
+                <span><strong>Double-click and Enter:</strong> the text is saved to the CMS it came from.</span>
               </li>
               <li class="flex items-center gap-2">
-                <span class="text-emerald-400 font-bold">✓</span>
-                <span><strong>Astro Islands SSR:</strong> instant page loads and pristine SEO.</span>
+                <span class="text-emerald-400 font-bold" aria-hidden="true">✓</span>
+                <span><strong>No free-form CSS:</strong> there is nowhere to type it.</span>
               </li>
               <li class="flex items-center gap-2">
-                <span class="text-emerald-400 font-bold">✓</span>
-                <span><strong>AI with your blocks:</strong> campaigns composed in 10 seconds.</span>
+                <span class="text-emerald-400 font-bold" aria-hidden="true">✓</span>
+                <span><strong>AI with your blocks:</strong> a model composes only with what you declared.</span>
               </li>
             </ul>
           </div>
-          <div class="p-3 rounded-lg bg-black/60 border border-emerald-500/30 text-[11px] font-mono text-emerald-300 text-right ml-auto">
-            100% On-Brand · Maximum ad conversion
-          </div>
         </div>
 
-        <!-- The Draggable Divider Handle -->
+        <!-- The divider. The knob is a slider: drag it, or focus it and use the arrow keys -->
         <div
           id="slider-handle"
           class="absolute top-0 bottom-0 w-1 bg-gradient-to-b from-amber-400 via-white to-amber-400 shadow-[0_0_20px_rgba(255,184,0,0.8)] z-30 flex items-center justify-center -translate-x-1/2 pointer-events-none"
           style="left: 50%;"
         >
-          <div class="w-9 h-9 rounded-full bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center shadow-2xl border-2 border-white pointer-events-auto cursor-grab active:cursor-grabbing">
-            ↔
+          <div
+            id="slider-knob"
+            role="slider"
+            tabindex="0"
+            aria-label="Comparison: how much of the free-form builder side is shown"
+            aria-orientation="horizontal"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="50"
+            aria-valuetext="50% free-form builder, 50% declared blocks"
+            class="w-9 h-9 rounded-full bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center shadow-2xl border-2 border-white pointer-events-auto cursor-grab active:cursor-grabbing focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            <span aria-hidden="true">↔</span>
           </div>
         </div>
       </div>
@@ -121,27 +108,35 @@
 </section>
 
 <script>
-  // Split Slider Logic
+  // Split slider: mouse, touch and keyboard
   const container = document.getElementById('split-container');
   const overlay = document.getElementById('split-overlay');
   const handle = document.getElementById('slider-handle');
+  const knob = document.getElementById('slider-knob');
 
   let isDragging = false;
+  let percent = 50;
 
-  function updateSlider(clientX: number) {
-    if (!container || !overlay || !handle) return;
-    const rect = container.getBoundingClientRect();
-    let x = clientX - rect.left;
-    x = Math.max(0, Math.min(x, rect.width));
-    const percent = (x / rect.width) * 100;
+  function setPercent(value: number) {
+    if (!overlay || !handle) return;
+    percent = Math.max(0, Math.min(100, value));
+    const rounded = Math.round(percent);
 
     handle.style.left = `${percent}%`;
     overlay.style.clipPath = `polygon(${percent}% 0, 100% 0, 100% 100%, ${percent}% 100%)`;
+    knob?.setAttribute('aria-valuenow', String(rounded));
+    knob?.setAttribute('aria-valuetext', `${rounded}% free-form builder, ${100 - rounded}% declared blocks`);
+  }
+
+  function updateFromPointer(clientX: number) {
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    setPercent(((clientX - rect.left) / rect.width) * 100);
   }
 
   container?.addEventListener('mousedown', (e) => {
     isDragging = true;
-    updateSlider(e.clientX);
+    updateFromPointer(e.clientX);
   });
 
   window.addEventListener('mouseup', () => {
@@ -149,24 +144,29 @@
   });
 
   window.addEventListener('mousemove', (e) => {
-    if (isDragging) {
-      updateSlider(e.clientX);
-    }
+    if (isDragging) updateFromPointer(e.clientX);
   });
 
-  // Touch support for mobile
   container?.addEventListener('touchstart', (e) => {
     isDragging = true;
-    if (e.touches[0]) updateSlider(e.touches[0].clientX);
-  });
+    if (e.touches[0]) updateFromPointer(e.touches[0].clientX);
+  }, { passive: true });
 
   window.addEventListener('touchend', () => {
     isDragging = false;
   });
 
   window.addEventListener('touchmove', (e) => {
-    if (isDragging && e.touches[0]) {
-      updateSlider(e.touches[0].clientX);
-    }
+    if (isDragging && e.touches[0]) updateFromPointer(e.touches[0].clientX);
+  }, { passive: true });
+
+  knob?.addEventListener('keydown', (e) => {
+    const step = e.shiftKey ? 10 : 5;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') setPercent(percent - step);
+    else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') setPercent(percent + step);
+    else if (e.key === 'Home') setPercent(0);
+    else if (e.key === 'End') setPercent(100);
+    else return;
+    e.preventDefault();
   });
 </script>

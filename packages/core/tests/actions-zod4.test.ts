@@ -6,7 +6,7 @@ import { join } from 'node:path';
  * With Astro 6+ actions validate with Zod 4, where `z.record(value)` with a
  * single argument blows up on validation («Cannot read properties of undefined
  * (reading '_zod')»): inserting a block from the editor returned 500. Seen on
- * Valhalla with Astro 7 on 2026-10-14. `z.record(z.string(), value)` works in
+ * a site with Astro 7 on 2026-10-14. `z.record(z.string(), value)` works in
  * Zod 3 and in Zod 4.
  */
 describe('actions compatible with Zod 4', () => {

@@ -1,5 +1,7 @@
 ---
 // apps/demo-site/src/components/landing/InteractiveEditorDemo.astro
+// A simulation of the editor that runs only in the browser. Nothing is sent
+// anywhere: the panel on the right shows the input the real action receives.
 ---
 
 <section id="interactive-demo" class="py-20 sm:py-28 relative overflow-hidden bg-[#07090E]/90 border-y border-white/10">
@@ -11,42 +13,39 @@
     <!-- Section Header -->
     <div class="text-center max-w-3xl mx-auto mb-14">
       <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-xs font-semibold mb-4">
-        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-        Live Interactive Simulator
+        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+        Simulated: nothing is sent
       </div>
       <h2 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight mb-4">
-        Experience the magic of Inti.<br />
+        What editing on the page looks like.<br />
         <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400">
-          Double-click, edit, and watch the write-back.
+          Change the text and see what would be saved.
         </span>
       </h2>
       <p class="text-slate-300 text-base sm:text-lg">
-        No jumping into complex admin panels. Edit the text below and watch in real time how Inti sends the authenticated write request back to your CMS through <code class="text-amber-300 font-mono text-sm bg-white/5 px-2 py-0.5 rounded">astro:actions</code>.
+        This is a simulation that runs only in your browser, with sample content. In a real project the editor calls an <code class="text-amber-300 font-mono text-sm bg-white/5 px-2 py-0.5 rounded">astro:actions</code> endpoint on your server, and the adapter writes the change to your CMS.
       </p>
     </div>
 
-    <!-- Interactive Simulator Mockup Container with 3D Tilt -->
+    <!-- Simulator mockup -->
     <div
       id="demo-mockup-window"
       class="rounded-2xl border border-white/15 bg-[#0C101C] shadow-2xl overflow-hidden backdrop-blur-xl relative transition-transform duration-150 ease-out transform-gpu"
     >
-      <!-- Specular 3D light reflection following mouse cursor -->
+      <!-- Light reflection following the mouse cursor (off under reduced motion) -->
       <div id="mockup-specular" class="absolute inset-0 pointer-events-none opacity-0 transition-opacity duration-300 z-30"></div>
       <!-- Top Window Header Bar -->
       <div class="px-4 py-3 bg-[#090C16] border-b border-white/10 flex flex-wrap items-center justify-between gap-4">
         <!-- Window Controls & URL bar -->
         <div class="flex items-center gap-3">
-          <div class="flex items-center gap-1.5">
+          <div class="flex items-center gap-1.5" aria-hidden="true">
             <span class="w-3 h-3 rounded-full bg-rose-500/80"></span>
             <span class="w-3 h-3 rounded-full bg-amber-500/80"></span>
             <span class="w-3 h-3 rounded-full bg-emerald-500/80"></span>
           </div>
           <div class="hidden sm:flex items-center gap-2 px-3 py-1 rounded-lg bg-black/40 border border-white/5 text-xs text-slate-400 font-mono">
-            <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-            </svg>
-            <span>https://my-store.com/about</span>
-            <span class="text-amber-400 font-semibold">[VisualBridge v0.1]</span>
+            <span>https://example.com/</span>
+            <span class="text-amber-400 font-semibold">[simulation]</span>
           </div>
         </div>
 
@@ -55,34 +54,32 @@
           <button
             type="button"
             id="btn-mode-visitor"
+            aria-pressed="false"
             class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all"
           >
-            👁️ Visitor View (0 JS)
+            Visitor view
           </button>
           <button
             type="button"
             id="btn-mode-editor"
-            class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md transition-all flex items-center gap-1.5"
+            aria-pressed="true"
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md transition-all"
           >
-            <svg class="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <span>✏️ Inti Editor Mode</span>
+            Editor view
           </button>
         </div>
 
         <!-- Target CMS Selector -->
         <div class="flex items-center gap-1.5">
-          <label for="cms-select" class="text-xs text-slate-400 font-medium hidden md:inline">CMS Adapter:</label>
+          <label for="cms-select" class="text-xs text-slate-400 font-medium hidden md:inline">Adapter:</label>
           <select
             id="cms-select"
-            class="bg-[#14192A] text-slate-200 text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-white/10 focus:outline-none focus:border-amber-400 cursor-pointer"
+            class="bg-[#14192A] text-slate-200 text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400 cursor-pointer"
           >
             <option value="wordpress">WordPress (ACF Flexible Content)</option>
-            <option value="kitsuden">Kitsuden (Page Builder / UUIDs)</option>
-            <option value="strapi">Strapi (Dynamic Zones v5)</option>
-            <option value="keystatic">Keystatic (Local / GitHub)</option>
+            <option value="kitsuden">Kitsuden (Page Builder)</option>
+            <option value="strapi">Strapi (dynamic zone)</option>
+            <option value="keystatic">Keystatic (files)</option>
           </select>
         </div>
       </div>
@@ -94,10 +91,10 @@
           <!-- Editor Status Ribbon -->
           <div id="editor-banner" class="mb-6 flex items-center justify-between p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-xs">
             <div class="flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-              <span><strong>Editor Mode Active:</strong> Click or double-click the outlined text fields to edit them.</span>
+              <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+              <span><strong>Simulated editor:</strong> click an outlined text and type. The real editor opens a field with a double-click.</span>
             </div>
-            <button id="undo-btn" class="px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-white font-mono text-[11px] transition-all" title="Undo change (Ctrl+Z)">
+            <button type="button" id="undo-btn" class="px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-white font-mono text-[11px] transition-all">
               ↺ Undo
             </button>
           </div>
@@ -107,13 +104,9 @@
             id="interactive-block"
             class="relative rounded-2xl p-6 sm:p-8 transition-all duration-300 border-2 border-dashed border-amber-500/40 bg-slate-900/60 shadow-xl group/block"
           >
-            <!-- Block Hover Floating Toolbar -->
+            <!-- Block type label -->
             <div id="block-toolbar" class="absolute -top-4 left-6 flex items-center gap-1 bg-[#1A2035] border border-amber-500/40 rounded-lg px-2 py-1 shadow-lg text-xs text-slate-300 z-20">
-              <span class="text-[10px] uppercase font-bold text-amber-400 tracking-wider mr-1">HeroBanner</span>
-              <button type="button" class="p-1 hover:text-white hover:bg-white/10 rounded" title="Move up">↑</button>
-              <button type="button" class="p-1 hover:text-white hover:bg-white/10 rounded" title="Move down">↓</button>
-              <button type="button" class="p-1 hover:text-white hover:bg-white/10 rounded" title="Duplicate block">⧉</button>
-              <button type="button" class="p-1 hover:text-rose-400 hover:bg-rose-500/20 rounded" title="Remove block">✕</button>
+              <span class="text-[10px] uppercase font-bold text-amber-400 tracking-wider">HeroBanner · sample content</span>
             </div>
 
             <!-- Block Field: Heading -->
@@ -126,7 +119,7 @@
                 contenteditable="true"
                 class="text-2xl sm:text-4xl font-extrabold text-white tracking-tight focus:outline-none focus:ring-2 focus:ring-amber-400/80 rounded-lg p-2 transition-all bg-white/[0.02] hover:bg-white/[0.05]"
               >
-                Limitless editorial design with Astro
+                Fresh bread every morning
               </h3>
             </div>
 
@@ -140,7 +133,7 @@
                 contenteditable="true"
                 class="text-slate-300 text-sm sm:text-base leading-relaxed focus:outline-none focus:ring-2 focus:ring-amber-400/80 rounded-lg p-2 transition-all bg-white/[0.02] hover:bg-white/[0.05]"
               >
-                Edit any text right on the production design. Inti serializes your changes and persists them immediately back to your CMS.
+                Sample text for a made-up bakery. Click here and type to change it.
               </p>
             </div>
 
@@ -148,100 +141,83 @@
             <div class="flex flex-wrap items-center gap-4 pt-4 border-t border-white/10">
               <div class="relative group/field">
                 <span class="field-label text-[10px] font-mono text-amber-400/80 bg-black/60 px-1.5 py-0.5 rounded absolute -top-5 left-0">
-                  data-inti-field="cta.text"
+                  data-inti-field="cta.label"
                 </span>
                 <span
                   id="demo-cta"
                   contenteditable="true"
                   class="inline-block px-4 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-rose-500 text-white font-semibold text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 transition-all cursor-text"
                 >
-                  Explore Catalog
+                  See the menu
                 </span>
               </div>
 
               <!-- Variant dropdown simulation -->
               <div class="flex items-center gap-2 text-xs text-slate-400 ml-auto">
-                <span>Variant:</span>
+                <label for="demo-variant-select">Variant:</label>
                 <select
                   id="demo-variant-select"
-                  class="bg-[#14192A] text-slate-200 text-xs font-medium rounded-md px-2 py-1 border border-white/15 focus:outline-none focus:border-amber-400"
+                  class="bg-[#14192A] text-slate-200 text-xs font-medium rounded-md px-2 py-1 border border-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400"
                 >
-                  <option value="solar">Solar Flare (Default)</option>
-                  <option value="dark">Deep Obsidian</option>
-                  <option value="cyber">Cyber Purple</option>
+                  <option value="warm">warm</option>
+                  <option value="dark">dark</option>
+                  <option value="purple">purple</option>
                 </select>
               </div>
             </div>
           </div>
 
           <!-- Bottom Notice -->
-          <div class="mt-6 flex items-center justify-between text-xs text-slate-400">
-            <span class="flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-              Optimistic UI: instant on-screen update
-            </span>
-            <span class="font-mono text-slate-500">Ctrl + Z supported</span>
+          <div class="mt-6 text-xs text-slate-400">
+            In the real editor the text changes on screen at once and reverts if the save fails.
           </div>
         </div>
 
-        <!-- Right: Real-time CMS Inspector Console (5 cols) -->
+        <!-- Right: what the editor would send (5 cols) -->
         <div class="lg:col-span-5 bg-[#080B14] p-6 border-t lg:border-t-0 lg:border-l border-white/10 flex flex-col justify-between font-mono">
           <div>
             <!-- Inspector Header -->
             <div class="flex items-center justify-between pb-3 mb-4 border-b border-white/10 text-xs">
-              <div class="flex items-center gap-2">
-                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span class="text-white font-semibold uppercase tracking-wider">CMS Sync Inspector</span>
-              </div>
-              <span id="sync-status-badge" class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">
-                200 OK · 14ms
+              <span class="text-white font-semibold uppercase tracking-wider">What the editor would send</span>
+              <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold">
+                Simulated · not sent
               </span>
             </div>
 
             <!-- Action Endpoint details -->
             <div class="space-y-2 mb-4 text-xs">
-              <div class="flex items-center justify-between text-slate-400">
+              <div class="flex items-center justify-between gap-3 text-slate-400">
                 <span>Action:</span>
-                <span class="text-amber-400 font-semibold">astro:actions/inti.updateBlockField</span>
+                <span id="inspector-action" class="text-amber-400 font-semibold text-right">inti.updateBlockField</span>
               </div>
-              <div class="flex items-center justify-between text-slate-400">
-                <span>Target:</span>
-                <span id="inspector-target" class="text-sky-300">WordPress REST API (/wp/v2/pages/42)</span>
+              <div class="flex items-center justify-between gap-3 text-slate-400">
+                <span>Written by:</span>
+                <span id="inspector-target" class="text-sky-300 text-right">@intijs/adapter-wordpress</span>
               </div>
-              <div class="flex items-center justify-between text-slate-400">
-                <span>Auth Proxy:</span>
-                <span class="text-slate-200">Server-Side Secret (Zero Client Leaks)</span>
+              <div class="flex items-center justify-between gap-3 text-slate-400">
+                <span>Credentials:</span>
+                <span class="text-slate-200 text-right">stay on your server</span>
               </div>
             </div>
 
-            <!-- Live Payload Viewer -->
+            <!-- Action input viewer -->
             <div class="rounded-xl bg-black/60 border border-white/10 p-3.5 relative">
               <div class="flex items-center justify-between text-[11px] text-slate-400 mb-2">
-                <span class="text-slate-300 font-semibold">Payload sent to CMS:</span>
-                <span id="last-updated-time" class="text-amber-400/80">Synced just now</span>
+                <span class="text-slate-300 font-semibold">Input of the action (example ids):</span>
               </div>
-              <pre is:raw id="json-payload-display" class="text-xs text-amber-200/90 overflow-x-auto p-2 rounded bg-black/40 leading-relaxed font-mono">
-{
-  "adapter": "wordpress",
-  "blockId": "b1",
-  "layout": "hero_banner",
-  "field": "heading",
-  "value": "Limitless editorial design with Astro",
-  "variant": "solar"
-}
-              </pre>
+              <pre id="json-payload-display" aria-live="polite" class="text-xs text-amber-200/90 overflow-x-auto p-2 rounded bg-black/40 leading-relaxed font-mono"></pre>
             </div>
           </div>
 
-          <!-- Security & Architecture Callout -->
+          <!-- Security callout -->
           <div class="mt-6 p-3 rounded-lg bg-white/[0.03] border border-white/5 text-[11px] text-slate-400 leading-normal">
             <div class="flex items-center gap-1.5 text-amber-300 font-semibold mb-1">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
               </svg>
-              <span>Fail-Closed Security</span>
+              <span>Refused by default in production</span>
             </div>
-            <span>In production, Inti rejects every write unless an authorization plugin is registered. WordPress passwords and Kitsuden agent tokens live strictly on the Astro server.</span>
+            <span>In production Inti rejects every write unless a plugin you register decides who is editing. WordPress passwords and Kitsuden agent keys live only on the Astro server.</span>
           </div>
         </div>
       </div>
@@ -250,16 +226,15 @@
 </section>
 
 <script>
-  // Interactive Simulator Logic
+  // Simulator logic. Nothing here talks to a server.
   const headingEl = document.getElementById('demo-heading');
   const subheadingEl = document.getElementById('demo-subheading');
   const ctaEl = document.getElementById('demo-cta');
-  const variantSelect = document.getElementById('demo-variant-select') as HTMLSelectElement;
-  const cmsSelect = document.getElementById('cms-select') as HTMLSelectElement;
+  const variantSelect = document.getElementById('demo-variant-select') as HTMLSelectElement | null;
+  const cmsSelect = document.getElementById('cms-select') as HTMLSelectElement | null;
   const jsonDisplay = document.getElementById('json-payload-display');
-  const statusBadge = document.getElementById('sync-status-badge');
+  const inspectorAction = document.getElementById('inspector-action');
   const inspectorTarget = document.getElementById('inspector-target');
-  const lastUpdatedTime = document.getElementById('last-updated-time');
   const blockEl = document.getElementById('interactive-block');
   const blockToolbar = document.getElementById('block-toolbar');
   const editorBanner = document.getElementById('editor-banner');
@@ -267,172 +242,122 @@
   const btnEditor = document.getElementById('btn-mode-editor');
   const undoBtn = document.getElementById('undo-btn');
 
-  // History stack for Undo
-  let history: Array<{ heading: string; subheading: string; cta: string; variant: string }> = [];
+  type State = { heading: string; subheading: string; cta: string; variant: string };
+
+  // Example document ids, in the shape each adapter uses
+  const CMS: Record<string, { adapter: string; documentId: string }> = {
+    wordpress: { adapter: '@intijs/adapter-wordpress', documentId: '42' },
+    kitsuden: { adapter: '@intijs/adapter-kitsuden', documentId: '11111111-2222-3333-4444-555555555555' },
+    strapi: { adapter: '@intijs/adapter-strapi', documentId: 'abc123' },
+    keystatic: { adapter: '@intijs/adapter-keystatic', documentId: 'home' },
+  };
+
+  const VARIANT_CLASSES: Record<string, string> = {
+    warm: 'border-amber-500/40 bg-gradient-to-br from-amber-950/30 to-slate-900',
+    dark: 'border-slate-700 bg-slate-950',
+    purple: 'border-purple-500/40 bg-gradient-to-br from-purple-950/30 to-slate-900',
+  };
+  const BLOCK_BASE = 'relative rounded-2xl p-6 sm:p-8 transition-all duration-300 border-2 shadow-xl group/block';
+
+  let editing = true;
+  let last = { field: 'heading', value: headingEl?.innerText.trim() ?? '' };
+  const history: State[] = [];
+
+  function readState(): State {
+    return {
+      heading: headingEl?.innerText ?? '',
+      subheading: subheadingEl?.innerText ?? '',
+      cta: ctaEl?.innerText ?? '',
+      variant: variantSelect?.value ?? 'warm',
+    };
+  }
 
   function saveState() {
-    if (headingEl && subheadingEl && ctaEl && variantSelect) {
-      history.push({
-        heading: headingEl.innerText,
-        subheading: subheadingEl.innerText,
-        cta: ctaEl.innerText,
-        variant: variantSelect.value,
-      });
-      if (history.length > 20) history.shift();
+    history.push(readState());
+    if (history.length > 20) history.shift();
+  }
+
+  function paintBlock() {
+    if (!blockEl) return;
+    const variant = VARIANT_CLASSES[variantSelect?.value ?? 'warm'] ?? VARIANT_CLASSES.warm;
+    blockEl.className = `${BLOCK_BASE} ${editing ? 'border-dashed' : 'border-transparent'} ${variant}`;
+  }
+
+  // The input of `inti.updateBlockField`, as the real action declares it
+  function showInput(field: string, value: string) {
+    last = { field, value };
+    const cms = CMS[cmsSelect?.value ?? 'wordpress'] ?? CMS.wordpress;
+    if (inspectorAction) inspectorAction.textContent = 'inti.updateBlockField';
+    if (inspectorTarget) inspectorTarget.textContent = cms.adapter;
+    if (jsonDisplay) {
+      jsonDisplay.textContent = JSON.stringify({ documentId: cms.documentId, blockIndex: 0, field, value }, null, 2);
     }
   }
 
-  // Initial state
   saveState();
+  paintBlock();
+  showInput(last.field, last.value);
 
-  function updateInspector(fieldModified: string, valueModified: string) {
-    if (!jsonDisplay || !statusBadge || !lastUpdatedTime || !cmsSelect) return;
-
-    // Simulate random fast latency between 12ms and 24ms
-    const latency = Math.floor(Math.random() * 12) + 12;
-
-    statusBadge.textContent = `200 OK · ${latency}ms`;
-    statusBadge.className = 'px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-bold animate-pulse';
-
-    const now = new Date();
-    lastUpdatedTime.textContent = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}.${now.getMilliseconds().toString().padStart(3, '0')}`;
-
-    const cms = cmsSelect.value;
-    let payload = {};
-
-    if (cms === 'wordpress') {
-      inspectorTarget && (inspectorTarget.textContent = 'WordPress REST API (wp/v2/pages/42 ACF)');
-      payload = {
-        adapter: '@intijs/adapter-wordpress',
-        endpoint: 'https://wp.example.com/wp-json/wp/v2/pages/42',
-        action: 'patch_acf_field',
-        layout: 'hero_banner',
-        modifiedField: fieldModified,
-        updatedValue: valueModified,
-        variant: variantSelect?.value || 'solar'
-      };
-    } else if (cms === 'kitsuden') {
-      inspectorTarget && (inspectorTarget.textContent = 'Kitsuden API (Row UUID e2b4-7f1a)');
-      payload = {
-        adapter: '@intijs/adapter-kitsuden',
-        contract: 'page-builder:v1',
-        block_uuid: 'e2b4-7f1a-4931-bb92',
-        scope: 'content:edit',
-        modifiedField: fieldModified,
-        updatedValue: valueModified,
-        variant: variantSelect?.value || 'solar'
-      };
-    } else if (cms === 'strapi') {
-      inspectorTarget && (inspectorTarget.textContent = 'Strapi v5 Dynamic Zones API');
-      payload = {
-        adapter: '@intijs/adapter-strapi',
-        component: 'sections.hero-banner',
-        documentId: 'd918f4a2-11ef',
-        modifiedField: fieldModified,
-        updatedValue: valueModified
-      };
-    } else {
-      inspectorTarget && (inspectorTarget.textContent = 'Keystatic File Sync (.inti/content.json)');
-      payload = {
-        adapter: '@intijs/adapter-keystatic',
-        file: 'content/pages/home.json',
-        modifiedField: fieldModified,
-        updatedValue: valueModified
-      };
-    }
-
-    jsonDisplay.textContent = JSON.stringify(payload, null, 2);
-
-    setTimeout(() => {
-      statusBadge.classList.remove('animate-pulse');
-    }, 400);
-  }
-
-  // Input listeners
-  let debounceTimer: any = null;
+  let debounceTimer: ReturnType<typeof setTimeout> | undefined;
   function handleInput(field: string, element: HTMLElement | null) {
     if (!element) return;
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
       saveState();
-      updateInspector(field, element.innerText.trim());
+      showInput(field, element.innerText.trim());
     }, 200);
   }
 
   headingEl?.addEventListener('input', () => handleInput('heading', headingEl));
   subheadingEl?.addEventListener('input', () => handleInput('subheading', subheadingEl));
-  ctaEl?.addEventListener('input', () => handleInput('cta.text', ctaEl));
+  ctaEl?.addEventListener('input', () => handleInput('cta.label', ctaEl));
 
   variantSelect?.addEventListener('change', () => {
     saveState();
-    const val = variantSelect.value;
-    if (blockEl) {
-      if (val === 'solar') {
-        blockEl.className = 'relative rounded-2xl p-6 sm:p-8 transition-all duration-300 border-2 border-dashed border-amber-500/40 bg-gradient-to-br from-amber-950/30 to-slate-900 shadow-xl group/block';
-      } else if (val === 'dark') {
-        blockEl.className = 'relative rounded-2xl p-6 sm:p-8 transition-all duration-300 border-2 border-dashed border-slate-700 bg-slate-950 shadow-xl group/block';
-      } else if (val === 'cyber') {
-        blockEl.className = 'relative rounded-2xl p-6 sm:p-8 transition-all duration-300 border-2 border-dashed border-purple-500/40 bg-gradient-to-br from-purple-950/30 to-slate-900 shadow-xl group/block';
-      }
-    }
-    updateInspector('variant', val);
+    paintBlock();
+    showInput('variant', variantSelect.value);
   });
 
-  cmsSelect?.addEventListener('change', () => {
-    updateInspector('cms_switch', cmsSelect.value);
-  });
+  cmsSelect?.addEventListener('change', () => showInput(last.field, last.value));
 
-  // Undo button
   undoBtn?.addEventListener('click', () => {
-    if (history.length > 1) {
-      history.pop(); // remove current
-      const prev = history[history.length - 1];
-      if (prev && headingEl && subheadingEl && ctaEl && variantSelect) {
-        headingEl.innerText = prev.heading;
-        subheadingEl.innerText = prev.subheading;
-        ctaEl.innerText = prev.cta;
-        variantSelect.value = prev.variant;
-        updateInspector('undo_action', 'restored_previous_state');
-      }
-    }
+    if (history.length < 2) return;
+    history.pop();
+    const prev = history[history.length - 1];
+    if (!prev || !headingEl || !subheadingEl || !ctaEl || !variantSelect) return;
+    headingEl.innerText = prev.heading;
+    subheadingEl.innerText = prev.subheading;
+    ctaEl.innerText = prev.cta;
+    variantSelect.value = prev.variant;
+    paintBlock();
+    showInput('heading', prev.heading.trim());
   });
 
-  // Mode toggling
-  btnVisitor?.addEventListener('click', () => {
-    btnVisitor.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 text-white shadow-md transition-all';
-    btnEditor && (btnEditor.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all');
-    if (blockEl) {
-      blockEl.classList.remove('border-dashed', 'border-amber-500/40');
-      blockEl.classList.add('border-transparent');
-    }
-    blockToolbar?.classList.add('hidden');
-    editorBanner?.classList.add('hidden');
-    document.querySelectorAll('.field-label').forEach(el => el.classList.add('hidden'));
-    headingEl?.setAttribute('contenteditable', 'false');
-    subheadingEl?.setAttribute('contenteditable', 'false');
-    ctaEl?.setAttribute('contenteditable', 'false');
-  });
+  // Visitor / editor view
+  const ACTIVE = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md transition-all';
+  const INACTIVE = 'px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all';
 
-  btnEditor?.addEventListener('click', () => {
-    btnEditor.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md transition-all flex items-center gap-1.5';
-    btnVisitor && (btnVisitor.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white transition-all');
-    if (blockEl) {
-      blockEl.classList.add('border-dashed', 'border-amber-500/40');
-      blockEl.classList.remove('border-transparent');
-    }
-    blockToolbar?.classList.remove('hidden');
-    editorBanner?.classList.remove('hidden');
-    document.querySelectorAll('.field-label').forEach(el => el.classList.remove('hidden'));
-    headingEl?.setAttribute('contenteditable', 'true');
-    subheadingEl?.setAttribute('contenteditable', 'true');
-    ctaEl?.setAttribute('contenteditable', 'true');
-  });
+  function setEditing(next: boolean) {
+    editing = next;
+    if (btnEditor) { btnEditor.className = next ? ACTIVE : INACTIVE; btnEditor.setAttribute('aria-pressed', String(next)); }
+    if (btnVisitor) { btnVisitor.className = next ? INACTIVE : ACTIVE; btnVisitor.setAttribute('aria-pressed', String(!next)); }
+    blockToolbar?.classList.toggle('hidden', !next);
+    editorBanner?.classList.toggle('hidden', !next);
+    document.querySelectorAll('.field-label').forEach(el => el.classList.toggle('hidden', !next));
+    for (const el of [headingEl, subheadingEl, ctaEl]) el?.setAttribute('contenteditable', String(next));
+    paintBlock();
+  }
 
-  // 3D Perspective Tilt & Specular Sheen Effect
+  btnVisitor?.addEventListener('click', () => setEditing(false));
+  btnEditor?.addEventListener('click', () => setEditing(true));
+
+  // Tilt and light reflection: decoration only, off under reduced motion
   const windowEl = document.getElementById('demo-mockup-window');
   const specularEl = document.getElementById('mockup-specular');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
   windowEl?.addEventListener('mousemove', (e) => {
+    if (reduceMotion.matches) return;
     const rect = windowEl.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -450,7 +375,7 @@
   });
 
   windowEl?.addEventListener('mouseleave', () => {
-    windowEl.style.transform = 'perspective(1200px) rotateX(0deg) rotateY(0deg)';
+    windowEl.style.transform = '';
     if (specularEl) specularEl.style.opacity = '0';
   });
 </script>

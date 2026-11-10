@@ -20,7 +20,7 @@
  */
 
 import { execFileSync, spawn } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -217,17 +217,17 @@ try {
         const name = `site-${cms}`;
 
         // From the tarball: if a file is missing from `files`, it fails here
-        run('npx', ['--yes', '--package', tarballs['create-inti'], 'create-inti', name, '--cms', cms, '--no-install'], workdir, `create-inti --cms ${cms}`);
+        run('npx', ['--yes', '--package', tarballs['create-inti'], 'create-inti', name, '--cms', cms, '--no-install', '--packages', tarballDir], workdir, `create-inti --cms ${cms}`);
 
         const project = join(workdir, name);
-        const pkgPath = join(project, 'package.json');
-        const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
-        // @intijs is not published yet: install from the tarballs
-        for (const dep of Object.keys(pkg.dependencies)) {
-            if (tarballs[dep]) pkg.dependencies[dep] = `file:${tarballs[dep]}`;
-            else if (dep.startsWith('@intijs/')) throw new Error(`the project depends on ${dep}, which does not exist in the repo`);
+        const pkg = JSON.parse(readFileSync(join(project, 'package.json'), 'utf8'));
+        // @intijs is not published yet: `--packages` has to point every @intijs
+        // dependency at its tarball. This is the path the README documents.
+        for (const [dep, spec] of Object.entries(pkg.dependencies)) {
+            if (!dep.startsWith('@intijs/')) continue;
+            if (!tarballs[dep]) throw new Error(`the project depends on ${dep}, which does not exist in the repo`);
+            if (!spec.startsWith('file:')) throw new Error(`${dep} is "${spec}": --packages did not point it at its tarball`);
         }
-        writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
 
         run('npm', ['install', '--no-audit', '--no-fund'], project, `npm install (${cms})`);
         run('npx', ['astro', 'build'], project, `astro build (${cms})`);

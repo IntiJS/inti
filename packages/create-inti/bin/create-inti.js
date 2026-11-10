@@ -6,6 +6,9 @@
  *   npm create inti@latest my-site -- --cms wordpress
  *   npx create-inti my-site --cms local --yes --no-install
  *
+ * While the packages are not on npm, `--packages <dir>` makes the project
+ * depend on tarballs made with `npm pack` (scripts/scaffold-local.mjs does both).
+ *
  * Without an interactive terminal (CI) or with --yes it asks nothing: it uses the
  * flag values, and for anything missing, the defaults.
  */
@@ -13,10 +16,10 @@
 import { intro, outro, text, select, confirm, isCancel, cancel } from '@clack/prompts';
 import pc from 'picocolors';
 import { existsSync, readdirSync, mkdirSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve, relative } from 'node:path';
+import { dirname, join, resolve, relative, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { CMS, CMS_IDS, generateProject, nodeVersionError, validateName } from '../lib/generate.js';
+import { CMS, CMS_IDS, generateProject, intiPackages, nodeVersionError, validateName } from '../lib/generate.js';
 
 const DEFAULT_NAME = 'my-inti-site';
 const DEFAULT_CMS = 'local';
@@ -27,7 +30,7 @@ const DOCS = 'https://github.com/intijs/inti/blob/main/apps/docs/src/content/doc
 // ============================================
 
 function parseArgs(argv) {
-    const args = { name: undefined, cms: undefined, yes: false, install: true, help: false };
+    const args = { name: undefined, cms: undefined, packages: undefined, yes: false, install: true, help: false };
     for (let i = 0; i < argv.length; i++) {
         const arg = argv[i];
         if (arg === '--yes' || arg === '-y') args.yes = true;
@@ -35,6 +38,8 @@ function parseArgs(argv) {
         else if (arg === '--help' || arg === '-h') args.help = true;
         else if (arg === '--cms') args.cms = argv[++i];
         else if (arg.startsWith('--cms=')) args.cms = arg.slice('--cms='.length);
+        else if (arg === '--packages') args.packages = argv[++i];
+        else if (arg.startsWith('--packages=')) args.packages = arg.slice('--packages='.length);
         else if (arg.startsWith('-')) fail(`Unknown option: ${arg}`);
         else if (!args.name) args.name = arg;
         else fail(`Extra argument: ${arg}`);
@@ -56,6 +61,8 @@ ${pc.bold('Usage')}
 
 ${pc.bold('Options')}
   --cms <${CMS_IDS.join('|')}>   CMS to connect to (default: ${DEFAULT_CMS})
+  --packages <dir>           Depend on the tarballs in <dir> (made with "npm pack")
+                             instead of the npm registry
   --yes, -y                  No prompts: use flags and defaults
   --no-install               Do not install dependencies
   --help, -h                 This help
@@ -66,6 +73,27 @@ function targetError(dir) {
     if (!existsSync(dir)) return undefined;
     if (readdirSync(dir).length === 0) return undefined;
     return `The folder ${dir} already exists and is not empty`;
+}
+
+/**
+ * `file:` specs for the @intijs packages of this CMS, from the tarballs that
+ * `npm pack` leaves in `dir` (`intijs-core-0.1.0.tgz`). Relative to the project,
+ * so the folder holding both can be moved.
+ */
+function localPackages(dir, cms, targetDir) {
+    const source = resolve(dir);
+    if (!existsSync(source)) fail(`The folder given to --packages does not exist: ${source}`);
+    const tarballs = readdirSync(source).filter((file) => file.endsWith('.tgz'));
+
+    const specs = {};
+    for (const dep of intiPackages(cms)) {
+        const prefix = `${dep.replace(/^@/, '').replace('/', '-')}-`;
+        const tarball = tarballs.find((file) => file.startsWith(prefix) && /^[0-9]/.test(file.slice(prefix.length)));
+        if (!tarball) fail(`No tarball of ${dep} in ${source} (expected ${prefix}<version>.tgz, made with "npm pack")`);
+        const path = relative(targetDir, join(source, tarball)).split(sep).join('/');
+        specs[dep] = `file:${path}`;
+    }
+    return specs;
 }
 
 /** The package manager it was launched with (npm create, pnpm create…) */
@@ -144,7 +172,8 @@ async function main() {
     }
 
     // Write
-    const files = generateProject({ name, cms });
+    const packages = args.packages ? localPackages(args.packages, cms, targetDir) : undefined;
+    const files = generateProject({ name, cms, packages });
     for (const [path, content] of Object.entries(files)) {
         const target = join(targetDir, path);
         mkdirSync(dirname(target), { recursive: true });

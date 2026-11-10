@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 598" width="1200" height="598" role="img" aria-labelledby="t d">
 <title id="t">Inti.js</title>
-<desc id="d">Inti.js: AI for any CMS, without changing the CMS. For Astro sites: edit content on the rendered page and Inti writes it back to the CMS it came from. Adapters for WordPress, Kitsuden, Strapi and Keystatic read and write; Contentful and Sanity only read. Start with npm create inti@latest.</desc>
+<desc id="d">Inti.js: AI for any CMS, without changing the CMS. For Astro sites: edit content on the rendered page and Inti writes it back to the CMS it came from. Adapters for WordPress, Kitsuden, Strapi and Keystatic read and write; Contentful and Sanity only read. In beta and not on npm yet: install from git.</desc>
 <style>.s{font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif}.m{font-family:ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace}</style>
 <rect x="1" y="1" width="1198" height="596" rx="28" fill="#0f1520" stroke="#2a3446" stroke-width="2"/>
 <circle cx="80" cy="86" r="18" fill="#fbbf24"/><line x1="105.0" y1="86.0" x2="114.0" y2="86.0" stroke="#fbbf24" stroke-width="4" stroke-linecap="round"/><line x1="97.7" y1="103.7" x2="104.0" y2="110.0" stroke="#fbbf24" stroke-width="4" stroke-linecap="round"/><line x1="80.0" y1="111.0" x2="80.0" y2="120.0" stroke="#fbbf24" stroke-width="4" stroke-linecap="round"/><line x1="62.3" y1="103.7" x2="56.0" y2="110.0" stroke="#fbbf24" stroke-width="4" stroke-linecap="round"/><line x1="55.0" y1="86.0" x2="46.0" y2="86.0" stroke="#fbbf24" stroke-width="4" stroke-linecap="round"/><line x1="62.3" y1="68.3" x2="56.0" y2="62.0" stroke="#fbbf24" stroke-width="4" stroke-linecap="round"/><line x1="80.0" y1="61.0" x2="80.0" y2="52.0" stroke="#fbbf24" stroke-width="4" stroke-linecap="round"/><line x1="97.7" y1="68.3" x2="104.0" y2="62.0" stroke="#fbbf24" stroke-width="4" stroke-linecap="round"/>
@@ -8,7 +8,7 @@
 <text class="s" x="56" y="166" font-size="26" font-weight="600" fill="#f1f5f9">AI for any CMS, without changing the CMS.</text>
 <text class="s" x="56" y="204" font-size="22" fill="#a8b3c4">For Astro sites: edit on the page, and it is saved back to the CMS it came from.</text>
 <rect x="772" y="62" width="372" height="56" rx="14" fill="#161e2c" stroke="#2a3446" stroke-width="2"/>
-<text class="m" x="794" y="97" font-size="21" fill="#f1f5f9"><tspan fill="#ff8a4c">$</tspan> npm create inti@latest</text>
+<text class="m" x="794" y="97" font-size="21" fill="#f1f5f9"><tspan fill="#ff8a4c">Beta</tspan> · not on npm yet</text>
 <line x1="56" y1="236" x2="1144" y2="236" stroke="#2a3446" stroke-width="2"/>
 <text class="s" x="56" y="262" font-size="20" fill="#a8b3c4">Adapters</text>
 <rect x="57.0" y="277" width="350.0" height="86" rx="14" fill="#161e2c" stroke="#ff8a4c" stroke-width="2"/>

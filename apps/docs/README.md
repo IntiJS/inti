@@ -1,6 +1,6 @@
 # Inti.js Documentation
 
-Official documentation for Inti.js — the visual editing layer for headless WordPress on Astro —, built with [Astro Starlight](https://starlight.astro.build/).
+Official documentation for Inti.js (AI for any CMS, without changing the CMS; for Astro sites), built with [Astro Starlight](https://starlight.astro.build/).
 
 ## Structure
 
@@ -20,17 +20,17 @@ src/
 ## Development
 
 ```bash
-# Install dependencies
-bun install
+# Install dependencies (once, at the repository root)
+npm install
 
 # Development server
-bun run dev
+npm run dev -w @intijs/docs
 
 # Build
-bun run build
+npm run build:docs
 
 # Preview
-bun run preview
+npm run preview -w @intijs/docs
 ```
 
 ## Features

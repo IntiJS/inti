@@ -8,6 +8,10 @@ Keystatic stores content in files in your repo and edits it in a panel. Inti add
 Keystatic has no write API, so the adapter writes its files directly, and its tests read every write back with the official reader.
 
 ```bash
+# from the folder that contains a built clone of the repository (the packages are not on npm yet)
+node inti/scripts/scaffold-local.mjs my-site --cms keystatic
+
+# once published
 npm create inti@latest my-site -- --cms keystatic
 ```
 

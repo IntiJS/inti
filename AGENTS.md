@@ -35,10 +35,13 @@ Inti has no database dependency. The local fallback is a JSON file, so nothing h
 
 ## The complete setup — no step is optional
 
-`npm create inti@latest` (Node 22.12 or later) generates this setup (`--cms wordpress|kitsuden|strapi|keystatic|local`, `--yes` for no prompts), with one structural difference: the CMS connection lives in `src/lib/cms.ts`, which exports `readPage(slug)`, instead of inside the page.
+**Not on npm yet.** The packages will be published under `@intijs`. Until then `npm install @intijs/…`, `npm create inti@latest` and `npx inti` do not work: install from git, as the README's "Quick start" and "Installation" sections describe. Never tell a user to run those commands as if they worked today.
+
+`node inti/scripts/scaffold-local.mjs my-site`, run from the folder that contains a built clone (Node 22.12 or later; `npm create inti@latest` once published), generates this setup (`--cms wordpress|kitsuden|strapi|keystatic|local`, `--yes` for no prompts), with one structural difference: the CMS connection lives in `src/lib/cms.ts`, which exports `readPage(slug)`, instead of inside the page.
 
 ```bash
-npm install @intijs/core @intijs/adapter-wordpress
+# @intijs/core and the adapter, installed from git (README → Installation). Once published:
+# npm install @intijs/core @intijs/adapter-wordpress
 npx astro add node   # node | vercel | cloudflare | netlify
 ```
 
@@ -393,6 +396,9 @@ For a team, `@intijs/core/team` adds two more hooks to the same plugin: `getPatt
 Don't call the CMS API directly. Use `@intijs/mcp` (an MCP server, MIT) so the agent gets `inti_get_page`, `inti_update_field`, `inti_insert_blocks`, `inti_create_draft`, etc. Set `INTI_MCP_VOCABULARY` to a JSON vocabulary to validate what it inserts, and prefer a draft for non-trivial changes. It writes with the credentials in its environment and does not pass through `beforeWrite` plugins: use `INTI_MCP_READONLY=1` or a restricted CMS user to limit it.
 
 ```bash
+# today, from a clone that is installed and built:
+claude mcp add inti -- node /absolute/path/to/inti/packages/mcp/bin/inti-mcp.js
+# once the packages are published:
 claude mcp add inti -- npx -y @intijs/mcp
 ```
 

@@ -25,7 +25,7 @@ async function main() {
             await syncCommand(flag('config'));
             break;
         case 'dev':
-            await devCommand();
+            await devCommand(args.slice(1));
             break;
         case 'help':
         case '--help':
@@ -38,12 +38,12 @@ async function main() {
 
 Commands:
   inti sync    Generate TypeScript types from CMS schema
-  inti dev     Start development server with hot reload
+  inti dev     Run "astro dev" (its arguments are passed through)
   inti help    Show this help message
 
 Examples:
-  npx inti sync                              # Types from ./inti.config.ts
-  npx inti sync --config ./config/inti.ts    # Use another config file
+  npx @intijs/cli sync                              # Types from ./inti.config.ts
+  npx @intijs/cli sync --config ./config/inti.ts    # Use another config file
 
 For more information, visit: https://github.com/intijs/inti
             `);

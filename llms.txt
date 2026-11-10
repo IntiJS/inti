@@ -4,13 +4,15 @@
 
 Inti is a layer over an existing CMS and never replaces it: no admin UI, no user management, no database of its own. Any adapter implementing `WritableAdapter` gets inline editing. WordPress, Kitsuden, Strapi and Keystatic read and write; Contentful and Sanity only read.
 
+Not on npm yet: the packages will be published under `@intijs`. Until then `npm install @intijs/...`, `npm create inti` and `npx inti` do not work; install from git as the README's "Quick start" and "Installation" sections describe (clone, `npm install`, `npm run build`, then `node inti/scripts/scaffold-local.mjs my-site` for a new site).
+
 Setup requires four things, and skipping any of them breaks it silently:
-1. `npm install @intijs/core @intijs/adapter-wordpress`
+1. `@intijs/core` and the adapter of your CMS installed (from git, see above; `npm install @intijs/core @intijs/adapter-wordpress` once published)
 2. An Astro adapter (`npx astro add node`): without it `astro:actions` doesn't exist and nothing saves
 3. `export const server = { inti: intiActions }` in `src/actions/index.ts`
 4. `registerBlocks(import.meta.glob('/src/blocks/*.astro'))`: without it every block renders a placeholder
 
-`npm create inti@latest` generates all of it. Block type names come from the CMS: WordPress `acf_fc_layout: "hero_banner"` becomes type `HeroBanner`, rendered by `src/blocks/HeroBanner.astro`.
+`node inti/scripts/scaffold-local.mjs my-site` generates all of it from a clone (`npm create inti@latest` once published). Block type names come from the CMS: WordPress `acf_fc_layout: "hero_banner"` becomes type `HeroBanner`, rendered by `src/blocks/HeroBanner.astro`.
 
 ## Docs
 
@@ -29,6 +31,3 @@ Setup requires four things, and skipping any of them breaks it silently:
 - [Contributing](https://github.com/intijs/inti/blob/main/CONTRIBUTING.md): Development setup, code style, CLA
 - [Security](https://github.com/intijs/inti/blob/main/SECURITY.md): How to report a vulnerability
 - [Changelog](https://github.com/intijs/inti/blob/main/CHANGELOG.md): Release history
-
-## Optional
-

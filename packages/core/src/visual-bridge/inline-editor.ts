@@ -415,7 +415,8 @@ export class InlineEditor {
         const input = document.createElement('input');
         input.type = 'search';
         input.placeholder = `Search in ${collection}…`;
-        input.style.cssText = 'margin:0.5rem;padding:0.4rem 0.6rem;border:1px solid #475569;border-radius:0.35rem;background:#0f172a;color:#e2e8f0;outline:none;';
+        input.setAttribute('aria-label', input.placeholder);
+        input.style.cssText = 'margin:0.5rem;padding:0.4rem 0.6rem;border:1px solid #475569;border-radius:0.35rem;background:#0f172a;color:#e2e8f0;outline-color:#93c5fd;';
 
         const list = document.createElement('div');
         list.style.cssText = 'overflow-y:auto;padding:0 0.5rem 0.5rem;';
@@ -454,7 +455,16 @@ export class InlineEditor {
                 const item = document.createElement('button');
                 item.type = 'button';
                 item.style.cssText = 'display:block;width:100%;text-align:left;padding:0.45rem 0.6rem;border:none;background:transparent;color:inherit;border-radius:0.35rem;cursor:pointer;';
-                item.innerHTML = `<div>${entry.title}</div>${entry.subtitle ? `<div style="color:#94a3b8;font-size:0.75rem;">${entry.subtitle}</div>` : ''}`;
+                // Titles come from the CMS: they are text, never markup
+                const title = document.createElement('div');
+                title.textContent = entry.title;
+                item.appendChild(title);
+                if (entry.subtitle) {
+                    const subtitle = document.createElement('div');
+                    subtitle.style.cssText = 'color:#94a3b8;font-size:0.75rem;';
+                    subtitle.textContent = entry.subtitle;
+                    item.appendChild(subtitle);
+                }
                 item.addEventListener('mouseenter', () => { item.style.background = '#334155'; });
                 item.addEventListener('mouseleave', () => { item.style.background = 'transparent'; });
                 item.addEventListener('click', () => {
@@ -547,6 +557,8 @@ export class InlineEditor {
         const toast = document.createElement('div');
         toast.className = 'inti-inline-toast';
         toast.textContent = message;
+        toast.setAttribute('role', 'status');
+        toast.setAttribute('aria-live', 'polite');
         toast.style.cssText = [
             'position: fixed',
             'bottom: 1.5rem',

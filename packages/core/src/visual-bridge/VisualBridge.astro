@@ -247,6 +247,21 @@ if (!shouldRender) return null;
                 outline: 2px solid #3b82f6 !important;
             }
             
+            /* Keyboard focus is always visible */
+            .inti-vb-btn:focus-visible {
+                outline: 2px solid #93c5fd;
+                outline-offset: 2px;
+            }
+
+            /* No slide-in or fades for someone who asked for reduced motion */
+            @media (prefers-reduced-motion: reduce) {
+                .inti-vb-overlay,
+                .inti-vb-overlay * {
+                    animation: none !important;
+                    transition: none !important;
+                }
+            }
+
             /* Light theme */
             .inti-vb-theme-light .inti-vb-toolbar,
             .inti-vb-theme-light .inti-vb-block-toolbar {

@@ -10,7 +10,7 @@
         <span>Core Capabilities</span>
       </div>
       <h2 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight mb-4">
-        Everything a modern site needs.<br />
+        What Inti adds to an Astro site.<br />
         <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400">
           Without touching your CMS database.
         </span>
@@ -33,16 +33,16 @@
             <span class="px-2 py-0.5 rounded text-[11px] font-mono bg-amber-400/10 text-amber-300 border border-amber-400/20">Optimistic UI</span>
           </h3>
           <p class="text-slate-300 text-sm leading-relaxed mb-6">
-            Double-click any text or heading on your Astro page, type the new content and press Enter. Inti updates the view instantly and sends a safe mutation to WordPress ACF, Kitsuden rows or Strapi dynamic zones. If the network fails, the change rolls back automatically and nothing gets corrupted.
+            Double-click any text or heading on your Astro page, type the new content and press Enter. Inti updates the view at once and writes the change to WordPress ACF, Kitsuden rows, Strapi dynamic zones or Keystatic files. If the save fails, the text on screen reverts.
           </p>
         </div>
         <div class="rounded-xl bg-black/40 border border-white/5 p-4 font-mono text-xs text-slate-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
             <span class="text-slate-400">Astro Server Action:</span>
-            <span class="text-amber-300">astro:actions/inti.updateBlockField</span>
+            <span class="text-amber-300">inti.updateBlockField</span>
           </div>
-          <span class="text-slate-400 text-[11px]">Automatic fallback and safe rollback</span>
+          <span class="text-slate-400 text-[11px]">Reverts if the save fails</span>
         </div>
       </div>
 
@@ -54,11 +54,11 @@
           </div>
           <h3 class="text-xl font-bold text-white mb-3">AI Agents (MCP)</h3>
           <p class="text-slate-300 text-sm leading-relaxed mb-6">
-            The same write path, exposed as <strong class="text-purple-300">Model Context Protocol</strong> tools. Claude, Cursor and other agents read the page structure with <code class="text-purple-300 text-xs font-mono">inti_get_page</code> and edit under the same validation rules as a human editor.
+            The adapter's write path, exposed as <strong class="text-purple-300">Model Context Protocol</strong> tools. Claude Code, Cursor and other agents read a page with <code class="text-purple-300 text-xs font-mono">inti_get_page</code> and edit it. Writes use the CMS credentials on your server and do not pass through <code class="text-purple-300 text-xs font-mono">beforeWrite</code> plugins: limit them with <code class="text-purple-300 text-xs font-mono">INTI_MCP_READONLY=1</code> or a restricted CMS user.
           </p>
         </div>
         <div class="rounded-lg bg-black/50 border border-purple-500/20 p-3 text-xs font-mono text-purple-200">
-          <span class="text-slate-500">$</span> claude mcp add inti -- npx @intijs/mcp
+          <span class="text-slate-500">$</span> claude mcp add inti -- npx -y @intijs/mcp <span class="text-slate-500"># once published</span>
         </div>
       </div>
 
@@ -120,8 +120,8 @@
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs font-medium text-slate-300">
           <div class="p-2.5 rounded-lg bg-black/40 border border-white/5">Yoast / RankMath</div>
           <div class="p-2.5 rounded-lg bg-black/40 border border-white/5">JSON-LD Graph</div>
-          <div class="p-2.5 rounded-lg bg-black/40 border border-white/5">Automatic Sitemap</div>
-          <div class="p-2.5 rounded-lg bg-black/40 border border-white/5">Native llms.txt</div>
+          <div class="p-2.5 rounded-lg bg-black/40 border border-white/5">Sitemap with lastmod</div>
+          <div class="p-2.5 rounded-lg bg-black/40 border border-white/5">llms.txt</div>
         </div>
       </div>
 
@@ -132,10 +132,10 @@
         </div>
         <h3 class="text-xl font-bold text-white mb-3">Cloudflare & Edge Ready</h3>
         <p class="text-slate-300 text-sm leading-relaxed mb-4">
-          With the optional <code class="text-orange-300 text-xs font-mono">@intijs/cloudflare</code> package, use D1 SQLite for a fast cache, Durable Objects for multi-tab sync, R2 for media and Workers AI for inference at the edge.
+          With the optional <code class="text-orange-300 text-xs font-mono">@intijs/cloudflare</code> package: D1 for content and experiments, Durable Objects for realtime and limits, R2 for media, and Workers AI.
         </p>
         <div class="text-xs text-orange-400 font-mono flex items-center gap-1.5">
-          <span>✓ Compatible Node, Vercel, Netlify</span>
+          <span>✓ Optional: Inti does not depend on Cloudflare</span>
         </div>
       </div>
     </div>
@@ -145,10 +145,12 @@
 <script>
   // 3D Tilt & Cursor Radial Glow on Bento Cards
   const cards = document.querySelectorAll('.bento-card');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
   cards.forEach(card => {
     const el = card as HTMLElement;
     el.addEventListener('mousemove', (e: MouseEvent) => {
+      if (reduceMotion.matches) return;
       const rect = el.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;

@@ -62,15 +62,15 @@ const structuredData = {
     />
 
     <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:title" content="Inti.js — AI for any CMS, without changing the CMS" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Inti.js — AI for any CMS, without changing the CMS" />
     <meta
-      property="twitter:description"
-      content="On-page visual editing for Astro and headless CMSs. Generative UI, MCP Agents, and zero-JS server-side personalization."
+      name="twitter:description"
+      content="On-page visual editing for Astro sites on top of the CMS you already have. Generative UI, MCP agents and server-side personalization. Beta."
     />
 
     <!-- JSON-LD Structured Data -->
-    <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
+    <script is:inline type="application/ld+json" set:html={JSON.stringify(structuredData)} />
 
     <style is:global>
       /* Smooth custom scrollbars */
@@ -89,6 +89,21 @@ const structuredData = {
         background: #334155;
       }
 
+      /* Visitors who ask for reduced motion get no CSS animation, no smooth
+         scrolling and no transitions. The scripts check the same preference. */
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto !important;
+        }
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+
       /* Selection highlight */
       ::selection {
         background: #FF7A00;
@@ -103,16 +118,16 @@ const structuredData = {
 
     <!-- Main Landing Sections -->
     <main>
-      <!-- Hero Section with Solar Aura & 1-Click CLI Copy -->
+      <!-- Hero: what it is, the first command and four facts -->
       <HeroSection />
 
-      <!-- Interactive Live Simulator Demo (Double click & write-back) -->
+      <!-- Editor simulation (nothing is sent) -->
       <InteractiveEditorDemo />
 
       <!-- Why Inti? Ecosystem Comparison Matrix -->
       <ComparisonSection />
 
-      <!-- Interactive Before / After Split Slider (Painkillers for Designers & Marketers) -->
+      <!-- Split slider: free-form builder vs. declared blocks -->
       <DesignerVsBuilderSlider />
 
       <!-- Interactive 3D Exploded Isometric Stack -->
@@ -120,7 +135,7 @@ const structuredData = {
         <Isometric3DStack />
       </div>
 
-      <!-- Bento Grid of 8 Core Superpowers -->
+      <!-- Bento grid of 7 core capabilities -->
       <BentoFeatures />
 
       <!-- Generative UI & AI Agents Playground (GenUI + MCP) -->
@@ -135,7 +150,7 @@ const structuredData = {
       <!-- Frequently Asked Questions Accordion -->
       <FaqSection />
 
-      <!-- Quickstart & 3-Step Setup -->
+      <!-- Quickstart from git and the prompt for a coding agent -->
       <QuickstartSection />
     </main>
 

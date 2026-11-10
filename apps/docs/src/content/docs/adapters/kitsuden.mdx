@@ -15,8 +15,12 @@ your components and sends edits made on the real page back to the CMS.
 
 ## Installation
 
+:::caution[Not on npm yet]
+The `@intijs` packages will be published on npm. Until then `npm install @intijs/…` answers 404: install the same packages from git, as described under [Installation](https://github.com/intijs/inti#-installation) in the repository README.
+:::
+
 ```bash
-bun add @intijs/adapter-kitsuden
+npm install @intijs/core @intijs/adapter-kitsuden
 ```
 
 ## Configuration
@@ -297,7 +301,7 @@ so the generated types and the editor cannot disagree. Each palette type
 becomes an interface and is included in `IntiTypedBlock`:
 
 ```bash
-npx inti sync
+npx @intijs/cli sync     # with @intijs/cli installed in the project
 ```
 
 That same palette is used when inserting: a type that is not in it is rejected

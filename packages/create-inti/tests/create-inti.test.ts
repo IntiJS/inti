@@ -195,3 +195,61 @@ describe('bin/create-inti', () => {
         for (const cms of CMS_IDS) expect(result.stdout).toContain(cms);
     });
 });
+
+// ============================================
+// Local tarballs (while the packages are not on npm)
+// ============================================
+
+describe('--packages', () => {
+    test('generateProject uses the given spec for each @intijs package and nothing else', () => {
+        const files = generateProject({
+            name: 'x',
+            cms: 'wordpress',
+            packages: {
+                '@intijs/core': 'file:../t/intijs-core-0.1.0.tgz',
+                '@intijs/adapter-wordpress': 'file:../t/intijs-adapter-wordpress-0.1.0.tgz'
+            }
+        });
+        const deps = JSON.parse(files['package.json']).dependencies;
+
+        expect(deps['@intijs/core']).toBe('file:../t/intijs-core-0.1.0.tgz');
+        expect(deps['@intijs/adapter-wordpress']).toBe('file:../t/intijs-adapter-wordpress-0.1.0.tgz');
+        expect(deps.astro).toBe(VERSIONS.astro);
+    });
+
+    test('points every @intijs dependency at its tarball, relative to the project', () => {
+        const cwd = tmp();
+        mkdirSync(join(cwd, 'tarballs'));
+        for (const file of ['intijs-core-0.1.0.tgz', 'intijs-adapter-strapi-0.1.0.tgz', 'intijs-adapter-wordpress-0.1.0.tgz']) {
+            writeFileSync(join(cwd, 'tarballs', file), '');
+        }
+
+        const result = run(cwd, 'site', '--cms', 'strapi', '--yes', '--no-install', '--packages', 'tarballs');
+        expect(result.status).toBe(0);
+
+        const deps = JSON.parse(readFileSync(join(cwd, 'site/package.json'), 'utf8')).dependencies;
+        expect(deps['@intijs/core']).toBe('file:../tarballs/intijs-core-0.1.0.tgz');
+        expect(deps['@intijs/adapter-strapi']).toBe('file:../tarballs/intijs-adapter-strapi-0.1.0.tgz');
+        expect(deps['@intijs/adapter-wordpress']).toBeUndefined();
+        for (const spec of [deps['@intijs/core'], deps['@intijs/adapter-strapi']]) {
+            expect(existsSync(resolve(cwd, 'site', spec.slice('file:'.length)))).toBe(true);
+        }
+    });
+
+    test('a missing tarball is an error and nothing is created', () => {
+        const cwd = tmp();
+        mkdirSync(join(cwd, 'tarballs'));
+        writeFileSync(join(cwd, 'tarballs', 'intijs-core-0.1.0.tgz'), '');
+
+        const result = run(cwd, 'site', '--cms', 'kitsuden', '--yes', '--no-install', '--packages', 'tarballs');
+
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain('@intijs/adapter-kitsuden');
+        expect(existsSync(join(cwd, 'site'))).toBe(false);
+    });
+
+    test('without --packages the project depends on the npm range', () => {
+        const deps = JSON.parse(generateProject({ name: 'x', cms: 'local' })['package.json']).dependencies;
+        expect(deps['@intijs/core']).toBe(VERSIONS.inti);
+    });
+});

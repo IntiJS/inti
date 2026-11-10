@@ -2,6 +2,8 @@
 
 Official **Headless WordPress** adapter for Inti.js: reads via the WP REST API + ACF, and **write-back** (inline editing) via Application Passwords.
 
+> **Not on npm yet.** The `@intijs` packages will be published there. Until then `npm install @intijs/…` answers 404: install from git as described under [Installation](https://github.com/intijs/inti#-installation) in the repository README.
+
 ## Requirements in WordPress
 
 1. **ACF >= 5.11** with *"Show in REST API"* enabled on the field groups.

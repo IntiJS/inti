@@ -86,7 +86,7 @@ export function resolveAdminUrl(
         strapi: '/admin',
         contentful: '', // Contentful uses app.contentful.com
         sanity: '/desk',
-        gremius: '/admin',
+        kitsuden: '/admin',
         directus: '/admin',
         wordpress: '/wp-admin',
         drupal: '/admin',

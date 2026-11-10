@@ -16,7 +16,7 @@
         </span>
       </h2>
       <p class="text-slate-300 text-base sm:text-lg">
-        Visual editing never compromises visitor speed or exposes your CMS credentials.
+        Visitors get nothing from the editor, and CMS credentials stay on your server.
       </p>
     </div>
 
@@ -39,7 +39,7 @@
             </p>
           </div>
           <div class="p-2.5 rounded bg-black/40 border border-white/5 font-mono text-[11px] text-amber-300">
-            POST /_actions/inti
+            POST /_actions/inti.updateBlockField
           </div>
         </div>
 
@@ -55,7 +55,7 @@
             </p>
           </div>
           <div class="p-2.5 rounded bg-black/40 border border-white/5 font-mono text-[11px] text-teal-300">
-            Auth Proxy &amp; RBAC
+            Credentials + who may write
           </div>
         </div>
 
@@ -83,11 +83,11 @@
             </div>
             <h4 class="text-white font-bold text-base mb-1">Your Target CMS</h4>
             <p class="text-slate-400 text-xs leading-relaxed mb-4">
-              WordPress, Kitsuden, Strapi, or Keystatic persists the content in its own origin database.
+              WordPress, Kitsuden, Strapi or Keystatic saves the change where its content already lives.
             </p>
           </div>
           <div class="p-2.5 rounded bg-black/40 border border-white/5 font-mono text-[11px] text-purple-300">
-            CMS Database Untouched
+            Saved as ordinary blocks
           </div>
         </div>
       </div>
@@ -97,8 +97,8 @@
         <div class="flex items-start gap-2.5">
           <span class="text-emerald-400 text-base mt-[-2px]">🛡️</span>
           <div>
-            <strong class="text-white block mb-0.5">Zero-JS for Visitors</strong>
-            <span>Regular visitors receive pure HTML and 0 KB of editor JavaScript.</span>
+            <strong class="text-white block mb-0.5">Nothing from the editor for visitors</strong>
+            <span>In production a visitor gets the page with nothing from the editor. CI checks it for Astro 5, 6 and 7.</span>
           </div>
         </div>
         <div class="flex items-start gap-2.5">
@@ -112,7 +112,7 @@
           <span class="text-sky-400 text-base mt-[-2px]">⚡</span>
           <div>
             <strong class="text-white block mb-0.5">Fail-Closed in Production</strong>
-            <span>Unauthorized mutations return 403 Forbidden before calling your CMS.</span>
+            <span>A write that is not allowed is answered 403 before anything reaches your CMS.</span>
           </div>
         </div>
       </div>

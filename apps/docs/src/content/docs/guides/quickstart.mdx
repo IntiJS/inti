@@ -11,16 +11,22 @@ It is the full path: **no step is optional**. If you skip the Astro adapter noth
 
 ## The fast track
 
+The packages are not on npm yet, so today the scaffolder runs from a clone of the repository (git and Node 22.12 or later):
+
 ```bash
-npm create inti@latest
+git clone https://github.com/intijs/inti.git
+cd inti && npm install && npm run build && cd ..
+node inti/scripts/scaffold-local.mjs my-site
 ```
 
-It asks for your CMS (WordPress, Kitsuden, Strapi, or none to try it locally) and generates the project this guide describes, with the CMS connection split out into `src/lib/cms.ts`. Without a CMS it ships sample content: `npm run dev`, double-click the title, Enter, and the change is saved.
+Once the packages are published it is `npm create inti@latest`.
+
+It asks for your CMS (WordPress, Kitsuden, Strapi, Keystatic, or none to try it locally) and generates the project this guide describes, with the CMS connection split out into `src/lib/cms.ts`. Without a CMS it ships sample content: `npm run dev`, double-click the title, Enter, and the change is saved.
 
 Without prompts, for example in CI:
 
 ```bash
-npm create inti@latest my-site -- --cms wordpress --yes
+node inti/scripts/scaffold-local.mjs my-site --cms wordpress --yes
 ```
 
 The rest of this guide is the same project built by hand, step by step, to understand each piece.
@@ -42,6 +48,8 @@ The rest of this guide is the same project built by hand, step by step, to under
 <Steps>
 
 1. ### Install
+
+   Until the packages are on npm, install `@intijs/core` and `@intijs/adapter-wordpress` from git: see [Installation](https://github.com/intijs/inti#-installation) in the repository README. Once published:
 
    ```bash
    npm install @intijs/core @intijs/adapter-wordpress

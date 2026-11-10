@@ -48,7 +48,9 @@ describe('MIT / ee boundary', () => {
             }
         }
         expect(offenders).toEqual([]);
-    });
+        // It reads every source file of the repository: on a loaded machine that
+        // takes longer than the default 5 s, and a timeout is not a boundary violation.
+    }, 60_000);
 
     test('no MIT package declares @intijs/ee as a dependency', () => {
         const offenders: string[] = [];

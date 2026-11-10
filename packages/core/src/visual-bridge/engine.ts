@@ -20,6 +20,7 @@ import type {
     CmsConnector
 } from './types.js';
 import { DragDropEngine } from './drag-drop.js';
+import { escapeHtml } from './escape.js';
 import { CmsSyncManager } from './cms-sync.js';
 
 // ============================================
@@ -76,16 +77,19 @@ class SanityConnector implements CmsConnector {
     }
 }
 
-class GremiusConnector implements CmsConnector {
-    name = 'Gremius';
+/** The page editor of the Kitsuden panel: `/g/system-tools/builder?id=<page id>` */
+class KitsudenConnector implements CmsConnector {
+    name = 'Kitsuden';
     private adminUrl: string;
 
     constructor(adminUrl: string) {
-        this.adminUrl = adminUrl;
+        this.adminUrl = adminUrl.replace(/\/$/, '');
     }
 
     getEditUrl(block: BridgeBlockInfo): string {
-        return `${this.adminUrl}/admin/content/${block.contentType}/${block.documentId}`;
+        // Game sheets (`game:<uuid>`) are not Page Builder pages: open the panel
+        if (!block.documentId || block.documentId.includes(':')) return this.adminUrl;
+        return `${this.adminUrl}/g/system-tools/builder?id=${encodeURIComponent(block.documentId)}`;
     }
 }
 
@@ -116,8 +120,8 @@ export function createCmsConnector(
             return new ContentfulConnector(config.adminUrl, config.spaceId || '');
         case 'sanity':
             return new SanityConnector(config.adminUrl, config.projectId || '');
-        case 'gremius':
-            return new GremiusConnector(config.adminUrl);
+        case 'kitsuden':
+            return new KitsudenConnector(config.adminUrl);
         case 'wordpress':
             return new WordPressConnector(config.adminUrl);
         default:
@@ -233,16 +237,16 @@ export class VisualBridgeEngine {
         overlay.id = 'inti-visual-bridge';
         overlay.className = `inti-vb-overlay inti-vb-theme-${this.config.display?.theme || 'auto'}`;
         overlay.innerHTML = `
-            <div class="inti-vb-toolbar" data-position="${this.config.display?.toolbarPosition || 'top'}">
+            <div class="inti-vb-toolbar" data-position="${escapeHtml(this.config.display?.toolbarPosition || 'top')}">
                 <div class="inti-vb-toolbar-header">
                     <span class="inti-vb-logo">🎨 Inti Visual Bridge</span>
-                    <span class="inti-vb-cms">${this.config.cms}</span>
+                    <span class="inti-vb-cms">${escapeHtml(this.config.cms)}</span>
                 </div>
                 <div class="inti-vb-toolbar-actions">
-                    <button class="inti-vb-btn" data-action="toggleBorders" title="Toggle Borders">
+                    <button type="button" class="inti-vb-btn" data-action="toggleBorders" title="Toggle Borders" aria-label="Toggle Borders">
                         ⊞
                     </button>
-                    <button class="inti-vb-btn" data-action="refresh" title="Refresh">
+                    <button type="button" class="inti-vb-btn" data-action="refresh" title="Refresh" aria-label="Refresh">
                         ↻
                     </button>
                 </div>
@@ -250,11 +254,11 @@ export class VisualBridgeEngine {
             <div class="inti-vb-block-toolbar" hidden>
                 <span class="inti-vb-block-type"></span>
                 <div class="inti-vb-block-actions">
-                    <button class="inti-vb-btn" data-action="edit" title="Edit in CMS">✎</button>
-                    <button class="inti-vb-btn" data-action="moveUp" title="Move Up">↑</button>
-                    <button class="inti-vb-btn" data-action="moveDown" title="Move Down">↓</button>
-                    <button class="inti-vb-btn" data-action="duplicate" title="Duplicate">⎘</button>
-                    <button class="inti-vb-btn inti-vb-btn-danger" data-action="delete" title="Delete">×</button>
+                    <button type="button" class="inti-vb-btn" data-action="edit" title="Edit in CMS" aria-label="Edit in CMS">✎</button>
+                    <button type="button" class="inti-vb-btn" data-action="moveUp" title="Move Up" aria-label="Move Up">↑</button>
+                    <button type="button" class="inti-vb-btn" data-action="moveDown" title="Move Down" aria-label="Move Down">↓</button>
+                    <button type="button" class="inti-vb-btn" data-action="duplicate" title="Duplicate" aria-label="Duplicate">⎘</button>
+                    <button type="button" class="inti-vb-btn inti-vb-btn-danger" data-action="delete" title="Delete" aria-label="Delete">×</button>
                 </div>
             </div>
             <div class="inti-vb-highlight" hidden></div>
@@ -567,6 +571,8 @@ export class VisualBridgeEngine {
         const toast = document.createElement('div');
         toast.className = `inti-vb-toast inti-vb-toast-${type}`;
         toast.textContent = message;
+        toast.setAttribute('role', 'status');
+        toast.setAttribute('aria-live', 'polite');
         
         container.appendChild(toast);
         

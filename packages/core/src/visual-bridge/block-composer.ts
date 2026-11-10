@@ -13,6 +13,8 @@
  * the editor composes with that vocabulary (simplicity). Never free-form CSS.
  */
 
+import { escapeHtml } from './escape.js';
+
 // ============================================
 // Types
 // ============================================
@@ -130,6 +132,7 @@ export class BlockComposer {
             b.type = 'button';
             b.textContent = icon;
             b.title = title;
+            b.setAttribute('aria-label', title);
             b.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
             bar.appendChild(b);
         };
@@ -233,12 +236,15 @@ export class BlockComposer {
         const tabs = document.createElement('div');
         tabs.className = 'inti-composer-tabs';
         const blocksTab = document.createElement('button');
+        blocksTab.type = 'button';
         blocksTab.textContent = 'Blocks';
         const patternsTab = document.createElement('button');
+        patternsTab.type = 'button';
         patternsTab.textContent = 'Patterns';
         // The AI tab only appears if the server has a generator
         // (provided by @intijs/genui); the core ships none.
         const aiTab = document.createElement('button');
+        aiTab.type = 'button';
         aiTab.textContent = '✨ AI';
         aiTab.hidden = true;
         tabs.append(blocksTab, patternsTab, aiTab);
@@ -259,8 +265,9 @@ export class BlockComposer {
 
             for (const type of types) {
                 const item = document.createElement('button');
+                item.type = 'button';
                 item.className = 'inti-composer-item';
-                item.innerHTML = `<strong>${type.label}</strong><span>${type.nativeType}</span>`;
+                item.innerHTML = `<strong>${escapeHtml(type.label)}</strong><span>${escapeHtml(type.nativeType)}</span>`;
                 item.addEventListener('click', () => {
                     this.closeOverlay();
                     void this.insert(wrapper, type);
@@ -294,17 +301,20 @@ export class BlockComposer {
                 row.className = 'inti-composer-pattern';
 
                 const item = document.createElement('button');
+                item.type = 'button';
                 item.className = 'inti-composer-item';
-                item.innerHTML = `<strong>${pattern.name}</strong><span>${pattern.blocks.length} block(s)</span>`;
+                item.innerHTML = `<strong>${escapeHtml(pattern.name)}</strong><span>${pattern.blocks.length} block(s)</span>`;
                 item.addEventListener('click', () => {
                     this.closeOverlay();
                     void this.insertPattern(wrapper, pattern);
                 });
 
                 const del = document.createElement('button');
+                del.type = 'button';
                 del.className = 'inti-composer-pattern-del';
                 del.textContent = '✕';
                 del.title = 'Delete pattern';
+                del.setAttribute('aria-label', `Delete pattern ${pattern.name}`);
                 del.addEventListener('click', async () => {
                     try {
                         await this.deletePattern(pattern.name);
@@ -376,7 +386,7 @@ export class BlockComposer {
         for (const [key, value] of Object.entries(data)) {
             const field = document.createElement('label');
             field.className = 'inti-composer-field';
-            field.innerHTML = `<span>${key}</span>`;
+            field.innerHTML = `<span>${escapeHtml(key)}</span>`;
 
             if (variants[key]) {
                 // Dev-declared variant → controlled select
@@ -483,6 +493,7 @@ export class BlockComposer {
         input.placeholder = 'E.g.: a pricing section with three plans and a clear headline';
 
         const run = document.createElement('button');
+        run.type = 'button';
         run.className = 'inti-composer-item';
         run.textContent = 'Generate proposal';
 
@@ -756,27 +767,50 @@ export class BlockComposer {
 
         const panel = document.createElement('div');
         panel.className = 'inti-composer-panel';
+        panel.setAttribute('role', 'dialog');
+        panel.setAttribute('aria-modal', 'true');
+        panel.setAttribute('aria-label', title);
 
         const header = document.createElement('div');
         header.className = 'inti-composer-header';
-        header.innerHTML = `<strong>${title}</strong>`;
+        header.innerHTML = `<strong>${escapeHtml(title)}</strong>`;
 
         const close = document.createElement('button');
+        close.type = 'button';
         close.textContent = '✕';
+        close.title = 'Close';
+        close.setAttribute('aria-label', 'Close');
         close.addEventListener('click', () => this.closeOverlay());
         header.appendChild(close);
 
         panel.appendChild(header);
         overlay.appendChild(panel);
+        this.returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         document.body.appendChild(overlay);
         this.overlay = overlay;
+        document.addEventListener('keydown', this.onOverlayKey);
 
         return panel;
     }
 
+    /** Where focus was when the panel opened, to give it back on close */
+    private returnFocus: HTMLElement | null = null;
+
+    private onOverlayKey = (event: KeyboardEvent): void => {
+        if (event.key !== 'Escape' || !this.overlay) return;
+        event.stopPropagation();
+        this.closeOverlay();
+    };
+
     private closeOverlay(): void {
-        this.overlay?.remove();
+        if (!this.overlay) return;
+        this.overlay.remove();
         this.overlay = null;
+        document.removeEventListener('keydown', this.onOverlayKey);
+
+        const target = this.returnFocus;
+        this.returnFocus = null;
+        if (target?.isConnected) target.focus();
     }
 
     private renumber(documentId: string): void {
@@ -793,6 +827,8 @@ export class BlockComposer {
         const toast = document.createElement('div');
         toast.className = 'inti-inline-toast';
         toast.textContent = message;
+        toast.setAttribute('role', 'status');
+        toast.setAttribute('aria-live', 'polite');
         toast.style.cssText = [
             'position: fixed',
             'bottom: 1.5rem',
@@ -823,14 +859,17 @@ export class BlockComposer {
                 position: absolute;
                 top: 0.4rem;
                 right: 0.4rem;
-                display: none;
+                display: flex;
+                opacity: 0;
+                pointer-events: none;
                 gap: 0.2rem;
                 background: rgba(30, 41, 59, 0.9);
                 border-radius: 0.4rem;
                 padding: 0.2rem;
                 z-index: 99999;
             }
-            [data-inti-block]:hover > .inti-composer-bar { display: flex; }
+            [data-inti-block]:hover > .inti-composer-bar,
+            [data-inti-block]:focus-within > .inti-composer-bar { opacity: 1; pointer-events: auto; }
             .inti-composer-bar button {
                 width: 1.7rem;
                 height: 1.7rem;
@@ -890,7 +929,8 @@ export class BlockComposer {
             .inti-composer-item span { color: #94a3b8; font-size: 0.75rem; }
             .inti-composer-ai-input {
                 width: 100%; box-sizing: border-box; margin-bottom: 0.5rem;
-                padding: 0.5rem; border-radius: 0.35rem; border: 1px solid #d1d5db;
+                padding: 0.5rem; border-radius: 0.35rem; border: 1px solid #334155;
+                background: #1e293b; color: #e2e8f0;
                 font: 400 0.8rem/1.4 system-ui, sans-serif; resize: vertical;
             }
             .inti-composer-pattern { display: flex; gap: 0.4rem; align-items: stretch; }
@@ -914,6 +954,21 @@ export class BlockComposer {
                 background: #2563eb; color: white; cursor: pointer; font-weight: 600;
             }
             .inti-composer-save:hover { background: #1d4ed8; }
+
+            /* Keyboard focus is always visible, also where a field removes its outline */
+            .inti-composer-bar button:focus-visible,
+            .inti-composer-header button:focus-visible,
+            .inti-composer-tabs button:focus-visible,
+            .inti-composer-item:focus-visible,
+            .inti-composer-pattern-del:focus-visible,
+            .inti-composer-save:focus-visible,
+            .inti-composer-ai-input:focus-visible,
+            .inti-composer-field input:focus-visible,
+            .inti-composer-field textarea:focus-visible,
+            .inti-composer-field select:focus-visible {
+                outline: 2px solid #93c5fd;
+                outline-offset: 2px;
+            }
         `;
         document.head.appendChild(style);
     }

@@ -13,7 +13,7 @@
   "bugs": {
     "url": "https://github.com/intijs/inti/issues"
   },
-  "description": "CLI for Inti.js — schema introspection and typed SDK generation",
+  "description": "CLI for Inti.js — reads your CMS schema and generates TypeScript types for its blocks",
   "bin": {
     "inti": "./bin/inti.js"
   },
@@ -31,9 +31,8 @@
     "src"
   ],
   "scripts": {
-    "build": "tsc && npm run copy:bin",
+    "build": "tsc",
     "prepare": "node ../../scripts/prepare-package.mjs",
-    "copy:bin": "node -e \"require('fs').cpSync('src/bin','dist/bin',{recursive:true})\"",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
     "test": "bun test",

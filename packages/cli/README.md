@@ -2,9 +2,11 @@
 
 Generates TypeScript types from your CMS schema. Part of [Inti](https://github.com/intijs/inti), currently in beta.
 
+> **Not on npm yet.** The `@intijs` packages will be published there. Until then the `npm install` command below answers 404: install from git as described under [Installation](https://github.com/intijs/inti#-installation) in the repository README.
+
 ```bash
 npm install -D @intijs/cli
-npx inti sync
+npx @intijs/cli sync
 ```
 
 `inti sync` reads `inti.config.ts`, asks the adapter for the schema, and writes to `outputDir` (`./src/lib/inti` by default):

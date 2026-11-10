@@ -5,6 +5,35 @@ All notable changes to Inti.js will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### The packages are not on npm yet, and now every document says so
+
+- **The README, `AGENTS.md`, `llms.txt`, every package README, the docs and the landing page told readers to run `npm install @intijs/…` and `npm create inti@latest`, which answer 404:** nothing is published and the `@intijs` scope does not exist on npm yet. They now lead with a notice and with the path that works today, from git, and keep the npm commands only as "once published".
+- **New `scripts/scaffold-local.mjs`.** From a built clone, `node inti/scripts/scaffold-local.mjs my-site` packs `@intijs/core` and the writable adapters with `npm pack` into `.inti/tarballs` and runs `create-inti` on them. It is the path `scripts/create-inti-check.mjs` checks in CI.
+- **`create-inti --packages <dir>`.** The generated project depends on the tarballs in that folder (`file:`) instead of on the npm range `^0.1.0`, which could not be installed. Without the flag nothing changes.
+- **`npx inti …` is now `npx @intijs/cli …`** in the docs and in the CLI's help. `inti` on npm is an unrelated package: without `@intijs/cli` installed, `npx inti sync` downloaded and ran it. `packages/core/README.md` also recommended `npx astro add inti`, which resolved to that same package.
+- **MCP: the documented command works today.** `claude mcp add inti -- node /path/to/inti/packages/mcp/bin/inti-mcp.js` from a clone; `npx -y @intijs/mcp` once published.
+
+### Fixed
+
+- **The editor inserted CMS text as HTML.** The relation picker put an entry's title and subtitle into `innerHTML`, and the palette did the same with a pattern's name, a block type's label and a field's key. An entry titled `<img src=x onerror=…>` ran in the browser of whoever opened the picker, and a shared pattern with that name in every editor's. They are now text (`textContent`, or `escapeHtml`), and a test fails if an unescaped value reaches an `innerHTML` template in `visual-bridge/`.
+- **Editor, keyboard and screen readers.** Every icon button has an `aria-label` and `type="button"`; the block bar is reachable with Tab and shows on focus (it was `display: none` until hover); Escape closes the side panel and focus returns to where it was; the panel is a `dialog`; toasts are `role="status"`; focus is visible on every control, also where a field removed its outline; the toolbar does not animate under `prefers-reduced-motion`; the AI prompt field has the panel's colours.
+- **"Edit in CMS" for Kitsuden.** The visual bridge still had a connector under a previous name of the CMS and no `kitsuden` case, so Kitsuden got a generic link. It now opens the page in the panel's page editor (`/g/system-tools/builder?id=…`).
+- **`inti dev` passes its arguments to `astro dev`** (they were dropped), and the help says what it does instead of "hot reload". A second, stale copy of the CLI entry point (`src/bin/inti.ts`) is gone, with the build step that copied it into `dist/`.
+- **`packages/core/README.md` documented APIs that do not exist** (`new ContentAdapter()`, `block.rendered`, `engine.attachTo`, `inti({ visualBridge: true })`, an adapter instance in `defineConfig`). It is now the setup from `AGENTS.md`.
+- **`packages/mcp/README.md`** listed 8 of the 13 tools, said only WordPress and Strapi could write and that there was no staging layer. It now lists the draft, vocabulary and batch tools, and says that agent writes do not pass through `beforeWrite` plugins.
+- **Docs.** `inti sync` was documented with four flags that do not exist (`--force`, `--watch`, `--types-only`, `--output`); Keystatic was missing from the installation and quickstart pages; examples used `bun` where the repository uses `npm`.
+- **The `ee` boundary test timed out on a loaded machine** (it reads every source file with the default 5 s): it has an explicit timeout.
+
+### Landing page (`apps/demo-site`)
+
+- Removed every invented number, rating, testimonial, price and promotion, and every claim about Figma, RBAC, GraphQL and TOON, none of which the packages back. The hero says what Inti is, and its four cards are facts that can be checked in the repository.
+- The two demos say they are simulations: nothing is sent and no model is called. The editor simulation shows the real input of `inti.updateBlockField` instead of an invented payload and latency; its dead toolbar buttons are gone.
+- The adapter snippets are the ones from the package READMEs (the WordPress, Strapi and Keystatic ones could not run), and the quickstart shows the scaffolder's real prompts and a prompt to paste into a coding agent.
+- `prefers-reduced-motion` is honoured by every animation; the hero canvas stops when it is off screen and follows `devicePixelRatio`; the comparison slider works from the keyboard (`role="slider"`); the menu button has `aria-expanded`.
+- Removed the leftover `/live`, `/test-styles` and `/test-e2e` pages and two components nothing used.
+
 ## [0.1.0] — beta
 
 First public release. Inti is in beta: its APIs may still change before 1.0.

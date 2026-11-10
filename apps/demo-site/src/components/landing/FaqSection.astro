@@ -4,7 +4,7 @@
 const faqs = [
   {
     q: "Does Inti replace my WordPress, Kitsuden, or Strapi?",
-    a: "No. Inti never becomes your CMS. Your database, users, taxonomies, and original admin panel remain 100% intact. Inti is an Astro layer that reads your content and lets you edit it on the real page with direct API write-back.",
+    a: "No. Inti never becomes your CMS. Your database, users, taxonomies, and original admin panel stay as they are. Inti is an Astro layer that reads your content and lets you edit it on the real page with direct API write-back.",
   },
   {
     q: "How does Inti guarantee that editors cannot break the design or add messy CSS?",
@@ -16,15 +16,15 @@ const faqs = [
   },
   {
     q: "How are CMS credentials protected in production?",
-    a: "WordPress Application Passwords, scoped Kitsuden agent keys, and Strapi tokens never reach the client. Mutations are routed through server-side `astro:actions`. Moreover, in production Inti rejects every write unless a registered plugin authenticates the editor's session.",
+    a: "WordPress Application Passwords, scoped Kitsuden agent keys, and Strapi tokens never reach the client. Writes go through astro:actions, on the server. Moreover, in production Inti rejects every write unless a registered plugin authenticates the editor's session.",
   },
   {
     q: "Which Astro versions and deployment targets are supported?",
-    a: "Inti is verified in CI against Astro 5, 6, and 7. It deploys anywhere Astro runs: standalone Node.js, Docker, Vercel, Netlify, or Cloudflare Workers with the optional `@intijs/cloudflare` package.",
+    a: "Inti is verified in CI against Astro 5, 6, and 7. It deploys anywhere Astro runs: standalone Node.js, Docker, Vercel, Netlify, or Cloudflare Workers (the optional @intijs/cloudflare package adds D1, Durable Objects and R2 backends).",
   },
   {
     q: "How do AI agents like Claude Code or Cursor integrate with Inti?",
-    a: "Through `@intijs/mcp` (Model Context Protocol). Agents call safe tools like `inti_get_page`, `inti_update_field`, or `inti_create_draft`, always respecting your declared block vocabulary and server permissions.",
+    a: "Through @intijs/mcp (Model Context Protocol). Agents call tools such as inti_get_page, inti_update_field or inti_create_draft. Their writes use the CMS credentials in the server's environment and do not pass through beforeWrite plugins: limit them with INTI_MCP_READONLY=1 or a restricted CMS user, validate what they insert with INTI_MCP_VOCABULARY, and prefer drafts.",
   },
 ];
 ---
@@ -37,9 +37,9 @@ const faqs = [
         <span>Frequently Asked Questions</span>
       </div>
       <h2 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight mb-4">
-        Everything you need to know.<br />
+        Questions people ask first.<br />
         <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400">
-          Clear answers for developers and teams.
+          Short answers, checkable in the repository.
         </span>
       </h2>
       <p class="text-slate-300 text-base sm:text-lg">

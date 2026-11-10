@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/readme/hero.svg" width="100%" alt="Inti.js: AI for any CMS, without changing the CMS. For Astro sites: edit on the page, and it is saved back to the CMS it came from. Adapters: WordPress, Kitsuden, Strapi and Keystatic read and write back; Contentful and Sanity are read only for now. With no CMS, a local JSON store. Start with npm create inti@latest.">
+  <img src="assets/readme/hero.svg" width="100%" alt="Inti.js: AI for any CMS, without changing the CMS. For Astro sites: edit on the page, and it is saved back to the CMS it came from. Adapters: WordPress, Kitsuden, Strapi and Keystatic read and write back; Contentful and Sanity are read only for now. With no CMS, a local JSON store. In beta and not on npm yet: install from git.">
 </p>
 
 <p align="center">
@@ -12,13 +12,93 @@
 
 **AI for any CMS, without changing the CMS.**
 
-Inti modernizes the website, not the CMS. Your site moves to [Astro](https://astro.build); your content stays where it is (WordPress, Kitsuden, Strapi, Keystatic…), and editors keep their admin. On top of it you get editing on the page itself and AI components: a model that composes sections from your own blocks, personalization per visitor, and agents that edit through the same rules.
+Inti is an open-source layer for [Astro](https://astro.build) sites: your content stays in the CMS you already have (WordPress, Kitsuden, Strapi, Keystatic), and you edit it by double-clicking the rendered page, with the change written back to that CMS. On top of that it adds AI that composes sections from the blocks you declared, and an MCP server so coding agents can read and edit the same content.
+
+> **Beta, and not on npm yet.** Inti is at 0.1 and its APIs may still change before 1.0. The packages will be published under `@intijs`; until then `npm install @intijs/…` and `npm create inti@latest` answer 404. Install from git, as shown below.
+
+## 🛠️ Quick start (works today)
+
+You need git and Node 22.12 or later.
+
+```bash
+git clone https://github.com/intijs/inti.git
+cd inti && npm install && npm run build && cd ..
+node inti/scripts/scaffold-local.mjs my-site
+cd my-site && npm run dev
+```
+
+The third command asks for your CMS (WordPress, Kitsuden, Strapi, Keystatic, or none to try it locally) and generates the complete setup: Astro adapter, actions, block registry, a starter block. With no CMS it ships sample content you can edit straight away: open the page, double-click the heading, type, press Enter.
+
+- Without prompts: `node inti/scripts/scaffold-local.mjs my-site --cms wordpress --yes` (`--cms wordpress|kitsuden|strapi|keystatic|local`, `--no-install` to skip the install).
+- [`scripts/scaffold-local.mjs`](scripts/scaffold-local.mjs) packs the built packages with `npm pack` into `inti/.inti/tarballs` and runs [`create-inti`](packages/create-inti) with `--packages` pointing at them, so the project depends on those files (`file:` in its `package.json`) instead of on the npm registry. Keep the clone next to the project. CI generates, builds and edits a project this way for every CMS ([`scripts/create-inti-check.mjs`](scripts/create-inti-check.mjs)).
+- **Once the packages are published** this becomes `npm create inti@latest` (non-interactive: `npm create inti@latest my-site -- --cms wordpress --yes`).
+
+## 📥 Installation
+
+To add Inti to an Astro site you already have. Both ways need the packages built from git; install `@intijs/core` together with the adapter, from the same commit.
+
+**npm, from a clone.** Build once, pack the packages you use into your site's folder and install the files:
+
+```bash
+git clone https://github.com/intijs/inti.git
+cd inti && npm install && npm run build
+npm pack -w @intijs/core -w @intijs/adapter-wordpress --pack-destination ../my-site   # or the adapter you use
+cd ../my-site
+npm install ./intijs-core-0.1.0.tgz ./intijs-adapter-wordpress-0.1.0.tgz
+```
+
+**pnpm, straight from GitHub, pinned to a commit.** `dist/` is not committed, so each package compiles when it is installed ([`scripts/prepare-package.mjs`](scripts/prepare-package.mjs)). npm and Yarn cannot install a subfolder of a git repository; pnpm can, if you allow the build scripts:
+
+```yaml
+# pnpm-workspace.yaml (of your site)
+onlyBuiltDependencies:
+  - "@intijs/core"
+  - "@intijs/adapter-kitsuden"     # or the adapter you use
+```
+
+```bash
+COMMIT=<full commit sha>
+pnpm add "github:intijs/inti#$COMMIT&path:/packages/core" \
+         "github:intijs/inti#$COMMIT&path:/packages/adapter-kitsuden"
+```
+
+**Once the packages are published:** `npm install @intijs/core @intijs/adapter-wordpress` (or the adapter you use).
+
+Then follow **Manual setup (WordPress)** below: an Astro adapter, the actions, the block registry and the page. No step is optional.
+
+## 🤖 Paste this into your coding agent
+
+For Claude Code, Cursor, Codex or any other coding agent. Paste it as it is:
+
+```text
+Set up Inti (https://github.com/intijs/inti) for me. Inti is in beta and is NOT on
+npm yet: do not run `npm install @intijs/...`, `npm create inti` or `npx inti`.
+
+1. Clone https://github.com/intijs/inti.git next to this project. In the clone run
+   `npm install` and then `npm run build`. It needs Node 22.12 or later.
+2. Before writing any code, read AGENTS.md and llms.txt in the clone. AGENTS.md is
+   the canonical setup: if another document disagrees with it, AGENTS.md is right.
+3. For a new site, run this from the folder that contains the clone:
+   `node inti/scripts/scaffold-local.mjs <name> --cms <wordpress|kitsuden|strapi|keystatic|local> --yes`
+   Use `local` if I have not named a CMS.
+   For an existing Astro site, follow "Installation" in the clone's README.md and
+   then the complete setup in AGENTS.md. No step there is optional.
+4. Use only the APIs, import paths, options and environment variables that appear
+   in AGENTS.md, in a package README or in the source under packages/. Never
+   invent one. If you cannot find what you need, stop and tell me.
+5. CMS credentials stay on the server: never in client code and never in a
+   PUBLIC_ variable. In production Inti refuses every write until a plugin with
+   resolveActor/beforeWrite is registered in src/middleware.ts; do not work
+   around that.
+6. When you finish, start the dev server and tell me which page to open and
+   which text to double-click.
+```
+
+## 🧩 How it fits
+
+Inti modernizes the website, not the CMS. Your site moves to [Astro](https://astro.build); your content stays where it is (WordPress, Kitsuden, Strapi, Keystatic…), and editors keep their admin. On top of it you get editing on the page itself and AI components: a model that composes sections from your own blocks, personalization per visitor, and agents that edit through the same adapters.
 
 > **Inti is for sites built with Astro.** It is not a plugin you install inside WordPress or any other CMS, and it does not change your CMS's admin. If your site is still rendered by a WordPress theme, the first step is moving the frontend to Astro, and Inti is how you do it without migrating the content.
-
-Edit your content *directly on your Astro page* — double-click a heading, type, hit Enter — and Inti writes it back to the CMS it came from. No more jumping between your site and the admin.
-
-> **Beta.** Inti is at 0.1: it works and is ready to try, and its APIs may still change before 1.0.
 
 Inti talks to your CMS through **adapters**:
 
@@ -93,46 +173,6 @@ Inti is a **layer over the CMS you already have**. It has no admin UI, no user m
 
 Works with **Astro 5, 6 and 7**, checked in CI for each major. `create-inti` generates an Astro 7 project and requires Node 22.12 or later. No database dependency, so nothing here is affected by Astro deprecating `@astrojs/db`.
 
-## 📥 Installation
-
-```bash
-npm install @intijs/core @intijs/adapter-wordpress    # or the adapter you use
-```
-
-<details>
-<summary>Installing from git, pinned to a commit</summary>
-
-`dist/` is not committed, so each package compiles when it is installed ([`scripts/prepare-package.mjs`](scripts/prepare-package.mjs)). Use pnpm, because npm and Yarn cannot install a subfolder of a git repository, and allow the build scripts:
-
-```yaml
-# pnpm-workspace.yaml (of your site)
-onlyBuiltDependencies:
-  - "@intijs/core"
-  - "@intijs/adapter-kitsuden"     # or the adapter you use
-```
-
-```bash
-COMMIT=<full commit sha>
-pnpm add "github:intijs/inti#$COMMIT&path:/packages/core" \
-         "github:intijs/inti#$COMMIT&path:/packages/adapter-kitsuden"
-```
-
-Install `@intijs/core` together with the adapter, from the same commit.
-
-</details>
-
-## 🛠️ Quick Start
-
-The fastest way is to scaffold a project:
-
-```bash
-npm create inti@latest
-```
-
-It asks for your CMS (WordPress, Kitsuden, Strapi, Keystatic, or none to try it locally) and generates the complete setup below — Astro adapter, actions, block registry, a starter block. With no CMS it ships sample content you can edit straight away: `npm run dev`, double-click the heading, press Enter.
-
-Non-interactive, e.g. in CI: `npm create inti@latest my-site -- --cms wordpress --yes`.
-
 ## 🛠️ Manual setup (WordPress)
 
 ### 1. Prepare your WordPress
@@ -141,8 +181,9 @@ Non-interactive, e.g. in CI: `npm create inti@latest my-site -- --cms wordpress 
 3. Create an **Application Password**: wp-admin → Users → Profile → Application Passwords.
 
 ### 2. Install and add an Astro adapter
+Install `@intijs/core` and `@intijs/adapter-wordpress` as described in [Installation](#-installation), then add an Astro adapter:
+
 ```bash
-npm install @intijs/core @intijs/adapter-wordpress
 npx astro add node    # any adapter works: node, vercel, cloudflare, netlify
 ```
 
@@ -211,9 +252,7 @@ That's it. In dev, hover any text → dashed outline → double-click → edit �
 Declare your block vocabulary and editors can compose pages — add, configure, duplicate, reorder, delete:
 
 ```astro
-<VisualBridgeAuto />
-<!-- or configure the palette explicitly: -->
-<InlineEditor
+<VisualBridgeAuto
   blockTypes={[
     {
       nativeType: 'hero_banner',        // acf_fc_layout (WP) / component uid (Strapi)
@@ -313,7 +352,10 @@ The write path is adapter-based: any CMS adapter that implements `WritableAdapte
 The same write path is exposed as [Model Context Protocol](https://modelcontextprotocol.io) tools, so an agent can edit your content the way an editor would:
 
 ```bash
-npm install -D @intijs/mcp
+# today, from a clone that is installed and built (see Quick start):
+claude mcp add inti -- node /absolute/path/to/inti/packages/mcp/bin/inti-mcp.js
+
+# once the packages are published:
 claude mcp add inti -- npx -y @intijs/mcp
 ```
 

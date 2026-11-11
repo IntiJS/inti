@@ -1,11 +1,14 @@
 ---
 // apps/demo-site/src/components/landing/Navbar.astro
 import Sun from './Sun.astro';
+
+// The home link respects the base path (GitHub Pages serves the site under /inti)
+const home = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/`;
 ---
 
 <header class="nav">
   <div class="nav-row">
-    <a href="/" class="nav-box nav-brand" aria-label="Inti.js home, beta 0.1">
+    <a href={home} class="nav-box nav-brand" aria-label="Inti.js home, beta 0.1">
       <Sun rays={12} ray="#FF8A00" disc="#FF3D2E" />
       <span>inti.js</span>
       <small>beta 0.1</small>

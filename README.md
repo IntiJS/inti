@@ -12,6 +12,8 @@
 
 **AI for any CMS, without changing the CMS.**
 
+**Landing page:** <https://intijs.github.io/inti/>. Its headline is editable, as a simulation of what Inti does: nothing is sent.
+
 Inti is an open-source layer for [Astro](https://astro.build) sites: your content stays in the CMS you already have (WordPress, Kitsuden, Strapi, Keystatic), and you edit it by double-clicking the rendered page, with the change written back to that CMS. On top of that it adds AI that composes sections from the blocks you declared, and an MCP server so coding agents can read and edit the same content.
 
 > **Beta, and not on npm yet.** Inti is at 0.1 and its APIs may still change before 1.0. The packages will be published under `@intijs`; until then `npm install @intijs/…` and `npm create inti@latest` answer 404. Install from git, as shown below.

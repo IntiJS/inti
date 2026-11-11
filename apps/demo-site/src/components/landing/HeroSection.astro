@@ -1,135 +1,284 @@
 ---
 // apps/demo-site/src/components/landing/HeroSection.astro
-import SolarCanvas3D from './SolarCanvas3D.astro';
+// The headline is editable, because that is what the product does: double-click
+// it (or focus it and press Enter), type, press Enter. It is a simulation that
+// runs only in the browser, and it says so.
+import Marquee from './Marquee.astro';
+
+const heading = 'Edit your Astro site on the page.';
+
+// Rays of the sun sticker, in a 300 × 300 box
+const RAYS = 24;
+const point = (radius: number, angle: number) =>
+  `${(150 + radius * Math.cos(angle)).toFixed(1)},${(150 + radius * Math.sin(angle)).toFixed(1)}`;
+const rays = Array.from({ length: RAYS }, (_, i) => {
+  const angle = (i / RAYS) * Math.PI * 2;
+  const half = (Math.PI / RAYS) * 0.6;
+  return `${point(120, angle - half)} ${point(150, angle)} ${point(120, angle + half)}`;
+});
 ---
 
-<section class="relative pt-32 pb-20 sm:pt-44 sm:pb-32 overflow-hidden">
-  <!-- Decorative canvas (paused off-screen and under reduced motion) -->
-  <SolarCanvas3D />
+<section class="field field--sun hero" id="top">
+  <!-- Decorative: the hint below says the same in text -->
+  <div class="hero-sun" data-anim aria-hidden="true">
+    <svg viewBox="0 0 300 300" focusable="false">
+      <g class="spin">
+        {rays.map((points) => <polygon points={points} fill="#FF8A00" />)}
+      </g>
+      <circle cx="150" cy="150" r="124" fill="#FF8A00" />
+      <g class="spin spin--back">
+        <circle cx="150" cy="150" r="124" fill="none" />
+        <path id="hero-sun-ring" d="M150,150 m-97,0 a97,97 0 1,1 194,0 a97,97 0 1,1 -194,0" fill="none" />
+        <text textLength="600" lengthAdjust="spacing">
+          <textPath href="#hero-sun-ring">Double-click the headline • type • press Enter •</textPath>
+        </text>
+      </g>
+      <circle cx="150" cy="150" r="66" fill="#FF3D2E" />
+      <text class="sun-word" x="150" y="162" text-anchor="middle">edit me</text>
+    </svg>
+  </div>
 
-  <!-- Background Glow & Cyber Grid -->
-  <div class="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(255,122,0,0.15),rgba(255,255,255,0))] pointer-events-none -z-10"></div>
-  <div class="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[450px] bg-gradient-to-tr from-[#FF7A00]/20 via-[#FF0055]/15 to-[#7928CA]/20 blur-[130px] rounded-full pointer-events-none -z-10"></div>
+  <div class="wrap hero-body">
+    <p class="hero-kicker">An open-source layer for Astro sites. MIT, beta 0.1.</p>
 
-  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-    <!-- Status badge -->
-    <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs sm:text-sm text-slate-200 backdrop-blur-md mb-8 shadow-lg">
-      <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-      <span class="font-medium text-slate-300">Beta 0.1</span>
-      <span class="text-slate-500">·</span>
-      <span class="text-amber-300 font-semibold">MIT</span>
-      <span class="text-slate-500">·</span>
-      <span class="text-slate-300 font-medium">For Astro sites</span>
-    </div>
-
-    <!-- Main Headline -->
-    <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.1] mb-6">
-      Edit your Astro site on the page.<br class="hidden sm:inline" />
-      It saves back to the CMS you already have.
+    <h1 class="hero-h1">
+      <span
+        id="hero-edit"
+        class="hero-edit"
+        tabindex="0"
+        spellcheck="false"
+        data-inti-field="heading"
+        data-original={heading}
+        aria-describedby="hero-hint"
+      >{heading}</span>
+      <span class="hero-serif">It saves back to the CMS you already have.</span>
+      <span id="hero-stamp" class="hero-stamp" aria-hidden="true" hidden>
+        <strong>Saved to your CMS</strong>
+        <span>Simulated: nothing is sent</span>
+      </span>
     </h1>
 
-    <!-- Lede -->
-    <p class="max-w-3xl mx-auto text-base sm:text-xl text-slate-300 font-normal leading-relaxed mb-10">
-      <strong class="text-white font-semibold">Inti.js</strong> is an open-source layer for Astro sites, whether you write them by hand or with a coding agent. Double-click a text on the rendered page and the change is written to WordPress, Kitsuden, Strapi or Keystatic. A model composes sections from the blocks you declared, and agents edit the same content through an MCP server.
+    <p class="hero-hint" id="hero-hint">
+      <span class="sim">Simulated: nothing is sent</span>
+      <span>This headline is editable. Double-click it, or focus it and press <kbd>Enter</kbd>; type; <kbd>Enter</kbd> saves, <kbd>Esc</kbd> cancels.</span>
     </p>
+    <p class="hero-status" id="hero-status" role="status" aria-live="polite" hidden></p>
 
-    <!-- CTAs & copyable first command -->
-    <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-4">
-      <div class="relative p-[1px] rounded-xl bg-gradient-to-r from-amber-500 via-rose-500 to-purple-500 shadow-xl group w-full sm:w-auto">
-        <div class="flex items-center gap-2 px-4 py-2.5 rounded-[11px] bg-[#0A0D18] text-slate-200 font-mono text-xs sm:text-sm w-full sm:w-auto justify-between sm:justify-start">
-          <div class="flex items-center gap-2.5 min-w-0">
-            <span class="text-amber-400 select-none font-bold">$</span>
-            <span class="text-slate-100 select-all font-semibold truncate" id="cli-command">git clone https://github.com/intijs/inti.git</span>
-          </div>
-          <button
-            type="button"
-            id="copy-cli-btn"
-            class="ml-2 p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all text-xs flex items-center gap-1 active:scale-95"
-            aria-label="Copy the git clone command"
-          >
-            <svg class="w-4 h-4" id="copy-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-            </svg>
-            <span id="copy-text">Copy</span>
-          </button>
+    <div class="hero-low">
+      <p class="lede">
+        <strong>Inti.js</strong> is an open-source layer for Astro sites, whether you write them by hand or with a coding agent. Double-click a text on the rendered page and the change is written to WordPress, Kitsuden, Strapi or Keystatic. A model composes sections from the blocks you declared, and agents edit the same content through an MCP server.
+      </p>
+
+      <div class="hero-actions">
+        <div class="cmd">
+          <span><b>$</b> <span id="cli-command">git clone https://github.com/intijs/inti.git</span></span>
+          <button type="button" class="copy-btn" data-copy="git clone https://github.com/intijs/inti.git" aria-label="Copy the git clone command">Copy</button>
         </div>
-      </div>
-
-      <a
-        href="#quickstart"
-        class="inline-flex items-center justify-center gap-2 px-7 py-3 rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#FF0055] text-white font-bold text-sm shadow-xl shadow-orange-500/30 hover:shadow-orange-500/50 hover:brightness-110 active:scale-95 transition-all w-full sm:w-auto"
-      >
-        <span>Quickstart</span>
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
-        </svg>
-      </a>
-
-      <a
-        href="https://github.com/intijs/inti/tree/main/apps/docs/src/content/docs"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 font-semibold text-sm border border-white/10 hover:border-white/20 transition-all w-full sm:w-auto"
-      >
-        <span>Docs on GitHub</span>
-        <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
-        </svg>
-      </a>
-    </div>
-
-    <p class="text-xs sm:text-sm text-slate-400 mb-16">
-      Not on npm yet: the packages will be published under <code class="font-mono text-slate-300">@intijs</code>. Until then, install from git. The <a href="#quickstart" class="underline hover:text-white">Quickstart</a> has the commands.
-    </p>
-
-    <!-- Four facts, each one checkable in the repository -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto pt-6 border-t border-white/10 text-left">
-      <div class="p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:border-amber-500/30 transition-all">
-        <span class="text-2xl font-black text-amber-400 font-mono">4 CMSs</span>
-        <h2 class="text-white text-xs font-bold mt-1">Read and write back</h2>
-        <p class="text-[11px] text-slate-400 mt-0.5">WordPress, Kitsuden, Strapi and Keystatic. Contentful and Sanity are read-only.</p>
-      </div>
-
-      <div class="p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:border-cyan-500/30 transition-all">
-        <span class="text-2xl font-black text-cyan-400 font-mono">Astro 5·6·7</span>
-        <h2 class="text-white text-xs font-bold mt-1">Each major checked in CI</h2>
-        <p class="text-[11px] text-slate-400 mt-0.5">A clean project is installed, built and served for every major on every push.</p>
-      </div>
-
-      <div class="p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:border-purple-500/30 transition-all">
-        <span class="text-2xl font-black text-purple-400 font-mono">13 tools</span>
-        <h2 class="text-white text-xs font-bold mt-1">MCP server for agents</h2>
-        <p class="text-[11px] text-slate-400 mt-0.5">Read, edit, insert, move and draft. INTI_MCP_READONLY=1 drops the write tools.</p>
-      </div>
-
-      <div class="p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:border-rose-500/30 transition-all">
-        <span class="text-2xl font-black text-rose-400 font-mono">MIT</span>
-        <h2 class="text-white text-xs font-bold mt-1">Every package</h2>
-        <p class="text-[11px] text-slate-400 mt-0.5">Open source and in beta: the APIs may still change before 1.0.</p>
+        <div class="hero-buttons">
+          <a href="#quickstart" class="btn">Quickstart</a>
+          <a
+            href="https://github.com/intijs/inti/tree/main/apps/docs/src/content/docs"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn btn--paper"
+          >Docs on GitHub</a>
+        </div>
+        <p class="hero-note">
+          Not on npm yet: the packages will be published under <code class="kbd-code">@intijs</code>. Until then, install from git. The <a href="#quickstart">Quickstart</a> has the commands.
+        </p>
       </div>
     </div>
   </div>
 </section>
 
-<script>
-  // Copy the first command
-  const copyBtn = document.getElementById('copy-cli-btn');
-  const copyText = document.getElementById('copy-text');
-  const commandText = 'git clone https://github.com/intijs/inti.git';
+<Marquee items={['Double-click', { serif: 'type' }, 'Enter', { serif: 'saved to' }, 'WordPress', 'Kitsuden', 'Strapi', 'Keystatic']} />
 
-  copyBtn?.addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(commandText);
-      if (copyText) {
-        copyText.textContent = 'Copied!';
-        copyBtn.classList.add('text-emerald-400');
-        setTimeout(() => {
-          copyText.textContent = 'Copy';
-          copyBtn.classList.remove('text-emerald-400');
-        }, 2000);
-      }
-    } catch (e) {
-      console.warn('Clipboard write failed', e);
+<!-- Four facts, each one checkable in the repository -->
+<section class="field field--paper facts" aria-labelledby="facts-title">
+  <div class="wrap">
+    <h2 class="facts-lead" id="facts-title">Four facts, each one checkable in the repository.</h2>
+    <div class="facts-grid">
+      <div class="fact">
+        <span class="fact-value">4 CMSs</span>
+        <h3>Read and write back</h3>
+        <p>WordPress, Kitsuden, Strapi and Keystatic. Contentful and Sanity are read-only.</p>
+      </div>
+      <div class="fact">
+        <span class="fact-value">Astro 5·6·7</span>
+        <h3>Each major checked in CI</h3>
+        <p>A clean project is installed, built and served for every major on every push.</p>
+      </div>
+      <div class="fact">
+        <span class="fact-value">13 tools</span>
+        <h3>MCP server for agents</h3>
+        <p>Read, edit, insert, move and draft. INTI_MCP_READONLY=1 drops the write tools.</p>
+      </div>
+      <div class="fact">
+        <span class="fact-value">MIT</span>
+        <h3>Every package</h3>
+        <p>Open source and in beta: the APIs may still change before 1.0.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Follows the pointer over the editable headline (fine pointers only) -->
+<div class="cursor-sticker" id="cursor-sticker" aria-hidden="true">Double<br />click</div>
+
+<script>
+  // The editable headline. Nothing here talks to a server.
+  const edit = document.getElementById('hero-edit');
+  const stamp = document.getElementById('hero-stamp');
+  const status = document.getElementById('hero-status');
+  const sticker = document.getElementById('cursor-sticker');
+  const MAX = 80;
+
+  if (edit) {
+    let before = edit.textContent ?? '';
+    const isEditing = () => edit.hasAttribute('contenteditable');
+
+    function selectAll() {
+      const range = document.createRange();
+      range.selectNodeContents(edit!);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
     }
-  });
+
+    function say(html: string) {
+      if (!status) return;
+      status.hidden = false;
+      status.innerHTML = html;
+    }
+
+    const escape = (text: string) =>
+      text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c);
+
+    function start() {
+      if (isEditing()) return;
+      before = edit!.textContent ?? '';
+      // Plain text only where the browser supports it; the paste handler below covers the rest
+      edit!.setAttribute('contenteditable', 'plaintext-only');
+      if (!edit!.isContentEditable) edit!.setAttribute('contenteditable', 'true');
+      edit!.setAttribute('role', 'textbox');
+      edit!.setAttribute('aria-label', 'Headline (simulated edit)');
+      if (stamp) stamp.hidden = true;
+      sticker?.classList.remove('is-on');
+      edit!.focus();
+      selectAll();
+    }
+
+    function stop() {
+      edit!.removeAttribute('contenteditable');
+      edit!.removeAttribute('role');
+      edit!.removeAttribute('aria-label');
+      window.getSelection()?.removeAllRanges();
+    }
+
+    function commit() {
+      if (!isEditing()) return;
+      const value = (edit!.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, MAX);
+      stop();
+      if (!value || value === before) {
+        edit!.textContent = before;
+        if (!value) say('<b>Simulated.</b> An empty headline was not saved: the text is back as it was.');
+        return;
+      }
+      edit!.textContent = value;
+      if (stamp) {
+        // Restart the stamp animation
+        stamp.hidden = true;
+        void stamp.offsetWidth;
+        stamp.hidden = false;
+      }
+      say(
+        `<b>Simulated: nothing is sent.</b> In a real project the editor now calls <b>inti.updateBlockField</b> with { field: "heading", value: "${escape(value)}" } and the adapter writes it to your CMS.`,
+      );
+    }
+
+    function cancel() {
+      if (!isEditing()) return;
+      stop();
+      edit!.textContent = before;
+      say('<b>Simulated.</b> Edit cancelled: the headline is back as it was.');
+    }
+
+    edit.addEventListener('dblclick', start);
+
+    edit.addEventListener('keydown', (event) => {
+      if (!isEditing()) {
+        if (event.key === 'Enter' || event.key === 'F2') {
+          event.preventDefault();
+          start();
+        }
+        return;
+      }
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        commit();
+        edit.focus();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        cancel();
+        edit.focus();
+      }
+    });
+
+    edit.addEventListener('beforeinput', (event) => {
+      if (!isEditing()) return;
+      const inserting = event.inputType.startsWith('insert');
+      const selected = window.getSelection()?.toString().length ?? 0;
+      if (inserting && (edit.textContent ?? '').length - selected >= MAX) event.preventDefault();
+    });
+
+    edit.addEventListener('paste', (event) => {
+      if (!isEditing() || edit.getAttribute('contenteditable') === 'plaintext-only') return;
+      event.preventDefault();
+      const text = event.clipboardData?.getData('text/plain').replace(/\s+/g, ' ') ?? '';
+      const selection = window.getSelection();
+      if (!selection?.rangeCount) return;
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(document.createTextNode(text));
+      range.collapse(false);
+    });
+
+    edit.addEventListener('blur', () => commit());
+
+    // The pointer sticker: decoration for fine pointers, off under reduced motion
+    const fine = window.matchMedia('(hover: hover) and (pointer: fine)');
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (sticker && fine.matches && !reduce.matches) {
+      let x = 0;
+      let y = 0;
+      let tx = 0;
+      let ty = 0;
+      let frame = 0;
+      let on = false;
+
+      const tick = () => {
+        x += (tx - x) * 0.22;
+        y += (ty - y) * 0.22;
+        sticker.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) rotate(${((tx - x) * 0.25).toFixed(2)}deg)`;
+        frame = on || Math.abs(tx - x) > 0.5 || Math.abs(ty - y) > 0.5 ? requestAnimationFrame(tick) : 0;
+      };
+
+      edit.addEventListener('pointerenter', (event) => {
+        if (isEditing()) return;
+        on = true;
+        x = tx = event.clientX + 58;
+        y = ty = event.clientY + 58;
+        sticker.classList.add('is-on');
+        if (!frame) frame = requestAnimationFrame(tick);
+      });
+      edit.addEventListener('pointermove', (event) => {
+        tx = event.clientX + 58;
+        ty = event.clientY + 58;
+      });
+      edit.addEventListener('pointerleave', () => {
+        on = false;
+        sticker.classList.remove('is-on');
+      });
+    }
+  }
 </script>

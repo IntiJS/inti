@@ -1,0 +1,30 @@
+---
+// apps/demo-site/src/components/landing/Marquee.astro
+// A running strip of words separated by suns. The words are rendered twice so
+// the loop has no seam; the second copy is hidden from assistive technology.
+// It stops while off-screen, and under reduced motion it is a static strip.
+import Sun from './Sun.astro';
+
+interface Props {
+  /** Each item is plain text, or `{ serif }` for the italic serif voice */
+  items: Array<string | { serif: string }>;
+}
+const { items } = Astro.props;
+---
+
+<div class="marquee" data-anim>
+  <div class="marquee-track">
+    {
+      [false, true].map((copy) => (
+        <span aria-hidden={copy ? 'true' : undefined}>
+          {items.map((item) => (
+            <>
+              {typeof item === 'string' ? item : <em>{item.serif}</em>}
+              <Sun rays={10} />
+            </>
+          ))}
+        </span>
+      ))
+    }
+  </div>
+</div>

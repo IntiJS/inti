@@ -3,147 +3,65 @@
 // A simulation: three canned examples, no model is called and nothing is saved.
 ---
 
-<section id="ai-playground" class="py-20 sm:py-28 relative overflow-hidden bg-gradient-to-b from-[#06080F] via-[#0B0D1A] to-[#07090E] border-t border-white/10">
-  <!-- Purple glow orb -->
-  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] bg-purple-600/15 rounded-full blur-[140px] pointer-events-none -z-10"></div>
-
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <!-- Header -->
-    <div class="text-center max-w-3xl mx-auto mb-16">
-      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20 text-xs font-semibold mb-4">
-        <span>Generative UI &amp; MCP agents</span>
-      </div>
-      <h2 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight mb-4">
-        AI that builds with your blocks.<br />
-        <span class="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-amber-300">
-          No generated HTML, CSS or code.
-        </span>
-      </h2>
-      <p class="text-slate-300 text-base sm:text-lg">
-        The AI runs on your Astro site and in its editor, never inside the CMS. It composes with the blocks and fields you declared, the proposal is previewed on the page, and it is written only when accepted.
-      </p>
-    </div>
+<section id="ai-playground" class="field field--sun">
+  <div class="dome" data-scroll></div>
+  <div class="wrap">
+    <h2 class="h-pair" data-scroll>
+      <span class="h-display drift-l">AI that builds with your blocks.</span>
+      <span class="h-serif drift-r">No generated HTML, CSS or code.</span>
+    </h2>
+    <p class="lede" style="margin-bottom: clamp(1.75rem, 3.5vw, 3rem)">
+      The AI runs on your Astro site and in its editor, never inside the CMS. It composes with the blocks and fields you declared, the proposal is previewed on the page, and it is written only when accepted.
+    </p>
 
     <!-- Composer simulation -->
-    <div class="rounded-2xl border border-white/15 bg-[#0D1120] shadow-2xl overflow-hidden mb-16">
-      <!-- Header bar -->
-      <div class="px-5 py-3.5 bg-[#090C17] border-b border-white/10 flex flex-wrap items-center justify-between gap-4">
-        <div class="flex items-center gap-3">
-          <div class="flex items-center gap-1.5" aria-hidden="true">
-            <span class="w-3 h-3 rounded-full bg-rose-500/80"></span>
-            <span class="w-3 h-3 rounded-full bg-amber-500/80"></span>
-            <span class="w-3 h-3 rounded-full bg-emerald-500/80"></span>
-          </div>
-          <span class="font-mono text-xs text-purple-300 font-semibold">@intijs/genui</span>
-        </div>
-        <div class="text-[11px] font-mono text-amber-300">
-          Simulated: canned examples, no model is called
-        </div>
+    <div class="win">
+      <div class="win-bar">
+        <span class="win-field">
+          <span class="win-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="mono">@intijs/genui</span>
+        </span>
+        <span class="sim">Simulated: canned examples, no model is called</span>
       </div>
 
-      <!-- Composer area -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 min-h-[460px]">
-        <!-- Prompt & Control Panel (5 cols) -->
-        <div class="lg:col-span-5 p-6 border-b lg:border-b-0 lg:border-r border-white/10 flex flex-col justify-between bg-black/30">
+      <div class="ai-grid">
+        <div class="ai-ask">
           <div>
-            <label for="ai-prompt-input" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-              Describe the section:
-            </label>
-            <div class="relative mb-4">
-              <textarea
-                id="ai-prompt-input"
-                rows="3"
-                class="w-full bg-[#13192B] border border-white/10 focus:border-purple-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400 rounded-xl p-3 text-sm text-white placeholder-slate-500 transition-all resize-none font-sans"
-                placeholder="Describe the section you want to build..."
-              >A section with the opening hours of the bakery.</textarea>
+            <label for="ai-prompt-input">Describe the section:</label>
+            <textarea id="ai-prompt-input" rows="3" placeholder="Describe the section you want to build...">A section with the opening hours of the bakery.</textarea>
+
+            <div class="ai-presets" role="group" aria-labelledby="ai-presets-label">
+              <span class="ai-small" id="ai-presets-label" style="flex-basis: 100%; margin: 0">The three examples this simulation knows:</span>
+              <button type="button" class="preset-prompt-btn" data-example="hours" data-prompt="A section with the opening hours of the bakery.">Opening hours</button>
+              <button type="button" class="preset-prompt-btn" data-example="grid" data-prompt="Three highlights from the menu, side by side.">Three highlights</button>
+              <button type="button" class="preset-prompt-btn" data-example="cta" data-prompt="A call to action to order a cake.">Call to action</button>
             </div>
 
-            <!-- Preset chips -->
-            <div class="mb-6">
-              <span class="text-[11px] text-slate-400 block mb-2 font-medium">The three examples this simulation knows:</span>
-              <div class="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  class="preset-prompt-btn px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[11px] text-slate-300 border border-white/5 transition-all text-left"
-                  data-example="hours"
-                  data-prompt="A section with the opening hours of the bakery."
-                >
-                  Opening hours
-                </button>
-                <button
-                  type="button"
-                  class="preset-prompt-btn px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[11px] text-slate-300 border border-white/5 transition-all text-left"
-                  data-example="grid"
-                  data-prompt="Three highlights from the menu, side by side."
-                >
-                  Three highlights
-                </button>
-                <button
-                  type="button"
-                  class="preset-prompt-btn px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[11px] text-slate-300 border border-white/5 transition-all text-left"
-                  data-example="cta"
-                  data-prompt="A call to action to order a cake."
-                >
-                  Call to action
-                </button>
-              </div>
-            </div>
-
-            <!-- Generate Button -->
-            <button
-              type="button"
-              id="btn-run-genui"
-              class="w-full py-3 rounded-xl bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 text-white font-semibold text-sm shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2"
-            >
-              <svg class="w-4 h-4" id="ai-btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-              </svg>
-              <span id="ai-btn-text">Show an example proposal</span>
-            </button>
+            <button type="button" id="btn-run-genui" class="btn" style="width: 100%">Show an example proposal</button>
           </div>
 
-          <!-- What the real package does -->
-          <div class="mt-6 p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-xs text-purple-200 leading-relaxed">
-            <strong class="text-purple-300 block mb-0.5">In the real package:</strong>
+          <div class="ai-real">
+            <strong>In the real package:</strong>
             The model picks from your declared blocks and fills in their fields. It generates no HTML, CSS or code, and everything it returns is validated before it is used. You bring your own model key, or Workers AI.
           </div>
         </div>
 
-        <!-- Proposal preview (7 cols) -->
-        <div class="lg:col-span-7 p-6 sm:p-8 flex flex-col justify-between bg-gradient-to-b from-[#0D1120] to-[#0A0D17] relative">
+        <div class="ai-out">
           <div>
-            <div class="flex items-center justify-between pb-3 mb-4 border-b border-white/10 text-xs">
-              <span class="text-slate-400 font-semibold uppercase tracking-wider text-[11px]">Proposal preview · sample content</span>
-              <span id="ai-status-pill" role="status" class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px] font-bold">
-                Simulated proposal · nothing is saved
-              </span>
+            <div class="ai-out-head">
+              <span>Proposal preview, sample content</span>
+              <span id="ai-status-pill" class="ai-pill" role="status">Simulated proposal: nothing is saved</span>
             </div>
 
             <!-- The example block. Filled in by the script below -->
-            <div id="ai-generated-canvas" class="transition-all duration-300"></div>
+            <div id="ai-generated-canvas"></div>
           </div>
 
-          <!-- Accept / discard -->
-          <div class="mt-6 pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
-            <div class="text-xs text-slate-400">
-              <span>Example block type:</span>
-              <code id="ai-block-type-badge" class="ml-1 text-amber-300 font-mono bg-white/5 px-2 py-0.5 rounded">OpeningHours</code>
-            </div>
-            <div class="flex items-center gap-2">
-              <button
-                type="button"
-                id="btn-discard-ai"
-                class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-slate-300 transition-all"
-              >
-                Discard
-              </button>
-              <button
-                type="button"
-                id="btn-accept-ai"
-                class="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs shadow-md transition-all"
-              >
-                Accept
-              </button>
+          <div class="ai-out-foot">
+            <span>Example block type: <code id="ai-block-type-badge" class="kbd-code">OpeningHours</code></span>
+            <div>
+              <button type="button" id="btn-discard-ai" class="btn btn--paper btn--small">Discard</button>
+              <button type="button" id="btn-accept-ai" class="btn btn--small">Accept</button>
             </div>
           </div>
         </div>
@@ -151,33 +69,31 @@
     </div>
 
     <!-- Agents over MCP -->
-    <div class="rounded-2xl p-8 bg-gradient-to-r from-purple-950/30 via-slate-900 to-indigo-950/30 border border-purple-500/20 shadow-2xl flex flex-col lg:flex-row items-center justify-between gap-8">
-      <div class="space-y-3 max-w-xl text-left">
-        <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-purple-500/20 text-purple-300 font-mono text-xs">
-          @intijs/mcp
-        </div>
-        <h3 class="text-2xl font-bold text-white">Editing for agents (Claude Code, Cursor)</h3>
-        <p class="text-slate-300 text-sm leading-relaxed">
-          The adapter's write path, exposed as Model Context Protocol tools. Agent writes use the CMS credentials in the server's environment and do not pass through your <code class="font-mono text-purple-300 text-xs">beforeWrite</code> plugins: limit them with <code class="font-mono text-purple-300 text-xs">INTI_MCP_READONLY=1</code> or a restricted CMS user, validate what they insert with <code class="font-mono text-purple-300 text-xs">INTI_MCP_VOCABULARY</code>, and have them work on a draft.
+    <div class="mcp">
+      <div>
+        <span class="kbd-code">@intijs/mcp</span>
+        <h3>Editing for agents (Claude Code, Cursor)</h3>
+        <p>
+          The adapter's write path, exposed as Model Context Protocol tools. Agent writes use the CMS credentials in the server's environment and do not pass through your <code class="kbd-code">beforeWrite</code> plugins: limit them with <code class="kbd-code">INTI_MCP_READONLY=1</code> or a restricted CMS user, validate what they insert with <code class="kbd-code">INTI_MCP_VOCABULARY</code>, and have them work on a draft.
         </p>
-        <div class="flex flex-wrap gap-2 text-xs font-mono text-slate-400 pt-2">
-          <span class="px-2.5 py-1 rounded bg-black/40 border border-white/5 text-purple-300">inti_get_page</span>
-          <span class="px-2.5 py-1 rounded bg-black/40 border border-white/5 text-purple-300">inti_update_field</span>
-          <span class="px-2.5 py-1 rounded bg-black/40 border border-white/5 text-purple-300">inti_create_draft</span>
+        <div class="mcp-tools">
+          <span class="chip mono">inti_get_page</span>
+          <span class="chip mono">inti_update_field</span>
+          <span class="chip mono">inti_create_draft</span>
         </div>
       </div>
 
-      <div class="w-full lg:w-auto shrink-0 bg-black/80 rounded-xl p-4 border border-white/10 font-mono text-xs text-slate-300 space-y-2 max-w-md">
-        <div class="text-slate-500 pb-1 border-b border-white/10 flex justify-between">
+      <div class="code">
+        <div class="code-head">
           <span>MCP setup</span>
           <span>Claude Code</span>
         </div>
-        <p class="text-slate-500"># today, from a built clone:</p>
-        <p class="text-amber-400 break-all">$ claude mcp add inti -- node /path/to/inti/packages/mcp/bin/inti-mcp.js</p>
-        <p class="text-slate-500"># once published:</p>
-        <p class="text-amber-400 break-all">$ claude mcp add inti -- npx -y @intijs/mcp</p>
-        <p class="text-slate-400">> "Read the home page and make the hero heading more direct."</p>
-        <p class="text-emerald-400">→ inti_get_page, then inti_update_field</p>
+        <p class="tk-c"># today, from a built clone:</p>
+        <p class="tk-s">$ claude mcp add inti -- node /path/to/inti/packages/mcp/bin/inti-mcp.js</p>
+        <p class="tk-c"># once published:</p>
+        <p class="tk-s">$ claude mcp add inti -- npx -y @intijs/mcp</p>
+        <p>&gt; "Read the home page and make the hero heading more direct."</p>
+        <p class="tk-k">→ inti_get_page, then inti_update_field</p>
       </div>
     </div>
   </div>
@@ -194,16 +110,14 @@
   const btnDiscard = document.getElementById('btn-discard-ai');
   const presetBtns = document.querySelectorAll<HTMLElement>('.preset-prompt-btn');
 
-  const PILL = 'px-2 py-0.5 rounded text-[10px] font-bold';
-
   const EXAMPLES: Record<string, { type: string; html: string }> = {
     hours: {
       type: 'OpeningHours',
       html: `
-        <div class="rounded-xl p-6 bg-slate-900/80 border border-amber-500/30 shadow-xl space-y-3">
-          <span class="px-2.5 py-1 rounded bg-amber-500/10 text-amber-300 text-xs font-semibold">Sample content</span>
-          <h4 class="text-xl font-bold text-white">Opening hours</h4>
-          <ul class="text-slate-300 text-xs sm:text-sm space-y-1">
+        <div class="sample">
+          <span class="sample-tag">Sample content</span>
+          <h4>Opening hours</h4>
+          <ul>
             <li>Monday to Friday: morning and afternoon</li>
             <li>Saturday: morning only</li>
             <li>Sunday: closed</li>
@@ -213,32 +127,23 @@
     grid: {
       type: 'FeatureGrid',
       html: `
-        <div class="rounded-xl p-6 bg-slate-900/90 border border-purple-500/40 shadow-xl space-y-4">
-          <span class="px-2.5 py-1 rounded bg-purple-500/10 text-purple-300 text-xs font-semibold">Sample content</span>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
-            <div class="p-3 rounded-lg bg-black/40 border border-white/5">
-              <p class="text-sm font-bold text-white">Sourdough</p>
-              <span class="text-[11px] text-slate-400">Sample description</span>
-            </div>
-            <div class="p-3 rounded-lg bg-black/40 border border-white/5">
-              <p class="text-sm font-bold text-white">Rye loaf</p>
-              <span class="text-[11px] text-slate-400">Sample description</span>
-            </div>
-            <div class="p-3 rounded-lg bg-black/40 border border-white/5">
-              <p class="text-sm font-bold text-white">Cinnamon rolls</p>
-              <span class="text-[11px] text-slate-400">Sample description</span>
-            </div>
+        <div class="sample sample--grid">
+          <span class="sample-tag">Sample content</span>
+          <div class="sample-cols">
+            <div><b>Sourdough</b><span>Sample description</span></div>
+            <div><b>Rye loaf</b><span>Sample description</span></div>
+            <div><b>Cinnamon rolls</b><span>Sample description</span></div>
           </div>
         </div>`,
     },
     cta: {
       type: 'CallToAction',
       html: `
-        <div class="rounded-xl p-6 bg-gradient-to-r from-rose-950/40 via-slate-900 to-orange-950/40 border border-rose-500/40 shadow-xl space-y-3">
-          <span class="px-2.5 py-1 rounded bg-rose-500/10 text-rose-300 text-xs font-semibold">Sample content</span>
-          <h4 class="text-2xl font-black text-white">Order a cake for the weekend</h4>
-          <p class="text-slate-300 text-xs sm:text-sm">Sample text for a made-up bakery.</p>
-          <span class="inline-block px-3 py-1.5 rounded-lg bg-rose-500 text-white font-bold text-xs">Order now</span>
+        <div class="sample sample--cta">
+          <span class="sample-tag">Sample content</span>
+          <h4>Order a cake for the weekend</h4>
+          <p>Sample text for a made-up bakery.</p>
+          <span class="sample-btn">Order now</span>
         </div>`,
     },
   };
@@ -253,17 +158,17 @@
   function setStatus(text: string, tone: string) {
     if (!statusPill) return;
     statusPill.textContent = text;
-    statusPill.className = `${PILL} ${tone}`;
+    statusPill.dataset.tone = tone;
   }
 
   function show(example: string) {
     const chosen = EXAMPLES[example] ?? EXAMPLES.hours;
     if (canvas) canvas.innerHTML = chosen.html;
     if (blockBadge) blockBadge.textContent = chosen.type;
-    setStatus('Simulated proposal · nothing is saved', 'bg-purple-500/20 text-purple-300');
+    setStatus('Simulated proposal: nothing is saved', 'idle');
   }
 
-  presetBtns.forEach(btn => {
+  presetBtns.forEach((btn) => {
     btn.addEventListener('click', () => {
       if (promptInput && btn.dataset.prompt) promptInput.value = btn.dataset.prompt;
       show(btn.dataset.example ?? 'hours');
@@ -273,12 +178,12 @@
   btnRun?.addEventListener('click', () => show(pickExample(promptInput?.value ?? '')));
 
   btnAccept?.addEventListener('click', () => {
-    setStatus('Simulated: a real project would now save these blocks to your CMS', 'bg-emerald-500/20 text-emerald-400');
+    setStatus('Simulated: a real project would now save these blocks to your CMS', 'ok');
   });
 
   btnDiscard?.addEventListener('click', () => {
-    if (canvas) canvas.innerHTML = '<p class="text-slate-400 text-sm">Proposal discarded. Nothing was saved.</p>';
-    setStatus('Simulated: proposal discarded', 'bg-rose-500/20 text-rose-400');
+    if (canvas) canvas.innerHTML = '<p>Proposal discarded. Nothing was saved.</p>';
+    setStatus('Simulated: proposal discarded', 'no');
   });
 
   show('hours');

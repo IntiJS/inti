@@ -7,14 +7,13 @@ import HeroSection from '../components/landing/HeroSection.astro';
 import InteractiveEditorDemo from '../components/landing/InteractiveEditorDemo.astro';
 import ComparisonSection from '../components/landing/ComparisonSection.astro';
 import BentoFeatures from '../components/landing/BentoFeatures.astro';
-import DesignerVsBuilderSlider from '../components/landing/DesignerVsBuilderSlider.astro';
-import Isometric3DStack from '../components/landing/Isometric3DStack.astro';
 import AIPlaygroundSection from '../components/landing/AIPlaygroundSection.astro';
 import AdaptersSection from '../components/landing/AdaptersSection.astro';
 import ArchitectureSection from '../components/landing/ArchitectureSection.astro';
 import FaqSection from '../components/landing/FaqSection.astro';
 import QuickstartSection from '../components/landing/QuickstartSection.astro';
 import FooterSection from '../components/landing/FooterSection.astro';
+import '../styles/landing.css';
 
 // Structured Data (JSON-LD) for Search Engines & AI Crawlers
 const structuredData = {
@@ -39,7 +38,7 @@ const structuredData = {
 ---
 
 <!doctype html>
-<html lang="en" class="scroll-smooth">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -72,89 +71,48 @@ const structuredData = {
     <!-- JSON-LD Structured Data -->
     <script is:inline type="application/ld+json" set:html={JSON.stringify(structuredData)} />
 
-    <style is:global>
-      /* Smooth custom scrollbars */
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #07090E;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #1F293D;
-        border-radius: 4px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #334155;
-      }
-
-      /* Visitors who ask for reduced motion get no CSS animation, no smooth
-         scrolling and no transitions. The scripts check the same preference. */
-      @media (prefers-reduced-motion: reduce) {
-        html {
-          scroll-behavior: auto !important;
-        }
-        *,
-        *::before,
-        *::after {
-          animation-duration: 0.01ms !important;
-          animation-iteration-count: 1 !important;
-          transition-duration: 0.01ms !important;
-        }
-      }
-
-      /* Selection highlight */
-      ::selection {
-        background: #FF7A00;
-        color: #FFFFFF;
-      }
-    </style>
+    <!-- Fonts are served from /fonts: nothing is requested from another host -->
+    <link rel="preload" href="/fonts/archivo-latin-wdth-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/instrument-serif-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <meta name="theme-color" content="#FFD60A" />
   </head>
 
-  <body class="bg-[#06080F] text-slate-100 font-sans min-h-screen antialiased selection:bg-orange-500 selection:text-white">
-    <!-- Navbar Header with Mobile Menu -->
+  <body class="lp">
     <Navbar />
 
-    <!-- Main Landing Sections -->
     <main>
-      <!-- Hero: what it is, the first command and four facts -->
+      <!-- Hero (the headline is editable: a simulation), the marquee and four facts -->
       <HeroSection />
 
       <!-- Editor simulation (nothing is sent) -->
       <InteractiveEditorDemo />
 
-      <!-- Why Inti? Ecosystem Comparison Matrix -->
+      <!-- Why Inti, and the split slider: free-form builder vs. declared blocks -->
       <ComparisonSection />
 
-      <!-- Split slider: free-form builder vs. declared blocks -->
-      <DesignerVsBuilderSlider />
-
-      <!-- Interactive 3D Exploded Isometric Stack -->
-      <div id="architecture-3d">
-        <Isometric3DStack />
-      </div>
-
-      <!-- Bento grid of 7 core capabilities -->
+      <!-- What Inti adds -->
       <BentoFeatures />
 
-      <!-- Generative UI & AI Agents Playground (GenUI + MCP) -->
-      <AIPlaygroundSection />
-
-      <!-- Supported CMS Adapters Showcase -->
-      <AdaptersSection />
-
-      <!-- Clean & Secure Architecture -->
+      <!-- The route of one save -->
       <ArchitectureSection />
 
-      <!-- Frequently Asked Questions Accordion -->
+      <!-- Generative UI simulation and the MCP server -->
+      <AIPlaygroundSection />
+
+      <!-- Adapters, with their real snippets -->
+      <AdaptersSection />
+
       <FaqSection />
 
       <!-- Quickstart from git and the prompt for a coding agent -->
       <QuickstartSection />
     </main>
 
-    <!-- Footer Banner & Credits -->
     <FooterSection />
+
+    <script>
+      import { initLandingMotion } from '../scripts/landing-motion';
+      initLandingMotion();
+    </script>
   </body>
 </html>

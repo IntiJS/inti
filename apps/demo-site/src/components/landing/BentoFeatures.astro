@@ -1,172 +1,77 @@
 ---
 // apps/demo-site/src/components/landing/BentoFeatures.astro
+// What Inti adds, as a list of rows. Generative UI and the MCP server have
+// their own section (AIPlaygroundSection), so they are not repeated here.
 ---
 
-<section id="features" class="py-20 sm:py-28 relative">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <!-- Header -->
-    <div class="text-center max-w-3xl mx-auto mb-16">
-      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20 text-xs font-semibold mb-4">
-        <span>Core Capabilities</span>
-      </div>
-      <h2 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight mb-4">
-        What Inti adds to an Astro site.<br />
-        <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400">
-          Without touching your CMS database.
-        </span>
-      </h2>
-      <p class="text-slate-300 text-base sm:text-lg">
-        Inti is a thin, lightweight layer between your Astro frontend and the content you already have.
-      </p>
-    </div>
+<section id="features" class="field field--red">
+  <div class="dome" data-scroll></div>
+  <div class="wrap">
+    <h2 class="h-pair" data-scroll>
+      <span class="h-display drift-l">What Inti adds to an Astro site.</span>
+      <span class="h-serif drift-r">Without touching your CMS database.</span>
+    </h2>
+    <p class="lede">Inti is a thin, lightweight layer between your Astro frontend and the content you already have.</p>
 
-    <!-- Bento Grid Container -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <!-- Card 1: Inline Editing (Large / span 2 cols on lg) -->
-      <div class="bento-card lg:col-span-2 rounded-2xl p-7 bg-gradient-to-br from-[#0D1222] to-[#0A0D17] border border-white/10 hover:border-amber-500/40 transition-all duration-300 shadow-xl group flex flex-col justify-between transform-gpu">
+    <div class="feat-list">
+      <article class="feat">
+        <h3>Inline editing with real write-back</h3>
         <div>
-          <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-2xl mb-5 group-hover:scale-110 transition-transform">
-            ✍️
-          </div>
-          <h3 class="text-xl sm:text-2xl font-bold text-white mb-3 flex items-center gap-2">
-            <span>Inline Editing with Real Write-Back</span>
-            <span class="px-2 py-0.5 rounded text-[11px] font-mono bg-amber-400/10 text-amber-300 border border-amber-400/20">Optimistic UI</span>
-          </h3>
-          <p class="text-slate-300 text-sm leading-relaxed mb-6">
+          <p>
             Double-click any text or heading on your Astro page, type the new content and press Enter. Inti updates the view at once and writes the change to WordPress ACF, Kitsuden rows, Strapi dynamic zones or Keystatic files. If the save fails, the text on screen reverts.
           </p>
-        </div>
-        <div class="rounded-xl bg-black/40 border border-white/5 p-4 font-mono text-xs text-slate-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div class="flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-            <span class="text-slate-400">Astro Server Action:</span>
-            <span class="text-amber-300">inti.updateBlockField</span>
+          <div class="feat-tags">
+            <span class="chip">Optimistic UI</span>
+            <span class="chip">Astro Server Action: <span class="mono">inti.updateBlockField</span></span>
+            <span class="chip">Reverts if the save fails</span>
           </div>
-          <span class="text-slate-400 text-[11px]">Reverts if the save fails</span>
         </div>
-      </div>
+      </article>
 
-      <!-- Card 2: AI Agents over MCP -->
-      <div class="bento-card rounded-2xl p-7 bg-gradient-to-br from-[#0D1222] to-[#0A0D17] border border-white/10 hover:border-purple-500/40 transition-all duration-300 shadow-xl group flex flex-col justify-between transform-gpu">
+      <article class="feat">
+        <h3>Visual page composer</h3>
         <div>
-          <div class="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-2xl mb-5 group-hover:scale-110 transition-transform">
-            🤖
-          </div>
-          <h3 class="text-xl font-bold text-white mb-3">AI Agents (MCP)</h3>
-          <p class="text-slate-300 text-sm leading-relaxed mb-6">
-            The adapter's write path, exposed as <strong class="text-purple-300">Model Context Protocol</strong> tools. Claude Code, Cursor and other agents read a page with <code class="text-purple-300 text-xs font-mono">inti_get_page</code> and edit it. Writes use the CMS credentials on your server and do not pass through <code class="text-purple-300 text-xs font-mono">beforeWrite</code> plugins: limit them with <code class="text-purple-300 text-xs font-mono">INTI_MCP_READONLY=1</code> or a restricted CMS user.
+          <p>
+            Add, duplicate, reorder and configure. Every block gets a toolbar with an auto-generated properties panel. Developers define the vocabulary in Astro code; editors compose freely without breaking the CSS.
           </p>
+          <div class="feat-tags"><span class="chip">Drag &amp; drop reordering</span></div>
         </div>
-        <div class="rounded-lg bg-black/50 border border-purple-500/20 p-3 text-xs font-mono text-purple-200">
-          <span class="text-slate-500">$</span> claude mcp add inti -- npx -y @intijs/mcp <span class="text-slate-500"># once published</span>
-        </div>
-      </div>
+      </article>
 
-      <!-- Card 3: Visual Page Composer -->
-      <div class="bento-card rounded-2xl p-7 bg-gradient-to-br from-[#0D1222] to-[#0A0D17] border border-white/10 hover:border-blue-500/40 transition-all duration-300 shadow-xl group transform-gpu">
-        <div class="w-12 h-12 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-2xl mb-5 group-hover:scale-110 transition-transform">
-          🧱
-        </div>
-        <h3 class="text-xl font-bold text-white mb-3">Visual Page Composer</h3>
-        <p class="text-slate-300 text-sm leading-relaxed mb-4">
-          Add, duplicate, reorder and configure. Every block gets a toolbar with an auto-generated properties panel. Developers define the vocabulary in Astro code; editors compose freely without breaking the CSS.
-        </p>
-        <div class="text-xs text-sky-400 font-mono flex items-center gap-1.5">
-          <span>✓ Drag & drop reordering</span>
-        </div>
-      </div>
-
-      <!-- Card 4: Generative UI -->
-      <div class="bento-card rounded-2xl p-7 bg-gradient-to-br from-[#0D1222] to-[#0A0D17] border border-white/10 hover:border-rose-500/40 transition-all duration-300 shadow-xl group transform-gpu">
-        <div class="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-2xl mb-5 group-hover:scale-110 transition-transform">
-          ✨
-        </div>
-        <h3 class="text-xl font-bold text-white mb-3">Generative UI (@intijs/genui)</h3>
-        <p class="text-slate-300 text-sm leading-relaxed mb-4">
-          A language model builds whole sections using only the blocks declared in your project. No HTML generated on the fly: everything is validated against your schema, and the data comes from your own server.
-        </p>
-        <div class="text-xs text-rose-400 font-mono flex items-center gap-1.5">
-          <span>✓ Preview before saving</span>
-        </div>
-      </div>
-
-      <!-- Card 5: Personalization Server-Side -->
-      <div class="bento-card rounded-2xl p-7 bg-gradient-to-br from-[#0D1222] to-[#0A0D17] border border-white/10 hover:border-emerald-500/40 transition-all duration-300 shadow-xl group transform-gpu">
-        <div class="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-2xl mb-5 group-hover:scale-110 transition-transform">
-          🎯
-        </div>
-        <h3 class="text-xl font-bold text-white mb-3">Personalization Without JS</h3>
-        <p class="text-slate-300 text-sm leading-relaxed mb-4">
-          Create content variants per audience (<code class="text-emerald-300 text-xs font-mono">device:mobile</code>, country, preferences). Everything resolves on the Astro server, with no extra weight in the client bundle and a control group for metrics.
-        </p>
-        <div class="text-xs text-emerald-400 font-mono flex items-center gap-1.5">
-          <span>✓ Zero client-side JavaScript</span>
-        </div>
-      </div>
-
-      <!-- Card 6: Automatic SEO & Plugin Reader (Large / span 2 cols on lg) -->
-      <div class="bento-card lg:col-span-2 rounded-2xl p-7 bg-gradient-to-br from-[#0D1222] to-[#0A0D17] border border-white/10 hover:border-amber-500/40 transition-all duration-300 shadow-xl group flex flex-col justify-between transform-gpu">
+      <article class="feat">
+        <h3>Personalization without JS</h3>
         <div>
-          <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-2xl mb-5 group-hover:scale-110 transition-transform">
-            🧭
-          </div>
-          <h3 class="text-xl sm:text-2xl font-bold text-white mb-3">
-            Keep the SEO your client already set up
-          </h3>
-          <p class="text-slate-300 text-sm leading-relaxed mb-6">
-            Inti automatically reads metadata from the most popular WordPress plugins (<strong class="text-white">Yoast, RankMath, AIOSEO or SEOPress</strong>) and from Strapi SEO components, normalizing it into a single <code class="text-amber-300 text-xs font-mono">page.seo</code> object. The <code class="text-amber-300 text-xs font-mono">&lt;IntiSeo&gt;</code> and <code class="text-amber-300 text-xs font-mono">&lt;IntiStructuredData&gt;</code> components render canonical tags, Open Graph and Schema.org JSON-LD graphs natively on the server.
+          <p>
+            Create content variants per audience (<code class="kbd-code">device:mobile</code>, country, preferences). Everything resolves on the Astro server, with no extra weight in the client bundle and a control group for metrics.
           </p>
+          <div class="feat-tags"><span class="chip">Zero client-side JavaScript</span></div>
         </div>
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs font-medium text-slate-300">
-          <div class="p-2.5 rounded-lg bg-black/40 border border-white/5">Yoast / RankMath</div>
-          <div class="p-2.5 rounded-lg bg-black/40 border border-white/5">JSON-LD Graph</div>
-          <div class="p-2.5 rounded-lg bg-black/40 border border-white/5">Sitemap with lastmod</div>
-          <div class="p-2.5 rounded-lg bg-black/40 border border-white/5">llms.txt</div>
-        </div>
-      </div>
+      </article>
 
-      <!-- Card 7: Cloudflare & Edge Ready -->
-      <div class="bento-card rounded-2xl p-7 bg-gradient-to-br from-[#0D1222] to-[#0A0D17] border border-white/10 hover:border-amber-500/40 transition-all duration-300 shadow-xl group transform-gpu">
-        <div class="w-12 h-12 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-2xl mb-5 group-hover:scale-110 transition-transform">
-          ☁️
+      <article class="feat">
+        <h3>Keep the SEO your client already set up</h3>
+        <div>
+          <p>
+            Inti automatically reads metadata from the most popular WordPress plugins (<strong>Yoast, RankMath, AIOSEO or SEOPress</strong>) and from Strapi SEO components, normalizing it into a single <code class="kbd-code">page.seo</code> object. The <code class="kbd-code">&lt;IntiSeo&gt;</code> and <code class="kbd-code">&lt;IntiStructuredData&gt;</code> components render canonical tags, Open Graph and Schema.org JSON-LD graphs natively on the server.
+          </p>
+          <div class="feat-tags">
+            <span class="chip">Yoast / RankMath</span>
+            <span class="chip">JSON-LD Graph</span>
+            <span class="chip">Sitemap with lastmod</span>
+            <span class="chip">llms.txt</span>
+          </div>
         </div>
-        <h3 class="text-xl font-bold text-white mb-3">Cloudflare & Edge Ready</h3>
-        <p class="text-slate-300 text-sm leading-relaxed mb-4">
-          With the optional <code class="text-orange-300 text-xs font-mono">@intijs/cloudflare</code> package: D1 for content and experiments, Durable Objects for realtime and limits, R2 for media, and Workers AI.
-        </p>
-        <div class="text-xs text-orange-400 font-mono flex items-center gap-1.5">
-          <span>✓ Optional: Inti does not depend on Cloudflare</span>
+      </article>
+
+      <article class="feat">
+        <h3>Cloudflare &amp; edge ready</h3>
+        <div>
+          <p>
+            With the optional <code class="kbd-code">@intijs/cloudflare</code> package: D1 for content and experiments, Durable Objects for realtime and limits, R2 for media, and Workers AI.
+          </p>
+          <div class="feat-tags"><span class="chip">Optional: Inti does not depend on Cloudflare</span></div>
         </div>
-      </div>
+      </article>
     </div>
   </div>
 </section>
-
-<script>
-  // 3D Tilt & Cursor Radial Glow on Bento Cards
-  const cards = document.querySelectorAll('.bento-card');
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-
-  cards.forEach(card => {
-    const el = card as HTMLElement;
-    el.addEventListener('mousemove', (e: MouseEvent) => {
-      if (reduceMotion.matches) return;
-      const rect = el.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      const centerX = rect.width / 2;
-      const centerY = rect.height / 2;
-
-      const rotX = ((y - centerY) / centerY) * -4;
-      const rotY = ((x - centerX) / centerX) * 4;
-
-      el.style.transform = `perspective(800px) rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(2)}deg)`;
-      el.style.backgroundImage = `radial-gradient(circle 350px at ${x}px ${y}px, rgba(255, 122, 0, 0.08), rgba(13, 18, 34, 0.95))`;
-    });
-
-    el.addEventListener('mouseleave', () => {
-      el.style.transform = 'perspective(800px) rotateX(0deg) rotateY(0deg)';
-      el.style.backgroundImage = '';
-    });
-  });
-</script>

@@ -1,93 +1,48 @@
 ---
 // apps/demo-site/src/components/landing/Navbar.astro
+import Sun from './Sun.astro';
 ---
 
-<header class="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-[#07090E]/85 border-b border-white/10 transition-all duration-300">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-    <!-- Brand Logo -->
-    <a href="/" class="flex items-center gap-3 group" aria-label="Inti.js home">
-      <div class="relative w-9 h-9 rounded-xl bg-gradient-to-tr from-[#FF7A00] via-[#FF0055] to-[#7928CA] p-[1px] shadow-lg shadow-orange-500/20 group-hover:shadow-orange-500/40 transition-all duration-300">
-        <div class="w-full h-full bg-[#0A0D18] rounded-[11px] flex items-center justify-center overflow-hidden relative">
-          <div class="absolute inset-0 bg-gradient-to-tr from-[#FF7A00]/20 to-transparent"></div>
-          <span class="text-white font-black text-xl tracking-tighter">I</span>
-          <span class="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[#FFDD00]"></span>
-        </div>
-      </div>
-      <div class="flex items-center gap-2">
-        <span class="font-bold text-lg tracking-tight text-white group-hover:text-amber-300 transition-colors">inti<span class="text-[#FF7A00]">.js</span></span>
-        <span class="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20">v0.1 Beta</span>
-      </div>
+<header class="nav">
+  <div class="nav-row">
+    <a href="/" class="nav-box nav-brand" aria-label="Inti.js home, beta 0.1">
+      <Sun rays={12} ray="#FF8A00" disc="#FF3D2E" />
+      <span>inti.js</span>
+      <small>beta 0.1</small>
     </a>
 
-    <!-- Desktop navigation: four section links, then GitHub and Quickstart -->
-    <nav class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300" aria-label="Main">
-      <a href="#interactive-demo" class="hover:text-white transition-colors">Demo</a>
-      <a href="#features" class="hover:text-white transition-colors">Features</a>
-      <a href="#ai-playground" class="hover:text-white transition-colors">AI &amp; MCP</a>
-      <a href="#adapters" class="hover:text-white transition-colors">Adapters</a>
+    <nav class="nav-box nav-links" aria-label="Main">
+      <a href="#interactive-demo">Demo</a>
+      <a href="#features">Features</a>
+      <a href="#ai-playground">AI &amp; MCP</a>
+      <a href="#adapters">Adapters</a>
     </nav>
 
-    <!-- Right Actions -->
-    <div class="flex items-center gap-2 sm:gap-3">
-      <!-- GitHub Button -->
-      <a
-        href="https://github.com/intijs/inti"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="hidden sm:inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-200 text-xs font-semibold border border-white/10 transition-all hover:border-white/20"
-      >
-        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24" aria-hidden="true">
-          <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
-        </svg>
-        <span>GitHub</span>
-        <span class="w-1 h-1 rounded-full bg-slate-500"></span>
-        <span class="text-amber-400 font-mono">MIT</span>
-      </a>
-
-      <!-- Primary CTA -->
-      <a
-        href="#quickstart"
-        class="inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-lg bg-gradient-to-r from-[#FF7A00] to-[#FF0055] text-white text-xs sm:text-sm font-semibold shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 hover:brightness-110 active:scale-95 transition-all"
-      >
-        <span>Quickstart</span>
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
-        </svg>
-      </a>
-
-      <!-- Mobile Hamburger Button -->
+    <div class="nav-box">
+      <a href="https://github.com/intijs/inti" target="_blank" rel="noopener noreferrer" class="nav-ghost">GitHub (MIT)</a>
+      <a href="#quickstart" class="nav-cta">Quickstart</a>
       <button
         type="button"
         id="mobile-menu-btn"
-        class="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+        class="nav-menu-btn"
         aria-label="Menu"
         aria-expanded="false"
         aria-controls="mobile-menu"
       >
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" id="hamburger-icon" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"/>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 7h16M4 12h16M4 17h16" />
         </svg>
       </button>
     </div>
   </div>
 
-  <!-- Mobile Dropdown Menu Drawer -->
-  <nav id="mobile-menu" class="hidden md:hidden bg-[#0A0D18] border-b border-white/10 px-4 pt-2 pb-6 space-y-3 font-medium text-sm text-slate-300" aria-label="Main, mobile">
-    <a href="#interactive-demo" class="block py-2 hover:text-amber-300 border-b border-white/5 transition-colors">Demo</a>
-    <a href="#features" class="block py-2 hover:text-amber-300 border-b border-white/5 transition-colors">Features</a>
-    <a href="#ai-playground" class="block py-2 hover:text-amber-300 border-b border-white/5 transition-colors">AI &amp; MCP</a>
-    <a href="#adapters" class="block py-2 hover:text-amber-300 border-b border-white/5 transition-colors">Adapters</a>
-    <a href="#quickstart" class="block py-2 hover:text-amber-300 transition-colors">Quickstart</a>
-    <div class="pt-2 flex items-center gap-3">
-      <a
-        href="https://github.com/intijs/inti"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="w-full py-2 text-center rounded-lg bg-white/5 border border-white/10 text-xs font-semibold text-slate-200 hover:bg-white/10"
-      >
-        GitHub (MIT)
-      </a>
-    </div>
+  <nav id="mobile-menu" class="nav-drawer" aria-label="Main, mobile" hidden>
+    <a href="#interactive-demo">Demo</a>
+    <a href="#features">Features</a>
+    <a href="#ai-playground">AI &amp; MCP</a>
+    <a href="#adapters">Adapters</a>
+    <a href="#quickstart">Quickstart</a>
+    <a href="https://github.com/intijs/inti" target="_blank" rel="noopener noreferrer">GitHub (MIT)</a>
   </nav>
 </header>
 
@@ -97,7 +52,7 @@
   const links = mobileMenu?.querySelectorAll('a');
 
   function setOpen(open: boolean) {
-    mobileMenu?.classList.toggle('hidden', !open);
+    if (mobileMenu) mobileMenu.hidden = !open;
     menuBtn?.setAttribute('aria-expanded', String(open));
   }
 
@@ -105,7 +60,7 @@
     setOpen(menuBtn.getAttribute('aria-expanded') !== 'true');
   });
 
-  links?.forEach(link => {
+  links?.forEach((link) => {
     link.addEventListener('click', () => setOpen(false));
   });
 

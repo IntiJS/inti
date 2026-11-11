@@ -1,111 +1,83 @@
 ---
 // apps/demo-site/src/components/landing/DesignerVsBuilderSlider.astro
-// Split slider: a free-form page builder next to declared blocks
+// Split slider: a free-form page builder next to declared blocks.
+// Rendered inside ComparisonSection.
 ---
 
-<section class="py-20 sm:py-28 relative bg-[#07090F] border-t border-white/10">
-  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-    <!-- Header -->
-    <div class="text-center max-w-3xl mx-auto mb-16">
-      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-semibold mb-4">
-        <span>Free-form builder vs. declared blocks</span>
-      </div>
-      <h2 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight mb-4">
-        Editors compose. The design stays in code.<br />
-        <span class="text-transparent bg-clip-text bg-gradient-to-r from-rose-400 via-amber-400 to-emerald-400">
-          Slide to compare the two approaches.
-        </span>
-      </h2>
-      <p class="text-slate-300 text-base sm:text-lg">
-        A free-form page builder lets anyone add CSS and markup to a page. Inti has no free-form CSS editing: editors work with the blocks, fields and variants your developers declared.
-      </p>
+<div class="cmp">
+  <h2 class="h-pair" data-scroll>
+    <span class="h-display drift-l">Editors compose. The design stays in code.</span>
+    <span class="h-serif drift-r">Slide to compare the two approaches.</span>
+  </h2>
+  <p class="lede" style="margin-bottom: clamp(1.75rem, 3.5vw, 3rem)">
+    A free-form page builder lets anyone add CSS and markup to a page. Inti has no free-form CSS editing: editors work with the blocks, fields and variants your developers declared.
+  </p>
+
+  <div class="win">
+    <div class="win-bar cmp-labels">
+      <span>Free-form page builder</span>
+      <span>Declared blocks with Inti</span>
     </div>
 
-    <!-- Comparison slider -->
-    <div class="rounded-2xl border border-white/15 bg-[#0A0D17] shadow-2xl overflow-hidden relative">
-      <!-- Top Badges Bar -->
-      <div class="px-6 py-4 bg-[#090C16] border-b border-white/10 flex items-center justify-between text-xs font-bold font-mono">
-        <span class="text-rose-400">Free-form page builder</span>
-        <span class="text-emerald-400">Declared blocks with Inti</span>
+    <div id="split-container" class="cmp-stage">
+      <!-- LEFT: free-form builder -->
+      <div class="cmp-side cmp-side--free">
+        <div>
+          <h3>Anything can be changed, including the design</h3>
+          <ul>
+            <li>Editors can add arbitrary CSS and markup to a page.</li>
+            <li>Fonts, spacing and layout can drift away from the design system.</li>
+          </ul>
+        </div>
       </div>
 
-      <!-- Split Viewport -->
-      <div id="split-container" class="relative w-full h-[460px] sm:h-[400px] select-none overflow-hidden cursor-ew-resize">
-        <!-- LEFT: free-form builder -->
-        <div class="absolute inset-0 bg-gradient-to-br from-rose-950/40 via-[#140C12] to-black p-6 sm:p-10 flex flex-col justify-center">
-          <div class="max-w-md space-y-4">
-            <h3 class="text-2xl font-black text-rose-300">
-              Anything can be changed, including the design
-            </h3>
-            <ul class="space-y-2 text-xs sm:text-sm text-slate-300">
-              <li class="flex items-center gap-2">
-                <span class="text-rose-400 font-bold" aria-hidden="true">✕</span>
-                <span>Editors can add arbitrary CSS and markup to a page.</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <span class="text-rose-400 font-bold" aria-hidden="true">✕</span>
-                <span>Fonts, spacing and layout can drift away from the design system.</span>
-              </li>
-            </ul>
-          </div>
+      <!-- RIGHT: declared blocks (clipped by the slider) -->
+      <div
+        id="split-overlay"
+        class="cmp-side cmp-side--blocks"
+        style="clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%);"
+      >
+        <div>
+          <h3>Editors change the content, not the design</h3>
+          <ul>
+            <li><strong>Vocabulary in code:</strong> blocks, fields and variants are declared by developers.</li>
+            <li><strong>Double-click and Enter:</strong> the text is saved to the CMS it came from.</li>
+            <li><strong>No free-form CSS:</strong> there is nowhere to type it.</li>
+            <li><strong>AI with your blocks:</strong> a model composes only with what you declared.</li>
+          </ul>
         </div>
+      </div>
 
-        <!-- RIGHT: declared blocks (clipped by the slider) -->
+      <!-- The divider. The knob is a slider: drag it, or focus it and use the arrow keys -->
+      <div id="slider-handle" class="cmp-handle" style="left: 50%;">
         <div
-          id="split-overlay"
-          class="absolute inset-0 bg-gradient-to-br from-emerald-950/50 via-[#0B1516] to-[#0A0D18] p-6 sm:p-10 flex flex-col justify-center overflow-hidden"
-          style="clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%);"
+          id="slider-knob"
+          class="cmp-knob"
+          role="slider"
+          tabindex="0"
+          aria-label="Comparison: how much of the free-form builder side is shown"
+          aria-orientation="horizontal"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="50"
+          aria-valuetext="50% free-form builder, 50% declared blocks"
         >
-          <div class="max-w-md ml-auto text-right space-y-4">
-            <h3 class="text-2xl font-black text-emerald-300">
-              Editors change the content, not the design
-            </h3>
-            <ul class="space-y-2 text-xs sm:text-sm text-slate-300 inline-block text-left">
-              <li class="flex items-center gap-2">
-                <span class="text-emerald-400 font-bold" aria-hidden="true">✓</span>
-                <span><strong>Vocabulary in code:</strong> blocks, fields and variants are declared by developers.</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <span class="text-emerald-400 font-bold" aria-hidden="true">✓</span>
-                <span><strong>Double-click and Enter:</strong> the text is saved to the CMS it came from.</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <span class="text-emerald-400 font-bold" aria-hidden="true">✓</span>
-                <span><strong>No free-form CSS:</strong> there is nowhere to type it.</span>
-              </li>
-              <li class="flex items-center gap-2">
-                <span class="text-emerald-400 font-bold" aria-hidden="true">✓</span>
-                <span><strong>AI with your blocks:</strong> a model composes only with what you declared.</span>
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <!-- The divider. The knob is a slider: drag it, or focus it and use the arrow keys -->
-        <div
-          id="slider-handle"
-          class="absolute top-0 bottom-0 w-1 bg-gradient-to-b from-amber-400 via-white to-amber-400 shadow-[0_0_20px_rgba(255,184,0,0.8)] z-30 flex items-center justify-center -translate-x-1/2 pointer-events-none"
-          style="left: 50%;"
-        >
-          <div
-            id="slider-knob"
-            role="slider"
-            tabindex="0"
-            aria-label="Comparison: how much of the free-form builder side is shown"
-            aria-orientation="horizontal"
-            aria-valuemin="0"
-            aria-valuemax="100"
-            aria-valuenow="50"
-            aria-valuetext="50% free-form builder, 50% declared blocks"
-            class="w-9 h-9 rounded-full bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center shadow-2xl border-2 border-white pointer-events-auto cursor-grab active:cursor-grabbing focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-          >
-            <span aria-hidden="true">↔</span>
-          </div>
+          <span aria-hidden="true">↔</span>
         </div>
       </div>
     </div>
   </div>
-</section>
+
+  <div class="creed">
+    <blockquote>
+      <p>The Inti philosophy: powerful like Oxygen, simple like Elementor.</p>
+      <p>
+        Developers define the component vocabulary in TypeScript and Astro code (full control and performance). Editors compose freely with that vocabulary. Because there is no free-form CSS editing, editors cannot break the design or bloat the page.
+      </p>
+    </blockquote>
+    <a href="#features" class="btn">Explore features</a>
+  </div>
+</div>
 
 <script>
   // Split slider: mouse, touch and keyboard

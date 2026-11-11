@@ -30,125 +30,85 @@ const steps = [
     title: 'Clone and build',
     text: 'The packages are built from the repository. You need git and Node 22.12 or later.',
     commands: ['git clone https://github.com/intijs/inti.git', 'cd inti && npm install && npm run build && cd ..'],
-    tone: 'amber',
   },
   {
     n: 2,
     title: 'Scaffold your site',
     text: 'It asks which CMS you use and sets up Astro, the adapter, the actions and a starter block.',
     commands: ['node inti/scripts/scaffold-local.mjs my-site'],
-    tone: 'orange',
   },
   {
     n: 3,
     title: 'Run and edit',
     text: 'Open the page, double-click a text, type and press Enter. With no CMS it saves to a local JSON file.',
     commands: ['cd my-site && npm run dev'],
-    tone: 'rose',
   },
 ];
-
-const tones: Record<string, { border: string; badge: string }> = {
-  amber: { border: 'hover:border-amber-500/40', badge: 'bg-amber-500/20 text-amber-400' },
-  orange: { border: 'hover:border-orange-500/40', badge: 'bg-orange-500/20 text-orange-400' },
-  rose: { border: 'hover:border-rose-500/40', badge: 'bg-rose-500/20 text-rose-400' },
-};
 ---
 
-<section id="quickstart" class="py-20 sm:py-28 relative bg-[#07090E]/90 border-t border-white/10">
-  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-    <!-- Header -->
-    <div class="text-center max-w-3xl mx-auto mb-16">
-      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 text-xs font-semibold mb-4">
-        <span>Not on npm yet: install from git</span>
-      </div>
-      <h2 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight mb-4">
-        Get started today.<br />
-        <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-orange-400 to-rose-400">
-          Three steps from a clone.
-        </span>
-      </h2>
-      <p class="text-slate-300 text-base sm:text-lg">
-        The packages will be published under <code class="font-mono text-amber-300 text-sm">@intijs</code>. Until then the scaffolder runs from a clone of the repository and the project installs the packages from it. Once published, the whole thing is <code class="font-mono text-amber-300 text-sm">npm create inti@latest</code>.
-      </p>
-    </div>
+<section id="quickstart" class="field field--ink">
+  <div class="dome" data-scroll></div>
+  <div class="wrap">
+    <h2 class="h-pair" data-scroll>
+      <span class="h-display drift-l">Get started today.</span>
+      <span class="h-serif drift-r">Three steps from a clone.</span>
+    </h2>
+    <p style="margin-bottom: 1rem"><span class="sim">Not on npm yet: install from git</span></p>
+    <p class="lede">
+      The packages will be published under <code class="kbd-code">@intijs</code>. Until then the scaffolder runs from a clone of the repository and the project installs the packages from it. Once published, the whole thing is <code class="kbd-code">npm create inti@latest</code>.
+    </p>
 
     <!-- Three steps -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
+    <ol class="steps">
       {
-        steps.map((step) => {
-          const { border, badge } = tones[step.tone];
-          return (
-            <div class={`rounded-2xl p-6 bg-[#0D1222] border border-white/10 ${border} transition-all flex flex-col justify-between`}>
-              <div>
-                <div class={`w-10 h-10 rounded-xl ${badge} font-bold font-mono flex items-center justify-center mb-4`}>
-                  {step.n}
-                </div>
-                <h3 class="text-lg font-bold text-white mb-2">{step.title}</h3>
-                <p class="text-slate-400 text-xs leading-relaxed mb-4">{step.text}</p>
-              </div>
-              <div class="space-y-2">
-                {step.commands.map((command) => (
-                  <div class="rounded-lg bg-black/60 border border-white/5 p-3 text-xs font-mono text-amber-300 flex items-center justify-between gap-2">
-                    <span class="break-all">{command}</span>
-                    <button
-                      type="button"
-                      class="copy-btn shrink-0 px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-[11px] font-sans"
-                      data-copy={command}
-                      aria-label={`Copy: ${command}`}
-                    >
-                      Copy
-                    </button>
-                  </div>
-                ))}
-              </div>
+        steps.map((step) => (
+          <li class="step">
+            <div>
+              <b aria-hidden="true">{step.n}</b>
+              <h3>{step.title}</h3>
+              <p>{step.text}</p>
             </div>
-          );
-        })
+            <div>
+              {step.commands.map((command) => (
+                <div class="cmd">
+                  <span>{command}</span>
+                  <button type="button" class="copy-btn" data-copy={command} aria-label={`Copy: ${command}`}>Copy</button>
+                </div>
+              ))}
+            </div>
+          </li>
+        ))
       }
-    </div>
+    </ol>
 
     <!-- Prompt for a coding agent -->
-    <div class="rounded-2xl border border-purple-500/30 bg-[#0D1120] shadow-2xl overflow-hidden mb-16">
-      <div class="px-5 py-4 bg-[#090C17] border-b border-white/10 flex flex-wrap items-center justify-between gap-3">
+    <div class="win prompt">
+      <div class="win-bar">
         <div>
-          <h3 class="text-white font-bold text-base">Prompt for my coding agent</h3>
-          <p class="text-slate-400 text-xs mt-0.5">For Claude Code, Cursor, Codex or any other agent. Paste it as it is.</p>
+          <h3>Prompt for my coding agent</h3>
+          <p>For Claude Code, Cursor, Codex or any other agent. Paste it as it is.</p>
         </div>
-        <button
-          type="button"
-          class="copy-btn px-4 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-semibold hover:brightness-110 active:scale-95 transition-all"
-          data-copy-from="agent-prompt"
-        >
-          Copy prompt
-        </button>
+        <button type="button" class="copy-btn btn" data-copy-from="agent-prompt">Copy prompt</button>
       </div>
-      <pre id="agent-prompt" tabindex="0" class="p-5 text-xs text-slate-200 font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-400">{agentPrompt}</pre>
+      <pre id="agent-prompt" tabindex="0">{agentPrompt}</pre>
     </div>
 
     <!-- What the scaffolder prints (its real prompts) -->
-    <div class="rounded-2xl border border-white/10 bg-black/80 shadow-2xl overflow-hidden font-mono text-xs">
-      <div class="px-4 py-3 bg-[#111625] border-b border-white/10 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <span class="w-3 h-3 rounded-full bg-rose-500/80" aria-hidden="true"></span>
-          <span class="w-3 h-3 rounded-full bg-amber-500/80" aria-hidden="true"></span>
-          <span class="w-3 h-3 rounded-full bg-emerald-500/80" aria-hidden="true"></span>
-          <span class="text-slate-400 ml-2 font-semibold">Terminal</span>
-        </div>
-        <span class="text-slate-500">example session</span>
+    <div class="code term" tabindex="0" role="region" aria-label="Terminal, example session">
+      <div class="code-head">
+        <span>Terminal</span>
+        <span>example session</span>
       </div>
-      <div class="p-6 text-slate-300 space-y-2 leading-relaxed">
-        <p><span class="text-amber-400">$</span> node inti/scripts/scaffold-local.mjs my-site</p>
-        <p class="text-slate-500">Packing the Inti packages into inti/.inti/tarballs…</p>
-        <p class="text-slate-400">◆ Which CMS do you use? <span class="text-cyan-300 font-bold">WordPress</span> <span class="text-slate-500">(REST + ACF Flexible Content)</span></p>
-        <p class="text-slate-400">◆ Install dependencies? <span class="text-emerald-400 font-bold">Yes</span></p>
-        <p class="text-emerald-400">✓ Project created in my-site (WordPress)</p>
-        <br />
-        <p class="text-slate-200 font-bold">Next steps:</p>
-        <p class="text-cyan-400">&nbsp;&nbsp;cd my-site</p>
-        <p class="text-cyan-400">&nbsp;&nbsp;cp .env.example .env    # and fill in your CMS details</p>
-        <p class="text-cyan-400">&nbsp;&nbsp;npm run dev</p>
-      </div>
+      <p><span class="tk-s">$</span> node inti/scripts/scaffold-local.mjs my-site</p>
+      <p class="tk-c">Packing the Inti packages into inti/.inti/tarballs…</p>
+      <p>◆ Which CMS do you use? <strong class="tk-s">WordPress</strong> <span class="tk-c">(REST + ACF Flexible Content)</span></p>
+      <p>◆ Install dependencies? <strong class="tk-s">Yes</strong></p>
+      <p class="tk-k">✓ Project created in my-site (WordPress)</p>
+      <br />
+      <p><strong>Next steps:</strong></p>
+      <p class="tk-s">&nbsp;&nbsp;cd my-site</p>
+      <p class="tk-s">&nbsp;&nbsp;cp .env.example .env    # and fill in your CMS details</p>
+      <p class="tk-s">&nbsp;&nbsp;npm run dev</p>
     </div>
   </div>
 </section>
@@ -156,7 +116,7 @@ const tones: Record<string, { border: string; badge: string }> = {
 <script>
   // Copy buttons: `data-copy` holds the text, `data-copy-from` the id of the element to copy
   document.querySelectorAll<HTMLButtonElement>('.copy-btn').forEach((button) => {
-    const label = button.textContent ?? 'Copy';
+    const label = button.textContent?.trim() || 'Copy';
     button.addEventListener('click', async () => {
       const from = button.dataset.copyFrom;
       const text = from ? document.getElementById(from)?.textContent ?? '' : button.dataset.copy ?? '';

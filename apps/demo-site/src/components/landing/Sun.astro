@@ -1,0 +1,29 @@
+---
+// apps/demo-site/src/components/landing/Sun.astro
+// The sun mark: a disc and a ring of rays. Decorative, so hidden from
+// assistive technology. `spin` turns the rays (paused off-screen and under
+// reduced motion by the stylesheet).
+interface Props {
+  rays?: number;
+  disc?: string;
+  ray?: string;
+  spin?: boolean;
+  class?: string;
+}
+const { rays = 16, disc = 'currentColor', ray = 'currentColor', spin = false, class: className } = Astro.props;
+
+const point = (radius: number, angle: number) =>
+  `${(50 + radius * Math.cos(angle)).toFixed(2)},${(50 + radius * Math.sin(angle)).toFixed(2)}`;
+const half = (Math.PI / rays) * 0.55;
+const polygons = Array.from({ length: rays }, (_, i) => {
+  const angle = (i / rays) * Math.PI * 2;
+  return `${point(33, angle - half)} ${point(49, angle)} ${point(33, angle + half)}`;
+});
+---
+
+<svg viewBox="0 0 100 100" class={className} aria-hidden="true" focusable="false">
+  <g class={spin ? 'spin' : undefined}>
+    {polygons.map((points) => <polygon points={points} fill={ray} />)}
+  </g>
+  <circle cx="50" cy="50" r="27" fill={disc} />
+</svg>

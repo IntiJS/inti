@@ -1,121 +1,67 @@
 ---
 // apps/demo-site/src/components/landing/ArchitectureSection.astro
+// The route of one save, in order. The sun on the line follows the scroll.
+
+const steps = [
+  {
+    title: 'Editor Browser',
+    text: 'Double-click on the Astro-rendered block. The editor sees the final production layout while typing.',
+    note: 'POST /_actions/inti.updateBlockField',
+  },
+  {
+    title: 'Astro Server Action',
+    text: 'Runs strictly on the server. Evaluates the beforeWrite plugin and authenticates the editor.',
+    note: 'Credentials + who may write',
+  },
+  {
+    title: 'WritableAdapter',
+    text: "Translates the mutation into the CMS's native format (ACF array, Kitsuden UUID row, or Dynamic Zone).",
+    note: 'Block normalization',
+  },
+  {
+    title: 'Your Target CMS',
+    text: 'WordPress, Kitsuden, Strapi or Keystatic saves the change where its content already lives.',
+    note: 'Saved as ordinary blocks',
+  },
+];
 ---
 
-<section id="architecture" class="py-20 sm:py-28 relative">
-  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-    <!-- Header -->
-    <div class="text-center max-w-3xl mx-auto mb-16">
-      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold mb-4">
-        <span>Built for Performance &amp; Security</span>
-      </div>
-      <h2 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight mb-4">
-        Clean, secure architecture.<br />
-        <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400">
-          Your credentials never touch the browser.
-        </span>
-      </h2>
-      <p class="text-slate-300 text-base sm:text-lg">
-        Visitors get nothing from the editor, and CMS credentials stay on your server.
-      </p>
-    </div>
+<section id="architecture" class="field field--ink">
+  <div class="dome" data-scroll></div>
+  <div class="wrap">
+    <h2 class="h-pair" data-scroll>
+      <span class="h-display drift-l">Clean, secure architecture.</span>
+      <span class="h-serif drift-r">Your credentials never touch the browser.</span>
+    </h2>
+    <p class="lede">Visitors get nothing from the editor, and CMS credentials stay on your server.</p>
 
-    <!-- Visual Architecture Diagram Card -->
-    <div class="rounded-2xl border border-white/10 bg-[#0A0E1A] p-6 sm:p-10 shadow-2xl relative overflow-hidden">
-      <!-- Glow background -->
-      <div class="absolute -right-20 -bottom-20 w-80 h-80 bg-teal-500/10 rounded-full blur-[80px] pointer-events-none"></div>
+    <ol class="route">
+      <li class="route-line" data-scroll aria-hidden="true"></li>
+      {
+        steps.map((step, index) => (
+          <li class="route-step">
+            <b aria-hidden="true">0{index + 1}</b>
+            <h3>{step.title}</h3>
+            <p>{step.text}</p>
+            <span class="mono">{step.note}</span>
+          </li>
+        ))
+      }
+    </ol>
 
-      <!-- Flowchart Steps -->
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 relative z-10">
-        <!-- Step 1: Client Layer -->
-        <div class="p-5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col justify-between">
-          <div>
-            <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-mono font-bold text-sm mb-3">
-              01
-            </div>
-            <h4 class="text-white font-bold text-base mb-1">Editor Browser</h4>
-            <p class="text-slate-400 text-xs leading-relaxed mb-4">
-              Double-click on the Astro-rendered block. The editor sees the final production layout while typing.
-            </p>
-          </div>
-          <div class="p-2.5 rounded bg-black/40 border border-white/5 font-mono text-[11px] text-amber-300">
-            POST /_actions/inti.updateBlockField
-          </div>
-        </div>
-
-        <!-- Step 2: Astro Server Action -->
-        <div class="p-5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col justify-between">
-          <div>
-            <div class="w-8 h-8 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center font-mono font-bold text-sm mb-3">
-              02
-            </div>
-            <h4 class="text-white font-bold text-base mb-1">Astro Server Action</h4>
-            <p class="text-slate-400 text-xs leading-relaxed mb-4">
-              Runs strictly on the server. Evaluates the <code class="text-teal-300">beforeWrite</code> plugin and authenticates the editor.
-            </p>
-          </div>
-          <div class="p-2.5 rounded bg-black/40 border border-white/5 font-mono text-[11px] text-teal-300">
-            Credentials + who may write
-          </div>
-        </div>
-
-        <!-- Step 3: WritableAdapter Layer -->
-        <div class="p-5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col justify-between">
-          <div>
-            <div class="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center font-mono font-bold text-sm mb-3">
-              03
-            </div>
-            <h4 class="text-white font-bold text-base mb-1">WritableAdapter</h4>
-            <p class="text-slate-400 text-xs leading-relaxed mb-4">
-              Translates the mutation into the CMS's native format (ACF array, Kitsuden UUID row, or Dynamic Zone).
-            </p>
-          </div>
-          <div class="p-2.5 rounded bg-black/40 border border-white/5 font-mono text-[11px] text-sky-300">
-            Block normalization
-          </div>
-        </div>
-
-        <!-- Step 4: External CMS -->
-        <div class="p-5 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col justify-between">
-          <div>
-            <div class="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center font-mono font-bold text-sm mb-3">
-              04
-            </div>
-            <h4 class="text-white font-bold text-base mb-1">Your Target CMS</h4>
-            <p class="text-slate-400 text-xs leading-relaxed mb-4">
-              WordPress, Kitsuden, Strapi or Keystatic saves the change where its content already lives.
-            </p>
-          </div>
-          <div class="p-2.5 rounded bg-black/40 border border-white/5 font-mono text-[11px] text-purple-300">
-            Saved as ordinary blocks
-          </div>
-        </div>
-      </div>
-
-      <!-- Security Principles Strip -->
-      <div class="mt-8 pt-6 border-t border-white/10 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-300">
-        <div class="flex items-start gap-2.5">
-          <span class="text-emerald-400 text-base mt-[-2px]">🛡️</span>
-          <div>
-            <strong class="text-white block mb-0.5">Nothing from the editor for visitors</strong>
-            <span>In production a visitor gets the page with nothing from the editor. CI checks it for Astro 5, 6 and 7.</span>
-          </div>
-        </div>
-        <div class="flex items-start gap-2.5">
-          <span class="text-amber-400 text-base mt-[-2px]">🔒</span>
-          <div>
-            <strong class="text-white block mb-0.5">Isolated Secrets</strong>
-            <span>API tokens and application passwords never leave the server.</span>
-          </div>
-        </div>
-        <div class="flex items-start gap-2.5">
-          <span class="text-sky-400 text-base mt-[-2px]">⚡</span>
-          <div>
-            <strong class="text-white block mb-0.5">Fail-Closed in Production</strong>
-            <span>A write that is not allowed is answered 403 before anything reaches your CMS.</span>
-          </div>
-        </div>
-      </div>
-    </div>
+    <ul class="rules">
+      <li>
+        <strong>Nothing from the editor for visitors</strong>
+        In production a visitor gets the page with nothing from the editor. CI checks it for Astro 5, 6 and 7.
+      </li>
+      <li>
+        <strong>Isolated secrets</strong>
+        API tokens and application passwords never leave the server.
+      </li>
+      <li>
+        <strong>Fail-closed in production</strong>
+        A write that is not allowed is answered 403 before anything reaches your CMS.
+      </li>
+    </ul>
   </div>
 </section>

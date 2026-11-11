@@ -828,6 +828,14 @@ body.lp {
   z-index: 1;
   pointer-events: none;
 }
+/* Beside the second line of the headline, where it never covers a word */
+@media (min-width: 900px) {
+  .hero-sun {
+    top: 22.5vw;
+    right: 1.5vw;
+    width: 13vw;
+  }
+}
 .hero-sun svg {
   width: 100%;
   height: 100%;

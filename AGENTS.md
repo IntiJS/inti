@@ -29,6 +29,8 @@ Do not position Inti as a CMS, a WordPress plugin, a general-purpose generative 
 
 Supports Astro 5, 6 and 7, enforced in CI: for each major, every push installs the full documented setup into a clean project, builds it, serves it with `astro dev` (walking every module the browser loads), and runs the production server to assert what a visitor gets — no JavaScript, nothing from the editor, no hidden blocks. `node scripts/astro-compat.mjs <5|6|7>` runs the same check locally.
 
+Vercel is checked the same way on the three majors (`node scripts/vercel-check.mjs <5|6|7>`): the function `@astrojs/vercel` produces is run on its own, outside the project, so a file it needs and did not ship fails as it would in production. On Vercel the disk is read-only (connect a CMS; the local store says so), in-memory caches are per instance, and `isr` must stay off for pages that show the editor.
+
 The repo itself develops on Astro 5. The adapter of Astro goes by its own major — Astro 5 pairs with `@astrojs/node@9`, 6 with `@10`, 7 with `@11`.
 
 Inti has no database dependency. The local fallback is a JSON file, so nothing here is tied to `@astrojs/db` (which Astro deprecated and removed in v7).
@@ -455,6 +457,7 @@ npm run test:wordpress   # against a real WordPress in Docker
 npm run test:genui       # generation and personalization in a real project
 npm run test:kitsuden    # against a disposable Kitsuden in Docker
 npm run test:cloudflare  # in workerd, with local D1, R2 and Durable Objects
+node scripts/vercel-check.mjs 7      # the function Vercel deploys, on one Astro major (5, 6 or 7)
 ```
 
 Use npm workspace syntax (`npm run build -w @intijs/core`), not pnpm's `--filter`.

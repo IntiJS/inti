@@ -41,8 +41,6 @@ import { initWasm, Resvg } from '@resvg/resvg-wasm';
 import { renderInfographic, resvgRasterizer } from '@intijs/infographic';
 import layoutWasm from 'satori-workers/yoga.wasm';
 import resvgWasm from './resvg.wasm';
-import font400 from './inter-400.woff';
-import font800 from './inter-800.woff';
 
 let ready;
 const setup = () => (ready ??= Promise.all([initLayout(layoutWasm), initWasm(resvgWasm)]));
@@ -57,11 +55,8 @@ export default {
                 format: url.searchParams.get('format') ?? 'blog',
                 output: url.searchParams.get('output') ?? undefined,
                 satori,
-                rasterizer: resvgRasterizer(Resvg),
-                fonts: [
-                    { name: 'Inter', data: font400, weight: 400 },
-                    { name: 'Inter', data: font800, weight: 800 }
-                ]
+                // No fonts: the embedded Inter, as on any platform
+                rasterizer: resvgRasterizer(Resvg)
             });
             return new Response(slides[0].bytes, { headers: { 'content-type': slides[0].contentType } });
         } catch (error) {
@@ -85,7 +80,6 @@ function size(bytes) {
 }
 
 const file = (id) => readFileSync(require.resolve(id));
-const fontFiles = { 400: '@fontsource/inter/files/inter-latin-400-normal.woff', 800: '@fontsource/inter/files/inter-latin-800-normal.woff' };
 
 async function main() {
     const bundle = await build({
@@ -96,7 +90,7 @@ async function main() {
         platform: 'browser',
         conditions: ['workerd', 'worker', 'browser'],
         // Bindings of the Worker, or code that only runs in Node
-        external: ['satori-workers/yoga.wasm', 'harfbuzzjs/hb.wasm', './resvg.wasm', './inter-400.woff', './inter-800.woff', '@resvg/resvg-js', 'node:module', 'node:fs/promises', 'fs', 'path'],
+        external: ['satori-workers/yoga.wasm', 'harfbuzzjs/hb.wasm', './resvg.wasm', '@resvg/resvg-js', 'node:module', 'node:fs/promises', 'fs', 'path'],
         plugins: [
             {
                 // What wrangler's [alias] does in a real project
@@ -119,8 +113,6 @@ async function main() {
             { type: 'CompiledWasm', path: '/satori-workers/yoga.wasm', contents: file('satori-workers/yoga.wasm') },
             { type: 'CompiledWasm', path: '/harfbuzzjs/hb.wasm', contents: readFileSync(join(dirname(require.resolve('harfbuzzjs')), 'hb.wasm')) },
             { type: 'CompiledWasm', path: '/resvg.wasm', contents: file('@resvg/resvg-wasm/index_bg.wasm') },
-            { type: 'Data', path: '/inter-400.woff', contents: file(fontFiles[400]) },
-            { type: 'Data', path: '/inter-800.woff', contents: file(fontFiles[800]) }
         ]
     });
 
@@ -152,8 +144,7 @@ async function main() {
         const { renderInfographic } = await import(pathToFileURL(join(ROOT, 'packages/infographic/dist/index.js')).href);
         // The ESM build: resolving the bare name from here lands on the CommonJS one
         const satori = (await import(pathToFileURL(join(dirname(require.resolve('satori-workers/package.json')), 'dist/index.js')).href)).default;
-        const fonts = Object.entries(fontFiles).map(([weight, id]) => ({ name: 'Inter', data: file(id), weight: Number(weight) }));
-        const { slides } = await renderInfographic(DATA, { format: 'og', output: 'svg', satori, fonts });
+        const { slides } = await renderInfographic(DATA, { format: 'og', output: 'svg', satori });
         report(workerSvg === slides[0].svg, `the Worker draws the same SVG as Node (${(workerSvg.length / 1024).toFixed(0)} KB)`);
 
         console.log(`\nWorker bundle: ${(code.length / 1024).toFixed(0)} KB of JavaScript`);

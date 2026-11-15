@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Vercel, checked like Astro's majors
+
+- **`scripts/vercel-check.mjs <5|6|7>`**, in CI for Astro 5, 6 and 7: the site is built with `@astrojs/vercel` and the function Vercel would upload is run on its own, outside the project, so a file it needs and did not ship fails as in production. It checks pages with no editor markup for visitors, anonymous writes refused, `/api/inti/search` closed, the Kitsuden middleware and page cache, and an infographic rendered to PNG with the network cut.
+- **Infographic fonts were not in the function.** Vercel's tracer ships only files named with a literal path, so the renderer fell back to fetching Inter from Google on every cold start (and failed with no network). Inter (400, 600, 800; Latin and Latin Extended; SIL OFL) is now embedded in `@intijs/infographic`, so the built-in themes render with no disk and no network on any platform, a Worker included. `scripts/embed-inter.mjs` regenerates it.
+- **A read-only disk says so.** On Vercel, Netlify or Lambda the local store and `createFilePatternStore` failed with a bare `EROFS`; they now say the disk is read-only and what to use instead. The local store also returns that as `{ success: false, error }` instead of throwing, as the adapter contract asks.
+- **Deployment guide:** what changes on Vercel (read-only disk, `isr` off for pages with the editor, per-instance caches, no WebSockets, function duration for long carousels).
+
 ### The Kitsuden connector, fixed against a real Kitsuden
 
 Each fix below was reproduced first against a throwaway Kitsuden in Docker; `npm run test:kitsuden` now checks every one of them.

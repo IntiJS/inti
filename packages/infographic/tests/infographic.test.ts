@@ -162,7 +162,7 @@ describe('as images', () => {
         }
     }, 60_000);
 
-    test('without fonts it uses an installed @fontsource package and never touches the network', async () => {
+    test('without fonts the built-in themes use the embedded Inter and never touch the network', async () => {
         const realFetch = globalThis.fetch;
         let fetched = 0;
         globalThis.fetch = (async () => {

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### The Kitsuden connector, fixed against a real Kitsuden
+
+Each fix below was reproduced first against a throwaway Kitsuden in Docker; `npm run test:kitsuden` now checks every one of them.
+
+- **Publishing a draft could leave the public page almost empty.** A 25-block draft took 62 calls; the agent key's quota (60 a minute) cut it halfway, after the old blocks were deleted and before the new ones were shown, and the page was left with 3 of its 25 blocks. Kitsuden builds that declare `page-builder-publish` now publish in one transaction; on the others the adapter shows the new blocks before removing the old ones, and waits on 429s.
+- **An edit could land on another block.** The editor addresses blocks by position; after someone else reordered the page, "block 1" was another block. The editor now sends the id of the block it rendered (`data-inti-block-id`), the actions pass it to adapters as an optional `{ blockId }` and to `beforeWrite` as `ctx.blockId`, and the Kitsuden adapter writes to that block wherever it is, or writes nothing when it is gone. Other adapters are unaffected.
+- **Two fields of one block saved at once kept only one.** With `page-builder-patch` the adapter sends only the edited field (`contentPatch`), merged by Kitsuden.
+- **Valid block types were refused.** `/block-types` listed 12 of the 36+ types Kitsuden accepts, and the adapter refused the rest (`callout`, `richtext`…). The CMS decides now; when it refuses a type, the error names the palette.
+- **Quotas and outages.** A 429 on a write waits Kitsuden's `retry_after` and retries with the same `Idempotency-Key`; every write carries one. A read Kitsuden cannot answer throws `KitsudenUnavailableError` (`status`, `retryAfter`) instead of a generic error. Anonymous reads are revalidated with ETags.
+- **A sitemap's `<lastmod>` ignored block edits:** the page's `updatedAt` is now the latest of the page and its blocks.
+- **Reads per visitor and public media URLs:** `siteKey`, `clientIp` and `siteHeaders` count anonymous reads per visitor; `mediaUrl` keeps the CMS's internal address out of `og:image` and generated blocks; `fetch` is injectable.
+- **New `@intijs/adapter-kitsuden/astro`**, the glue four Kitsuden starters had copied and let drift apart: `kitsudenMiddleware` (editor sessions read without better-auth's 5-minute cookie cache, so a demotion applies at once; no session lookup for images and assets; private editor responses; HTML cache; a stale copy or a 503 when Kitsuden is down), `createPageCache` and `purgeRoute` (a signed Kitsuden webhook empties the cached page), `mediaPresetRoute` / `mediaFileRoute` / `imageSrc` (media from the site's origin, with Range for video), the `data-inti-*` markup helpers, `stripSecretsForBuild` and `kitsudenActions`. `adapter.composerBlockTypes()` builds the editor palette from `/block-types`.
+- **`npm run test:kitsuden`** sets `KITSUDEN_SECRETS_KEY`, without which Kitsuden 0.9 does not start, and adds checks for each fix above; those that need a newer Kitsuden say so and are skipped on older builds.
+
 ### New: `@intijs/infographic`, infographics and dashboards on the page and as images
 
 - **One block, two outputs from the same tree.** On the page, `<Infographic data={Astro.props} />` renders real text and inline SVG that scale with container units and are edited with a double click (`data-inti-field` on titles, labels and texts). As images, `renderInfographic(data, { format })` draws the same layout with Satori and resvg, with no browser.

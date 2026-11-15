@@ -50,6 +50,8 @@ export interface WriteContext {
     documentId: string;
     /** Index of the affected block. -1 = page-level field */
     blockIndex?: number;
+    /** Id of the affected block as the editor rendered it, when it sent one */
+    blockId?: string;
     /** Affected field (dot-path: 'cta.label') */
     field?: string;
     /** New value, in field operations */

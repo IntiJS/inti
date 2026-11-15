@@ -150,11 +150,11 @@ export class BlockComposer {
     // Operations (optimistic where the DOM allows it)
     // ============================================
 
-    private ctx(wrapper: HTMLElement): { documentId: string; index: number } | null {
+    private ctx(wrapper: HTMLElement): { documentId: string; index: number; blockId?: string } | null {
         const documentId = wrapper.dataset.intiDocumentId;
         const index = parseInt(wrapper.dataset.intiBlockIndex ?? '', 10);
         if (!documentId || Number.isNaN(index)) return null;
-        return { documentId, index };
+        return { documentId, index, blockId: wrapper.dataset.intiBlockId || undefined };
     }
 
     private async post(action: string, body: Record<string, any>): Promise<any> {
@@ -184,7 +184,7 @@ export class BlockComposer {
         this.renumber(ctx.documentId);
 
         try {
-            await this.post('removeBlock', { documentId: ctx.documentId, index: ctx.index });
+            await this.post('removeBlock', { documentId: ctx.documentId, index: ctx.index, blockId: ctx.blockId });
             this.toast('Block deleted ✓', 'success');
         } catch (error) {
             // Revert
@@ -199,7 +199,7 @@ export class BlockComposer {
         if (!ctx) return;
 
         try {
-            await this.post('duplicateBlock', { documentId: ctx.documentId, index: ctx.index });
+            await this.post('duplicateBlock', { documentId: ctx.documentId, index: ctx.index, blockId: ctx.blockId });
             this.toast('Block duplicated ✓ — reloading…', 'success');
             setTimeout(() => window.location.reload(), 700);
         } catch (error) {
@@ -448,6 +448,7 @@ export class BlockComposer {
                     await this.post('updateBlock', {
                         documentId: ctx.documentId,
                         blockIndex: ctx.index,
+                        blockId: ctx.blockId,
                         data: patched
                     });
                     this.closeOverlay();

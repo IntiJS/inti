@@ -90,7 +90,7 @@ INTI_WP_APP_PASSWORD=xxxx xxxx xxxx xxxx
 INTI_WP_BLOCKS_FIELD=content_blocks
 ```
 
-For Kitsuden: `INTI_ADAPTER=kitsuden`, `INTI_KITSUDEN_ENDPOINT`, `INTI_KITSUDEN_TOKEN` (an agent key, `kitsuden_agent_…`). For Strapi: `INTI_STRAPI_ENDPOINT`, `INTI_STRAPI_TOKEN`. For Keystatic: `INTI_ADAPTER=keystatic`; in production also `INTI_KEYSTATIC_REPO` and `INTI_KEYSTATIC_TOKEN`, so each edit is a commit. With no `INTI_ADAPTER`, writes go to the local JSON store.
+For Kitsuden: `INTI_ADAPTER=kitsuden`, `INTI_KITSUDEN_ENDPOINT`, `INTI_KITSUDEN_TOKEN` (an agent key, `kitsuden_agent_…`). A Kitsuden site registers `kitsudenMiddleware` from `@intijs/adapter-kitsuden/astro` in `src/middleware.ts`: it is the editor-session plugin, the HTML cache and the 503 page in one. For Strapi: `INTI_STRAPI_ENDPOINT`, `INTI_STRAPI_TOKEN`. For Keystatic: `INTI_ADAPTER=keystatic`; in production also `INTI_KEYSTATIC_REPO` and `INTI_KEYSTATIC_TOKEN`, so each edit is a commit. With no `INTI_ADAPTER`, writes go to the local JSON store.
 
 ## The three mistakes that break a setup
 
@@ -278,6 +278,8 @@ Without that, the original is served unoptimized and Inti says so in dev, naming
 | `Infographic.astro` | `@intijs/infographic/` |
 | `createInfographicRoute` | `@intijs/infographic/route` |
 | `StrapiAdapter` | `@intijs/adapter-strapi` |
+| `KitsudenAdapter`, `KitsudenUnavailableError`, `toComposerBlockTypes` | `@intijs/adapter-kitsuden` |
+| `kitsudenMiddleware`, `createPageCache`, `purgeRoute`, `mediaPresetRoute`, `mediaFileRoute`, `imageSrc`, `blockAttributes`, `currentVisitorIp`, `stripSecretsForBuild` | `@intijs/adapter-kitsuden/astro` |
 
 Do **not** write a local `components/BlockRenderer.astro` — import it from `@intijs/core/astro/`. It takes `blocks` (an array), never a single `block`.
 
@@ -316,14 +318,16 @@ Implement `WritableAdapter` and inline editing works automatically:
 
 ```ts
 import { IntiAdapter } from '@intijs/core/adapters';
-import type { WritableAdapter, WriteResult } from '@intijs/core/adapters';
+import type { BlockWriteOptions, WritableAdapter, WriteResult } from '@intijs/core/adapters';
 
 export class MyAdapter extends IntiAdapter implements WritableAdapter {
   readonly writable = true as const;
 
-  async updateBlockField(documentId, blockIndex, field, value): Promise<WriteResult> {
+  async updateBlockField(documentId, blockIndex, field, value, options?: BlockWriteOptions): Promise<WriteResult> {
     // blockIndex -1 targets a page-level field
     // field supports dot-paths: 'cta.label'
+    // options.blockId: the block's id as rendered (IntiBlock.id). Prefer it to the index when
+    // the CMS can find a block by id: the page may have changed since it loaded
     return { success: true, documentId, value, source: 'my-cms' };
   }
   // optional: updateBlock, moveBlock, insertBlock, insertBlocks, removeBlock, duplicateBlock
@@ -332,6 +336,8 @@ export class MyAdapter extends IntiAdapter implements WritableAdapter {
 ```
 
 Return `{ success: false, error }` rather than throwing — the error text reaches the editor.
+
+The editor sends `blockId` (from `data-inti-block-id`, which `BlockRenderer` writes from `IntiBlock.id`) with every block write; `updateBlock`, `moveBlock`, `removeBlock` and `duplicateBlock` receive it in the same trailing `options`, and `beforeWrite` plugins see it as `ctx.blockId`. It is optional: adapters that ignore it keep working by index.
 
 ## Drafts and undo
 

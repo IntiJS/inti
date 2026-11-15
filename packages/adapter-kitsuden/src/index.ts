@@ -1,5 +1,6 @@
 import { IntiAdapter } from '@intijs/core/adapters';
 import type {
+    BlockWriteOptions,
     EntrySummary,
     FieldType,
     ListableAdapter,
@@ -16,7 +17,7 @@ import type {
 import type { IntiBlock, IntiNavigation, IntiPage } from '@intijs/core/types';
 import type { GeneratorBlockType } from '@intijs/core/plugins';
 
-import { extractKitsudenSeo } from './seo.js';
+import { defaultMediaUrl, extractKitsudenSeo } from './seo.js';
 import type {
     KitsudenBlockRow,
     KitsudenBlockType,
@@ -48,11 +49,13 @@ export type {
     KitsudenVersionResponse,
     MediaPreset
 } from './types.js';
-export { extractKitsudenSeo } from './seo.js';
+export { defaultMediaUrl, extractKitsudenSeo } from './seo.js';
 
 const SOURCE = 'kitsuden';
 const UNSAFE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const PALETTE_TTL_MS = 5 * 60 * 1000;
+/** Anonymous reads remembered with their ETag, to revalidate them */
+const REVALIDATION_ENTRIES = 100;
 
 /** Prefix of a game page's `documentId`: `game:<uuid>` */
 export const GAME_PREFIX = 'game:';
@@ -100,6 +103,41 @@ export const CONTRACT_KON: Record<KitsudenContract, string> = {
     games: 'kon-games',
     'games-editorial': 'kon-games'
 };
+
+/**
+ * Contracts that add a capability on top of `page-builder` v1. The adapter uses each one only
+ * when the API declares it, and otherwise falls back to what v1 offers:
+ *
+ * - `page-builder-publish`: `POST /pages/:id/publish-draft` publishes a draft in one
+ *   transaction. Without it, publishing is a sequence of calls that a quota or a network
+ *   failure can cut halfway.
+ * - `page-builder-patch`: `PATCH /blocks/:id` takes `contentPatch`, so an edit changes one
+ *   field instead of rewriting the whole block (two editors on two fields of one block both
+ *   keep their change).
+ */
+export const OPTIONAL_CONTRACTS = {
+    'page-builder-publish': 1,
+    'page-builder-patch': 1
+} as const satisfies Record<string, number>;
+
+export type KitsudenOptionalContract = keyof typeof OPTIONAL_CONTRACTS;
+
+/**
+ * Kitsuden could not answer a read: rate limited (429), down (5xx) or unreachable. A site
+ * turns it into a 503 with `Retry-After` instead of a 500, and a cache can keep serving
+ * what it had.
+ */
+export class KitsudenUnavailableError extends Error {
+    constructor(
+        message: string,
+        readonly status: number | null,
+        /** Seconds, when the CMS said how long to wait */
+        readonly retryAfter: number | null
+    ) {
+        super(message);
+        this.name = 'KitsudenUnavailableError';
+    }
+}
 
 /** Which contracts each kind of write uses */
 const PAGE_CONTRACTS: KitsudenContract[] = ['page-builder'];
@@ -158,7 +196,11 @@ export class KitsudenAdapter
 {
     readonly writable = true as const;
 
-    protected kitsudenConfig: Required<Omit<KitsudenConfig, 'token'>> & { token?: string };
+    protected kitsudenConfig: Required<Omit<KitsudenConfig, 'token' | 'siteKey' | 'clientIp' | 'mediaUrl' | 'fetch'>> &
+        Pick<KitsudenConfig, 'token' | 'siteKey' | 'clientIp' | 'mediaUrl' | 'fetch'>;
+
+    /** Last answer of each anonymous read, with its ETag, to revalidate instead of re-download */
+    private revalidation = new Map<string, { etag: string; body: unknown }>();
 
     private palette: { types: KitsudenBlockType[]; expiresAt: number } | null = null;
 
@@ -187,6 +229,8 @@ export class KitsudenAdapter
             timeoutMs: 10_000,
             versionPath: '/api/version',
             checkCompatibility: true,
+            siteHeaders: { site: 'x-kitsuden-site', client: 'x-kitsuden-client' },
+            retry: { retries: 3, maxWaitMs: 20_000 },
             // A key present but `undefined` (e.g. `INTI_KITSUDEN_MOUNT_PATH` not set) overrode
             // the default and the first write of a page blew up with "reading 'replace'".
             ...(Object.fromEntries(
@@ -239,12 +283,15 @@ export class KitsudenAdapter
             blocks,
             seo: extractKitsudenSeo(raw, {
                 endpoint: this.kitsudenConfig.endpoint,
-                mediaPreset: this.kitsudenConfig.mediaPreset as MediaPreset
+                mediaPreset: this.kitsudenConfig.mediaPreset as MediaPreset,
+                mediaUrl: this.kitsudenConfig.mediaUrl
             }),
             meta: {
                 contentType: 'page',
                 documentId,
-                updatedAt: raw.updatedAt
+                // The latest of the page and its blocks: Kitsuden builds before the page-builder-publish contract did not touch the
+                // page's `updatedAt` when a block changed, so a sitemap kept an old <lastmod>
+                updatedAt: latest([raw.updatedAt, ...rows.map((row) => row.updatedAt)])
             }
         };
     }
@@ -492,6 +539,15 @@ export class KitsudenAdapter
     }
 
     /**
+     * The composer palette (`<VisualBridgeAuto blockTypes={…} />`) from the CMS's own
+     * `/block-types`, instead of a list written by hand in every site: defaults from each
+     * field's `default`, variants from its `options`. Same cache as `blockTypes()`.
+     */
+    async composerBlockTypes(options: ComposerPaletteOptions = {}): Promise<ComposerPaletteEntry[]> {
+        return toComposerBlockTypes(await this.blockTypes(), options);
+    }
+
+    /**
      * Media as a data source for `@intijs/genui`: a model chooses among these, and an invented
      * id does not pass validation.
      *
@@ -504,16 +560,22 @@ export class KitsudenAdapter
         summary: string;
         value: { id: string; url: string; alt?: string };
     }> {
-        const base = this.kitsudenConfig.endpoint.replace(/\/+$/, '');
         return items.map((item) => ({
             id: item.id,
             summary: item.summary,
             value: {
                 id: item.id,
-                url: `${base}/api/media/preset/${encodeURIComponent(item.id)}/${this.kitsudenConfig.mediaPreset}`,
+                url: this.mediaUrlFor(item.id),
                 alt: item.alt
             }
         }));
+    }
+
+    /** Public URL of a media file at the configured preset (see `mediaUrl`) */
+    mediaUrlFor(id: string, preset: MediaPreset = this.kitsudenConfig.mediaPreset as MediaPreset): string {
+        return this.kitsudenConfig.mediaUrl
+            ? this.kitsudenConfig.mediaUrl(id, preset)
+            : defaultMediaUrl(this.kitsudenConfig.endpoint, id, preset);
     }
 
     // ============================================
@@ -563,10 +625,11 @@ export class KitsudenAdapter
      * Takes the copy to the original page, keeping its id, its slug and whether it is the home
      * page, which an agent cannot change.
      *
-     * The API has no atomic replace: the new blocks are created hidden, and only with all of
-     * them created are the old ones removed. If creation fails it is undone and what is
-     * published has not changed; the copy is not deleted until the end, so any later failure can
-     * be retried.
+     * With the `page-builder-publish` contract, Kitsuden does it in one transaction
+     * (`POST /pages/:id/publish-draft`). Without it, it takes one call per block: the new blocks
+     * are created hidden, then SHOWN, and only then are the old ones removed. A failure halfway
+     * (a quota, the network) leaves some blocks twice for a moment, never a page without them;
+     * the copy is not deleted until the end, so publishing can be retried.
      *
      * The API returns hidden or scheduled blocks to nobody, not even with a token. That is why
      * they cannot be copied or edited from here, and publishing leaves them as they were on the
@@ -591,6 +654,14 @@ export class KitsudenAdapter
                     auth: true
                 });
                 return { success: true, documentId: draftId, slug: copy.slug, source: SOURCE };
+            }
+
+            if (await this.supports('page-builder-publish')) {
+                const published = await this.request<KitsudenPageResponse>(
+                    `/pages/${encodeURIComponent(originalId)}/publish-draft`,
+                    { method: 'POST', body: { draftId: copy.id }, auth: true }
+                );
+                return { success: true, documentId: originalId, slug: published?.slug, source: SOURCE };
             }
 
             const original = await this.fetchPage(originalId, { auth: true });
@@ -620,15 +691,18 @@ export class KitsudenAdapter
             const orders = previous.map((row) => row.sortOrder);
             const highest = Math.max(0, ...orders, ...inserted.map((row) => row.sortOrder));
 
-            for (const row of previous) {
-                await this.request(`/blocks/${encodeURIComponent(row.id)}`, { method: 'DELETE', auth: true });
-            }
+            // Show the new blocks first, then remove the old ones: cut halfway, the page shows
+            // some blocks twice for a moment instead of losing them (with 25 blocks, the old
+            // order left 3 on the published page when the agent quota ran out)
             for (const [i, row] of inserted.entries()) {
                 await this.request(`/blocks/${encodeURIComponent(row.id)}`, {
                     method: 'PATCH',
                     body: { isVisible: true, sortOrder: orders[i] ?? highest + i + 1 },
                     auth: true
                 });
+            }
+            for (const row of previous) {
+                await this.request(`/blocks/${encodeURIComponent(row.id)}`, { method: 'DELETE', auth: true });
             }
 
             await this.request(`/pages/${encodeURIComponent(originalId)}`, {
@@ -688,25 +762,37 @@ export class KitsudenAdapter
         documentId: string,
         blockIndex: number,
         field: string,
-        value: any
+        value: any,
+        options: BlockWriteOptions = {}
     ): Promise<WriteResult> {
         if (isGameDocument(documentId)) {
             return this.updateGameBlockField(documentId, blockIndex, field, value);
         }
         try {
             this.requireCredentials();
+            assertSafePath(field);
 
             const rows = await this.rowsOf(documentId);
-            const row = this.rowAt(rows, blockIndex, documentId);
+            const row = this.blockFor(rows, blockIndex, options.blockId, documentId);
 
-            const content = deepClone(row.content ?? {});
-            setByPath(content, field, value);
+            if (await this.supports('page-builder-patch')) {
+                // Only this field travels, merged by the CMS: another field of the same block
+                // saved at the same moment keeps its change
+                await this.request(`/blocks/${encodeURIComponent(row.id)}`, {
+                    method: 'PATCH',
+                    body: { contentPatch: [{ path: field, value }] },
+                    auth: true
+                });
+            } else {
+                const content = deepClone(row.content ?? {});
+                setByPath(content, field, value);
 
-            await this.request(`/blocks/${encodeURIComponent(row.id)}`, {
-                method: 'PATCH',
-                body: { content },
-                auth: true
-            });
+                await this.request(`/blocks/${encodeURIComponent(row.id)}`, {
+                    method: 'PATCH',
+                    body: { content },
+                    auth: true
+                });
+            }
 
             return { success: true, documentId, value, source: SOURCE };
         } catch (error) {
@@ -717,14 +803,15 @@ export class KitsudenAdapter
     async updateBlock(
         documentId: string,
         blockIndex: number,
-        data: Record<string, any>
+        data: Record<string, any>,
+        options: BlockWriteOptions = {}
     ): Promise<WriteResult> {
         if (isGameDocument(documentId)) return this.updateGameBlock(documentId, blockIndex, data);
         try {
             this.requireCredentials();
 
             const rows = await this.rowsOf(documentId);
-            const row = this.rowAt(rows, blockIndex, documentId);
+            const row = this.blockFor(rows, blockIndex, options.blockId, documentId);
 
             await this.request(`/blocks/${encodeURIComponent(row.id)}`, {
                 method: 'PATCH',
@@ -738,17 +825,23 @@ export class KitsudenAdapter
         }
     }
 
-    async moveBlock(documentId: string, fromIndex: number, toIndex: number): Promise<WriteResult> {
+    async moveBlock(
+        documentId: string,
+        fromIndex: number,
+        toIndex: number,
+        options: BlockWriteOptions = {}
+    ): Promise<WriteResult> {
         if (isGameDocument(documentId)) return this.moveGameBlock(documentId, fromIndex, toIndex);
         try {
             this.requireCredentials();
 
             const rows = await this.rowsOf(documentId);
-            this.rowAt(rows, fromIndex, documentId);
+            // The block the editor dragged, wherever it is now
+            const from = rows.indexOf(this.blockFor(rows, fromIndex, options.blockId, documentId));
             this.rowAt(rows, toIndex, documentId);
 
             const ids = rows.map((row) => row.id);
-            const [moved] = ids.splice(fromIndex, 1);
+            const [moved] = ids.splice(from, 1);
             ids.splice(toIndex, 0, moved);
 
             await this.writeOrder(
@@ -772,7 +865,6 @@ export class KitsudenAdapter
         if (isGameDocument(documentId)) return this.rejectGameInsert(documentId, 'insertBlock');
         try {
             this.requireCredentials();
-            await this.requireKnownType(nativeType);
 
             const rows = await this.rowsOf(documentId);
             const created = await this.createBlock(documentId, nativeType, data);
@@ -809,7 +901,6 @@ export class KitsudenAdapter
 
         try {
             this.requireCredentials();
-            for (const block of newBlocks) await this.requireKnownType(block.nativeType);
 
             const rows = await this.rowsOf(documentId);
 
@@ -831,13 +922,13 @@ export class KitsudenAdapter
         }
     }
 
-    async removeBlock(documentId: string, index: number): Promise<WriteResult> {
+    async removeBlock(documentId: string, index: number, options: BlockWriteOptions = {}): Promise<WriteResult> {
         if (isGameDocument(documentId)) return this.hideGameBlock(documentId, index);
         try {
             this.requireCredentials();
 
             const rows = await this.rowsOf(documentId);
-            const row = this.rowAt(rows, index, documentId);
+            const row = this.blockFor(rows, index, options.blockId, documentId);
 
             await this.request(`/blocks/${encodeURIComponent(row.id)}`, {
                 method: 'DELETE',
@@ -854,20 +945,20 @@ export class KitsudenAdapter
      * The copy is made by the CMS (`POST /blocks/:id/duplicate`), which leaves it at the end of
      * the page. Inti expects it right behind the original, so it is reordered afterwards.
      */
-    async duplicateBlock(documentId: string, index: number): Promise<WriteResult> {
+    async duplicateBlock(documentId: string, index: number, options: BlockWriteOptions = {}): Promise<WriteResult> {
         if (isGameDocument(documentId)) return this.rejectGameInsert(documentId, 'duplicateBlock');
         try {
             this.requireCredentials();
 
             const rows = await this.rowsOf(documentId);
-            const row = this.rowAt(rows, index, documentId);
+            const row = this.blockFor(rows, index, options.blockId, documentId);
 
             const copy = await this.request<KitsudenBlockRow>(
                 `/blocks/${encodeURIComponent(row.id)}/duplicate`,
                 { method: 'POST', auth: true }
             );
 
-            await this.place(documentId, rows, [copy], index + 1);
+            await this.place(documentId, rows, [copy], rows.indexOf(row) + 1);
 
             return { success: true, documentId, value: { id: copy.id }, source: SOURCE };
         } catch (error) {
@@ -1075,11 +1166,11 @@ export class KitsudenAdapter
     // ============================================
 
     /**
-     * ALWAYS re-read by uuid, never by slug.
+     * Re-read by uuid, with credentials, before every write.
      *
-     * The server caches `GET /pages/:id` for 120 s under the key that was requested, and
-     * invalidates `page:<uuid>:*` on writes. A read by slug can keep serving the previous order,
-     * and writing against that order moves the wrong block.
+     * By uuid because the id is what a write is about and a slug can move to another page; with
+     * credentials because without them a draft does not exist for the API. Never the order of
+     * the request that rendered the page: someone may have changed it since.
      */
     private async rowsOf(documentId: string): Promise<KitsudenBlockRow[]> {
         // Every page write starts here: it is the place of the contract check (after validating
@@ -1091,6 +1182,27 @@ export class KitsudenAdapter
             throw new Error(`Page ${documentId} came back without blocks (include_blocks=false?)`);
         }
         return sortRows(page.blocks);
+    }
+
+    /**
+     * The row a write is about. With `blockId` (the id the editor rendered) the block is found
+     * by id, so a write never lands on another block when the page changed since it loaded;
+     * when that block is gone, nothing is written. Without it, by position, as before.
+     */
+    private blockFor(
+        rows: KitsudenBlockRow[],
+        index: number,
+        blockId: string | undefined,
+        documentId: string
+    ): KitsudenBlockRow {
+        if (!blockId) return this.rowAt(rows, index, documentId);
+        const row = rows.find((candidate) => candidate.id === blockId);
+        if (!row) {
+            throw new Error(
+                `Block ${blockId} is no longer on page ${documentId}: it was removed or hidden after this page loaded. Reload the page; nothing was written.`
+            );
+        }
+        return row;
     }
 
     private rowAt(rows: KitsudenBlockRow[], index: number, documentId: string): KitsudenBlockRow {
@@ -1107,11 +1219,29 @@ export class KitsudenAdapter
         nativeType: string,
         data: Record<string, any>
     ): Promise<KitsudenBlockRow> {
-        return this.request<KitsudenBlockRow>(`/pages/${encodeURIComponent(documentId)}/blocks`, {
-            method: 'POST',
-            body: { type: nativeType, content: data ?? {} },
-            auth: true
-        });
+        try {
+            return await this.request<KitsudenBlockRow>(`/pages/${encodeURIComponent(documentId)}/blocks`, {
+                method: 'POST',
+                body: { type: nativeType, content: data ?? {} },
+                auth: true
+            });
+        } catch (error) {
+            throw await this.explainType(nativeType, error);
+        }
+    }
+
+    /**
+     * `/block-types` used to list a dozen of the types Kitsuden accepts, so the adapter no longer
+     * refuses a type it does not see there: the CMS decides. When the CMS refuses one that is
+     * also missing from the palette, that is said, instead of a bare status code.
+     */
+    private async explainType(nativeType: string, error: unknown): Promise<unknown> {
+        const types = await this.blockTypes().catch(() => [] as KitsudenBlockType[]);
+        if (types.length === 0 || types.some((type) => type.type === nativeType)) return error;
+        const detail = error instanceof Error ? error.message : String(error);
+        return new Error(
+            `Block type "${nativeType}" is not in this CMS palette (${types.map((t) => t.type).join(', ')}) and the CMS refused it: ${detail}`
+        );
     }
 
     /**
@@ -1180,16 +1310,6 @@ export class KitsudenAdapter
      * A type outside the palette is saved as an invalid enum value: the API answers 500 and the
      * editor only sees "something failed". It is checked beforehand.
      */
-    private async requireKnownType(nativeType: string): Promise<void> {
-        const types = await this.blockTypes();
-        if (types.length === 0) return; // without a palette nothing can be asserted
-        if (types.some((type) => type.type === nativeType)) return;
-
-        throw new Error(
-            `Block type "${nativeType}" is not in this CMS palette (${types.map((t) => t.type).join(', ')})`
-        );
-    }
-
     // ============================================
     // Compatibility (lazy, on the first write)
     // ============================================
@@ -1261,6 +1381,17 @@ export class KitsudenAdapter
         await this.checkCompatibility(contracts);
     }
 
+    /**
+     * Does this Kitsuden declare an optional contract (see `OPTIONAL_CONTRACTS`)? It reuses the
+     * `GET /api/version` every write already made for its compatibility check, without asking
+     * again. When the version is not known (the check failed or is turned off) the answer is no:
+     * the adapter falls back to `page-builder` v1.
+     */
+    async supports(contract: KitsudenOptionalContract): Promise<boolean> {
+        const api = this.apiVersion ? await this.apiVersion.catch(() => null) : null;
+        return (api?.contracts?.[contract] ?? 0) >= OPTIONAL_CONTRACTS[contract];
+    }
+
     /** `null` = the route does not exist; throws if it could not be known */
     private async fetchVersion(): Promise<KitsudenVersionResponse | null> {
         const base = this.kitsudenConfig.endpoint.replace(/\/+$/, '');
@@ -1269,7 +1400,7 @@ export class KitsudenAdapter
         const timer = setTimeout(() => abort.abort(), this.kitsudenConfig.timeoutMs);
 
         try {
-            const response = await fetch(`${base}${path}`, {
+            const response = await (this.kitsudenConfig.fetch ?? fetch)(`${base}${path}`, {
                 headers: { Accept: 'application/json' },
                 signal: abort.signal
             });
@@ -1348,37 +1479,92 @@ export class KitsudenAdapter
             if (value !== undefined) url.searchParams.set(key, String(value));
         }
 
+        const method = options.method ?? 'GET';
         const headers: Record<string, string> = { Accept: 'application/json' };
         if (options.body !== undefined) headers['Content-Type'] = 'application/json';
         if (options.auth && this.kitsudenConfig.token) {
             headers['Authorization'] = `Bearer ${this.kitsudenConfig.token}`;
+        } else if (this.kitsudenConfig.siteKey) {
+            // Anonymous reads of a site are counted per visitor, not all in the server's bucket
+            const names = this.kitsudenConfig.siteHeaders;
+            headers[names.site] = this.kitsudenConfig.siteKey;
+            const ip = this.kitsudenConfig.clientIp?.();
+            if (ip) headers[names.client] = ip;
         }
+        // One key per logical write, kept across its retries: the CMS replays the first answer
+        // instead of applying the write twice
+        if (method !== 'GET') headers['Idempotency-Key'] = randomId();
 
-        const abort = new AbortController();
-        const timer = setTimeout(() => abort.abort(), this.kitsudenConfig.timeoutMs);
+        // Anonymous reads are revalidated with the ETag of the last answer (Kitsuden builds with page-builder-publish send it)
+        const cacheKey = method === 'GET' && !options.auth ? url.toString() : null;
+        const cached = cacheKey ? this.revalidation.get(cacheKey) : undefined;
+        if (cached) headers['If-None-Match'] = cached.etag;
 
-        try {
-            const response = await fetch(url.toString(), {
-                method: options.method ?? 'GET',
-                headers,
-                body: options.body === undefined ? undefined : JSON.stringify(options.body),
-                signal: abort.signal
-            });
+        const fetchImpl = this.kitsudenConfig.fetch ?? fetch;
+        const { retries = 3, maxWaitMs = 20_000 } = this.kitsudenConfig.retry;
 
-            if (!response.ok) {
-                // The error body carries the real reason ("Page not found", "Block not found",
-                // the hint of a 422); without it only a number is left.
-                const detail = await response.text().catch(() => '');
-                throw new Error(
-                    `${options.method ?? 'GET'} ${url.pathname} → ${response.status}` +
-                        (detail ? `: ${detail.slice(0, 300)}` : '')
-                );
+        for (let attempt = 0; ; attempt++) {
+            const abort = new AbortController();
+            const timer = setTimeout(() => abort.abort(), this.kitsudenConfig.timeoutMs);
+            try {
+                let response: Response;
+                try {
+                    response = await fetchImpl(url.toString(), {
+                        method,
+                        headers,
+                        body: options.body === undefined ? undefined : JSON.stringify(options.body),
+                        signal: abort.signal
+                    });
+                } catch (error) {
+                    const reason = error instanceof Error ? error.message : String(error);
+                    if (method === 'GET') throw new KitsudenUnavailableError(`GET ${url.pathname}: ${reason}`, null, null);
+                    throw error;
+                }
+
+                if (response.status === 304 && cached) return cached.body as T;
+
+                if (!response.ok) {
+                    // The error body carries the real reason ("Page not found", "Block not found",
+                    // the hint of a 422); without it only a number is left.
+                    const detail = await response.text().catch(() => '');
+                    const retryAfter = retryAfterSeconds(response, detail);
+
+                    // A quota on the agent key: wait what the CMS says and try again. Only for
+                    // authenticated calls (writes and the reads that prepare them); a page being
+                    // rendered does not wait on a quota.
+                    if (response.status === 429 && options.auth && attempt < retries) {
+                        const wait = Math.max(250, (retryAfter ?? 2 ** attempt) * 1000);
+                        if (wait <= maxWaitMs) {
+                            await new Promise((resolve) => setTimeout(resolve, wait));
+                            continue;
+                        }
+                    }
+
+                    const message = `${method} ${url.pathname} → ${response.status}` + (detail ? `: ${detail.slice(0, 300)}` : '');
+                    if (method === 'GET' && (response.status === 429 || response.status >= 500)) {
+                        throw new KitsudenUnavailableError(message, response.status, retryAfter);
+                    }
+                    throw new Error(message);
+                }
+
+                if (response.status === 204) return undefined as T;
+                const body = (await response.json()) as T;
+
+                if (cacheKey) {
+                    const etag = response.headers.get('etag');
+                    this.revalidation.delete(cacheKey);
+                    if (etag) {
+                        this.revalidation.set(cacheKey, { etag, body });
+                        // Bounded: the oldest answers go first
+                        if (this.revalidation.size > REVALIDATION_ENTRIES) {
+                            this.revalidation.delete(this.revalidation.keys().next().value as string);
+                        }
+                    }
+                }
+                return body;
+            } finally {
+                clearTimeout(timer);
             }
-
-            if (response.status === 204) return undefined as T;
-            return (await response.json()) as T;
-        } finally {
-            clearTimeout(timer);
         }
     }
 }
@@ -1388,6 +1574,46 @@ export default KitsudenAdapter;
 // ============================================
 // Utilities
 // ============================================
+
+/** Seconds to wait, from `Retry-After` or Kitsuden's `retry_after` in the body */
+function retryAfterSeconds(response: Response, body: string): number | null {
+    const raw = response.headers.get('retry-after');
+    // Number(null) is 0: an absent header must not read as "retry now"
+    const header = raw === null || raw.trim() === '' ? NaN : Number(raw);
+    if (Number.isFinite(header) && header >= 0) return header;
+    try {
+        const parsed = JSON.parse(body) as { retry_after?: unknown; retryAfter?: unknown };
+        const value = Number(parsed.retry_after ?? parsed.retryAfter);
+        return Number.isFinite(value) && value >= 0 ? value : null;
+    } catch {
+        return null;
+    }
+}
+
+function randomId(): string {
+    return globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+/** Same rule as the core's actions: a dot-path is never allowed to reach the prototype */
+function assertSafePath(path: string): void {
+    const parts = path.split('.');
+    if (parts.length === 0 || parts.some((part) => part === '')) throw new Error(`Invalid field path: "${path}"`);
+    for (const part of parts) {
+        if (UNSAFE_KEYS.has(part)) throw new Error(`Unsafe field path segment: ${part}`);
+    }
+}
+
+/** The most recent of several ISO dates; undefined when none parses */
+function latest(dates: Array<string | null | undefined>): string | undefined {
+    let best: { time: number; iso: string } | undefined;
+    for (const iso of dates) {
+        if (!iso) continue;
+        const time = Date.parse(iso);
+        if (Number.isNaN(time)) continue;
+        if (!best || time > best.time) best = { time, iso };
+    }
+    return best?.iso;
+}
 
 function deepClone<T>(value: T): T {
     return JSON.parse(JSON.stringify(value)) as T;
@@ -1595,6 +1821,70 @@ function generatorField(
         default:
             return null;
     }
+}
+
+/** An entry of the editor's composer palette, the shape `VisualBridgeAuto` takes */
+export interface ComposerPaletteEntry {
+    nativeType: string;
+    label: string;
+    description?: string;
+    defaults: Record<string, unknown>;
+    variants?: Record<string, string[]>;
+}
+
+export interface ComposerPaletteOptions {
+    /** Only these types, in this order (default: every type the CMS describes) */
+    only?: string[];
+    /** Labels that override the CMS names */
+    labels?: Record<string, string>;
+    /**
+     * Keep types the CMS lists without a field schema (`described: false`). Default: false,
+     * since inserting one gives an empty block the site may not know how to render.
+     */
+    includeUndescribed?: boolean;
+}
+
+/**
+ * `/block-types` as the composer palette. A field with `default` seeds the new block; a
+ * string field with `options` becomes a variant the settings panel offers as a select.
+ */
+export function toComposerBlockTypes(types: KitsudenBlockType[], options: ComposerPaletteOptions = {}): ComposerPaletteEntry[] {
+    const byType = new Map(types.map((type) => [type.type, type]));
+    const chosen = options.only
+        ? options.only.map((name) => byType.get(name)).filter((type): type is KitsudenBlockType => Boolean(type))
+        : types.filter((type) => options.includeUndescribed || ((type as { described?: boolean }).described !== false && Object.keys(type.schema ?? {}).length > 0));
+
+    return chosen.map((type) => {
+        const defaults: Record<string, unknown> = {};
+        const variants: Record<string, string[]> = {};
+        for (const [name, field] of Object.entries(type.schema ?? {})) {
+            const value = defaultOf(field);
+            if (value !== undefined) defaults[name] = value;
+            const choices = (field.options ?? []).filter((option): option is string => typeof option === 'string');
+            if (choices.length > 1) variants[name] = choices;
+        }
+        return {
+            nativeType: type.type,
+            label: options.labels?.[type.type] ?? type.name ?? type.type,
+            ...(type.description ? { description: type.description } : {}),
+            defaults,
+            ...(Object.keys(variants).length ? { variants } : {})
+        };
+    });
+}
+
+/** A field's default, building objects from their properties' defaults */
+function defaultOf(field: KitsudenSchemaField): unknown {
+    if (field.default !== undefined) return structuredClone(field.default);
+    if (field.type === 'object' && field.properties) {
+        const value: Record<string, unknown> = {};
+        for (const [name, child] of Object.entries(field.properties)) {
+            const inner = defaultOf(child);
+            if (inner !== undefined) value[name] = inner;
+        }
+        return Object.keys(value).length ? value : undefined;
+    }
+    return undefined;
 }
 
 function toPascal(text: string): string {

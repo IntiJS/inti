@@ -41,6 +41,8 @@ services:
       STORAGE_LOCAL_PATH: /app/data
       STORAGE_LOCAL_URL: /media
       BETTER_AUTH_SECRET: inti-check-only-inti-check-only-inti-check-only
+      # Kitsuden 0.9 refuses to start without its own key for stored secrets
+      KITSUDEN_SECRETS_KEY: 0000000000000000000000000000000000000000000000000000000000000000
       BETTER_AUTH_URL: http://127.0.0.1:43490
       ADMIN_URL: http://127.0.0.1:43491
       APP_URL: http://127.0.0.1:43491

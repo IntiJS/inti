@@ -314,16 +314,27 @@ describe('KitsudenAdapter.insertBlock', () => {
         expect(reordered()).toBeUndefined();
     });
 
-    test('a type outside the palette is rejected before creating anything', async () => {
-        // Saving it would return 500 for an invalid enum and the editor would only see
-        // "something went wrong".
-        mockNormal();
+    test('a type the CMS accepts is inserted even when /block-types does not list it', async () => {
+        // Kitsuden's /block-types listed 12 of the 36+ types it accepts: refusing the rest
+        // blocked valid inserts such as `callout`
+        mockNormal((url, init) => (init?.method === 'POST' && url.endsWith('/blocks') ? { body: { id: 'new', sortOrder: 10, type: 'callout' } } : undefined));
+
+        const result = await createAdapter().insertBlock(PAGE_ID, 3, 'callout', { text: 'Hi' });
+
+        expect(result.success).toBe(true);
+        expect(writes()[0].body).toEqual({ type: 'callout', content: { text: 'Hi' } });
+    });
+
+    test('a type the CMS refuses fails with a reason that names the palette', async () => {
+        mockNormal((url, init) => (init?.method === 'POST' && url.endsWith('/blocks') ? { status: 500, body: { error: 'invalid enum' } } : undefined));
 
         const result = await createAdapter().insertBlock(PAGE_ID, 0, 'made-up');
 
         expect(result.success).toBe(false);
         expect(result.error).toMatch(/not in this CMS palette/);
-        expect(writes()).toHaveLength(0);
+        expect(result.error).toMatch(/invalid enum/);
+        // Nothing was created, so nothing was reordered
+        expect(reordered()).toBeUndefined();
     });
 });
 

@@ -7,6 +7,13 @@ export interface SeoContext {
     endpoint: string;
     /** kon-media preset the social image is served with */
     mediaPreset: MediaPreset;
+    /** Public URL of a media file; default: the CMS's own preset route on `endpoint` */
+    mediaUrl?: (id: string, preset: MediaPreset) => string;
+}
+
+/** `<endpoint>/api/media/preset/:id/:preset`: the CMS's own route for a media preset */
+export function defaultMediaUrl(endpoint: string, id: string, preset: MediaPreset): string {
+    return `${endpoint.replace(/\/+$/, '')}/api/media/preset/${encodeURIComponent(id)}/${preset}`;
 }
 
 /**
@@ -27,8 +34,7 @@ export function extractKitsudenSeo(page: KitsudenPageResponse, ctx: SeoContext):
 
     const ogImageId = trimmed(page.ogImageId);
     if (ogImageId) {
-        const base = ctx.endpoint.replace(/\/+$/, '');
-        seo.image = `${base}/api/media/preset/${encodeURIComponent(ogImageId)}/${ctx.mediaPreset}`;
+        seo.image = ctx.mediaUrl ? ctx.mediaUrl(ogImageId, ctx.mediaPreset) : defaultMediaUrl(ctx.endpoint, ogImageId, ctx.mediaPreset);
     }
 
     /**

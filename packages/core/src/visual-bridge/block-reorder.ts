@@ -156,7 +156,7 @@ export class BlockReorder {
             const response = await fetch(this.actionPath, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ documentId, fromIndex, toIndex })
+                body: JSON.stringify({ documentId, fromIndex, toIndex, blockId: dragged.dataset.intiBlockId || undefined })
             });
 
             if (!response.ok) {

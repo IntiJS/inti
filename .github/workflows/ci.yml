@@ -40,6 +40,9 @@ jobs:
       - name: Build Cloudflare
         run: npm run build:cloudflare
 
+      - name: Build infographic
+        run: npm run build:infographic
+
       - name: Build CLI
         run: npm run build:cli
 

@@ -1,0 +1,64 @@
+---
+title: Infographics and dashboards
+description: One CMS block, on the page as real text and as images for Instagram, TikTok and the blog
+---
+
+`@intijs/infographic` turns a block of numbers into a data infographic or a dashboard. The same block renders on the page, as text and inline SVG that scale to any width and are edited with a double click, and as images sized for each platform. The page and the image are built from the same tree, so they never disagree.
+
+The infographic is drawn from code, not by an image model: the text and the figures are exact, the brand is consistent, and each image costs milliseconds.
+
+## Formats
+
+| Format | Size | File |
+|---|---|---|
+| `instagram-portrait` | 1080×1350 | JPEG |
+| `instagram-square` | 1080×1080 | JPEG |
+| `instagram-story` | 1080×1920, top and bottom 250 px left clear | JPEG |
+| `tiktok` | 1080×1920, clear of the caption, the buttons and the tabs | JPEG |
+| `blog` | 1600×900, two columns | PNG |
+| `og` | 1200×630, one image | PNG |
+
+Instagram's publishing API only accepts JPEG. What does not fit continues on the next image of a carousel; fitting is measured with the real fonts.
+
+## The block
+
+```astro
+---
+// src/blocks/infographic.astro
+import Infographic from '@intijs/infographic/Infographic.astro';
+---
+<Infographic data={Astro.props} format="blog" />
+```
+
+The block holds a header (`eyebrow`, `title`, `subtitle`), a footer (`source`, `date`, `footnote`) and `sections`, each one of: `kpis`, `stat`, `bar`, `column`, `line`, `area`, `donut`, `share`, `waffle`, `progress`, `gauge`, `funnel`, `heatmap`, `table`, `comparison`, `timeline`, `steps`, `text`. Tables can be typed or pasted into a text field, one row per line. The [package README](https://github.com/intijs/inti/blob/main/packages/infographic/README.md) lists what each kind takes.
+
+## Images
+
+```ts
+import { renderInfographic } from '@intijs/infographic';
+
+const { slides } = await renderInfographic(block.data, { format: 'tiktok' });
+// [{ bytes, contentType: 'image/jpeg', width, height, alt }]
+```
+
+Rendering to PNG or JPEG needs `@resvg/resvg-js`. Each image comes with alt text written from its numbers.
+
+## For n8n and other automations
+
+```ts
+// src/pages/infographics/[...path].ts
+import { createInfographicRoute } from '@intijs/infographic/route';
+import { readPage } from '../../lib/cms';
+
+export const GET = createInfographicRoute({ readPage, blockTypes: ['infographic'] });
+```
+
+`/infographics/<slug>/<block>.json?format=instagram-portrait` lists the images to post, with their URLs and alt text; each URL returns the JPEG. The route renders only the block types you list, from the published page, and returns 404 for a block hidden by scheduled visibility. Results are cached and carry an `ETag`.
+
+## With AI
+
+`infographicVocabulary({ datasets: 'metrics' })` declares the block for [generative UI](/guides/generative-ui/). With `datasets`, every number comes from a data source by id, so a figure cannot come from the model; pass the same tables to the renderer as `datasets` to draw what the CMS stored.
+
+## Colour
+
+Themes are declared by the developer (`light`, `dark`, `sun`, or `defineTheme`); a block picks one by name and cannot pass a colour. Series colours follow a fixed order that keeps neighbours apart for colour-vision deficiencies, and good or bad always comes with an arrow and a sign.

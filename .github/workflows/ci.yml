@@ -64,6 +64,10 @@ jobs:
       - name: Run tests
         run: bun test packages/
 
+      # Infographics in workerd (Miniflare): the WebAssembly setup a Worker needs
+      - name: Infographic in a Worker
+        run: npm run test:infographic-worker
+
   # Core's `peerDependencies` promises Astro 5, 6 and 7. That promise
   # was verified only once by hand, so it could break without anyone
   # noticing. Here the packages are packed with `npm pack` and installed

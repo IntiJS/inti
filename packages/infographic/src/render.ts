@@ -8,6 +8,7 @@
 
 import satori from 'satori';
 import { isRecord, normalizeInfographic, type Infographic } from './data.js';
+import { isWoff2, woffToSfnt } from './fonts.js';
 import { resolveFormat, type FormatId, type InfographicFormat } from './formats.js';
 import { buildPage, buildWeb, altText, paginate, type LayoutOptions } from './layout.js';
 import { resolveTheme, type InfographicTheme } from './themes.js';
@@ -20,6 +21,9 @@ export interface FontInput {
     weight?: 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900;
     style?: 'normal' | 'italic';
 }
+
+/** What renderInfographic needs from Satori: element tree and options in, SVG out */
+export type SatoriLike = (node: never, options: never) => Promise<string>;
 
 /** Turns SVG into RGBA pixels and PNG bytes */
 export type Rasterizer = (svg: string, options: { width: number }) => Promise<{ png: Uint8Array; pixels: Uint8Array; width: number; height: number }>;
@@ -34,10 +38,17 @@ export interface RenderOptions {
     themes?: InfographicTheme[];
     locale?: string;
     /**
-     * TTF, OTF or WOFF (not WOFF2). Default: the theme's font from Google Fonts, fetched
-     * once per process. Pass your own for offline builds or another typeface.
+     * TTF, OTF or WOFF (not WOFF2). Default: the theme's font from an installed
+     * `@fontsource/<family>` package (offline), else from Google Fonts, fetched once per
+     * process.
      */
     fonts?: FontInput[];
+    /**
+     * The layout engine. Default: `satori`. In a Worker, where WebAssembly cannot be
+     * compiled from bytes at runtime, pass the standalone build after `init(yogaWasm)`:
+     * `import satori, { init } from 'satori/standalone'`.
+     */
+    satori?: SatoriLike;
     /** Default: `@resvg/resvg-js` (Node). In a Worker, `resvgRasterizer(Resvg)` from `@resvg/resvg-wasm` */
     rasterizer?: Rasterizer;
     /** Overrides the format's default */
@@ -108,9 +119,65 @@ export function loadGoogleFont(family: string, weights: FontInput['weight'][] = 
     return cached;
 }
 
+/**
+ * A family installed from Fontsource (`npm install @fontsource/inter`): WOFF files on
+ * disk, so nothing is downloaded. Latin and Latin Extended, which cover the accents of
+ * Spanish, Portuguese, French or German. Node only; resolves to `null` elsewhere or when
+ * the package is not installed.
+ */
+export async function loadFontsource(family: string, weights: FontInput['weight'][] = [400, 600, 800]): Promise<FontInput[] | null> {
+    const slug = family.toLowerCase().replace(/\s+/g, '-');
+    const key = `fontsource:${slug}:${weights.join(',')}`;
+    const cached = fontCache.get(key);
+    if (cached) return cached;
+    try {
+        const [{ createRequire }, { readFile }] = await Promise.all([import('node:module'), import('node:fs/promises')]);
+        const require = createRequire(import.meta.url);
+        const fonts: FontInput[] = [];
+        for (const weight of weights) {
+            for (const subset of ['latin', 'latin-ext']) {
+                let path: string;
+                try {
+                    path = require.resolve(`@fontsource/${slug}/files/${slug}-${subset}-${weight}-normal.woff`);
+                } catch {
+                    continue;
+                }
+                fonts.push({ name: family, data: await readFile(path), weight, style: 'normal' });
+            }
+        }
+        if (!fonts.length) return null;
+        const loaded = Promise.resolve(fonts);
+        fontCache.set(key, loaded);
+        return loaded;
+    } catch {
+        return null;
+    }
+}
+
+/** Your fonts, else an installed Fontsource package, else Google Fonts once per process */
+const unwrapped = new WeakMap<object, Promise<FontInput>>();
+
+/**
+ * WOFF is unwrapped to TTF/OTF once per font object, so every Satori build can shape it.
+ * WOFF2 is refused with a clear message instead of rendering "NO GLYPH" boxes.
+ */
+function prepareFont(font: FontInput): Promise<FontInput> {
+    let pending = unwrapped.get(font);
+    if (!pending) {
+        pending = (async () => {
+            const data = font.data instanceof Uint8Array ? font.data : new Uint8Array(font.data);
+            if (isWoff2(data)) throw new Error(`Font "${font.name}" is WOFF2, which the renderer cannot read: pass TTF, OTF or WOFF.`);
+            const sfnt = await woffToSfnt(data);
+            return sfnt === data ? font : { ...font, data: sfnt };
+        })();
+        unwrapped.set(font, pending);
+    }
+    return pending;
+}
+
 async function fontsFor(options: RenderOptions, theme: InfographicTheme): Promise<FontInput[]> {
-    if (options.fonts?.length) return options.fonts;
-    return loadGoogleFont(theme.fontFamily);
+    const fonts = options.fonts?.length ? options.fonts : ((await loadFontsource(theme.fontFamily)) ?? (await loadGoogleFont(theme.fontFamily)));
+    return Promise.all(fonts.map(prepareFont));
 }
 
 // ============================================
@@ -141,9 +208,21 @@ function defaultRasterizer(): Promise<Rasterizer> {
     return nodeRasterizer;
 }
 
+type JpegEncode = (image: { data: Uint8Array; width: number; height: number }, quality: number) => { data: Uint8Array };
+
 async function encodeJpeg(pixels: Uint8Array, width: number, height: number, quality: number): Promise<Uint8Array> {
-    const { encode } = (await import('jpeg-js')) as unknown as { encode(image: { data: Uint8Array; width: number; height: number }, quality: number): { data: Uint8Array } };
-    return new Uint8Array(encode({ data: pixels, width, height }, quality).data);
+    const mod = (await import('jpeg-js')) as unknown as { encode?: JpegEncode; default?: { encode: JpegEncode } };
+    const encode = mod.encode ?? mod.default!.encode;
+    // jpeg-js ends with `Buffer.from(bytes)`. A Worker without `nodejs_compat` has no
+    // Buffer: lend it a byte array for the duration of the call, then take it back.
+    const globals = globalThis as { Buffer?: unknown };
+    const lent = globals.Buffer === undefined;
+    if (lent) globals.Buffer = { from: (bytes: ArrayLike<number>) => Uint8Array.from(bytes) };
+    try {
+        return new Uint8Array(encode({ data: pixels, width, height }, quality).data);
+    } finally {
+        if (lent) delete globals.Buffer;
+    }
 }
 
 // ============================================
@@ -180,9 +259,9 @@ function svgHeight(svg: string): number {
     return Number(svg.match(/^<svg[^>]*\sheight="([\d.]+)"/)?.[1] ?? 0);
 }
 
-async function measurer(fonts: FontInput[]) {
+async function measurer(fonts: FontInput[], engine: SatoriLike) {
     return async (node: VNode, width: number) => {
-        const svg = await satori(forImage(node) as never, { width, fonts: fonts as never });
+        const svg = await engine(forImage(node) as never, { width, fonts } as never);
         return svgHeight(svg);
     };
 }
@@ -191,7 +270,7 @@ async function measurer(fonts: FontInput[]) {
 export async function planInfographic(data: unknown, options: RenderOptions = {}): Promise<{ format: InfographicFormat; slides: { index: number; alt: string }[]; warnings: string[] }> {
     const { format, infographic, warnings, theme, layout } = prepare(data, options);
     const fonts = await fontsFor(options, theme);
-    const result = await paginate(infographic, layout, await measurer(fonts));
+    const result = await paginate(infographic, layout, await measurer(fonts, options.satori ?? (satori as SatoriLike)));
     return {
         format,
         slides: result.pages.map((_, index) => ({ index, alt: altText(buildPage(infographic, layout, result.pages, index)) })),
@@ -206,7 +285,7 @@ export async function planInfographic(data: unknown, options: RenderOptions = {}
 export async function renderInfographic(data: unknown, options: RenderOptions & { slide?: number } = {}): Promise<RenderResult> {
     const { format, infographic, warnings, theme, layout } = prepare(data, options);
     const fonts = await fontsFor(options, theme);
-    const { pages, warnings: layoutWarnings } = await paginate(infographic, layout, await measurer(fonts));
+    const { pages, warnings: layoutWarnings } = await paginate(infographic, layout, await measurer(fonts, options.satori ?? (satori as SatoriLike)));
     const output = options.output ?? format.output;
     const quality = Math.max(1, Math.min(100, Math.round(options.quality ?? 90)));
     const rasterizer = output === 'svg' ? null : options.rasterizer ?? (await defaultRasterizer());
@@ -215,7 +294,7 @@ export async function renderInfographic(data: unknown, options: RenderOptions & 
     const slides: RenderedSlide[] = [];
     for (const index of indexes) {
         const node = buildPage(infographic, layout, pages, index);
-        const svg = await satori(forImage(node) as never, { width: format.width, height: format.height, fonts: fonts as never });
+        const svg = await (options.satori ?? (satori as SatoriLike))(forImage(node) as never, { width: format.width, height: format.height, fonts } as never);
         const base = { index, total: pages.length, width: format.width, height: format.height, svg, alt: altText(node) };
         if (!rasterizer) {
             slides.push({ ...base, contentType: 'image/svg+xml', bytes: new TextEncoder().encode(svg) });

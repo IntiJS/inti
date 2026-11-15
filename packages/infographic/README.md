@@ -83,7 +83,7 @@ const { slides, warnings } = await renderInfographic(block.data, { format: 'inst
 What does not fit continues on the next image. Fitting is measured with the real fonts, not guessed. A chart that fits on an image of its own is never split; a long table, list or bar chart continues across images with the same scale, and steps keep their numbering. More images than the platform takes are dropped with a warning.
 
 - `planInfographic(data, options)` says how many images a format needs and their alt text, without rendering pixels.
-- `fonts`: TTF, OTF or WOFF (not WOFF2). Without it, the theme's font (Inter) is fetched once from Google Fonts. For offline builds, pass the files, for example from `@fontsource/inter`.
+- `fonts`: TTF, OTF or WOFF (not WOFF2). Without it, see [Fonts](#fonts): an installed `@fontsource/inter` works offline.
 - `rasterizer`: rendering to PNG or JPEG needs `@resvg/resvg-js` installed (an optional peer dependency). `output: 'svg'` needs nothing.
 - `imageOrigins`: a `logo` is drawn only from these origins or as a `data:` image. Nothing else is fetched.
 
@@ -132,7 +132,62 @@ What the CMS stores for a data field is the id. Give the renderer the same table
 
 ## Runtimes
 
-Tested in Node. In a Worker, Satori and resvg need their WebAssembly builds (`resvgRasterizer` from `@resvg/resvg-wasm` after `initWasm()`); that setup is not covered by this repository's tests yet. `renderInfographicHtml` and the Astro component have no runtime requirement.
+**Node** (and Bun): nothing to set up beyond `@resvg/resvg-js`.
+
+**Cloudflare Workers**: a Worker can neither fetch nor compile WebAssembly at runtime; every engine has to arrive as a module compiled at deploy time. Satori shapes text with HarfBuzz, and only up to Satori 0.35.0 does HarfBuzz come as a separate package (`harfbuzzjs`) that can be swapped for one that takes a compiled module; later versions embed it. Satori 0.35.0 is also past the SVG escaping fix (GHSA-wx4j-mvgx-mqwp, fixed in 0.33.5). Install it under another name, with the WebAssembly build of resvg:
+
+```bash
+npm install satori-workers@npm:satori@0.35.0 @resvg/resvg-wasm
+```
+
+```toml
+# wrangler.toml: the package's own `satori` import, and Satori's HarfBuzz
+[alias]
+"satori" = "satori-workers/standalone"
+"harfbuzzjs" = "@intijs/infographic/workers/harfbuzz"
+```
+
+```ts
+import satori, { init } from 'satori-workers/standalone';
+import { initWasm, Resvg } from '@resvg/resvg-wasm';
+import { renderInfographic, resvgRasterizer } from '@intijs/infographic';
+import yoga from 'satori-workers/yoga.wasm';
+import resvg from '@resvg/resvg-wasm/index_bg.wasm';
+import inter400 from '@fontsource/inter/files/inter-latin-400-normal.woff';
+import inter800 from '@fontsource/inter/files/inter-latin-800-normal.woff';
+
+const fonts = [
+  { name: 'Inter', data: inter400, weight: 400 },
+  { name: 'Inter', data: inter800, weight: 800 }
+];
+let ready: Promise<unknown> | undefined;
+
+export default {
+  async fetch(request: Request) {
+    await (ready ??= Promise.all([init(yoga), initWasm(resvg)]));
+    const { slides } = await renderInfographic(data, { format: 'instagram-portrait', satori, rasterizer: resvgRasterizer(Resvg), fonts });
+    return new Response(slides[0].bytes, { headers: { 'content-type': slides[0].contentType } });
+  }
+};
+```
+
+Import the fonts as data modules (a `[[rules]]` entry of type `Data` for `**/*.woff`): there is no disk, and fetching them on every cold start is slow. WOFF is unwrapped to TrueType before shaping, because HarfBuzz cannot read it; WOFF2 is refused. `npm run test:infographic-worker` runs this setup in workerd, without `nodejs_compat`, and checks that the Worker draws byte for byte the SVG Node draws with the same Satori.
+
+`renderInfographicHtml` and the Astro component have no runtime requirement.
+
+## Fonts
+
+Without `fonts`, the renderer uses an installed `@fontsource/<family>` package for the theme's font (`npm install @fontsource/inter` for the built-in themes), reading its Latin and Latin Extended files from disk. Only when that package is missing does it fetch the font from Google Fonts, once per process. `loadFontsource(family)` and `loadGoogleFont(family)` are exported if you want to load them yourself.
+
+## Security note: `fflate`
+
+Satori pins `fflate@0.7.3`, which has an advisory (GHSA-px8p-9vwx-vf98) in `unzipSync` with ZIP64 archives. Satori only calls `inflateSync`, to read WOFF fonts, so the vulnerable path is not reached. To clear the audit warning, override it in your project:
+
+```json
+{ "overrides": { "fflate": "^0.8.3" } }
+```
+
+This repository does the same, and its tests run against the overridden version.
 
 ## License
 

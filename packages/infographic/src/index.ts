@@ -1,5 +1,6 @@
-export { renderInfographic, renderInfographicHtml, planInfographic, loadGoogleFont, resvgRasterizer, resolveDatasets } from './render.js';
-export type { RenderOptions, RenderResult, RenderedSlide, FontInput, Rasterizer } from './render.js';
+export { renderInfographic, renderInfographicHtml, planInfographic, loadGoogleFont, loadFontsource, resvgRasterizer, resolveDatasets } from './render.js';
+export type { RenderOptions, RenderResult, RenderedSlide, FontInput, Rasterizer, SatoriLike } from './render.js';
+export { woffToSfnt } from './fonts.js';
 export { FORMATS, defineFormat, resolveFormat, contentBox } from './formats.js';
 export type { InfographicFormat, FormatId, TypeScale, Insets } from './formats.js';
 export { THEMES, defineTheme, resolveTheme } from './themes.js';

@@ -41,7 +41,7 @@ const { slides } = await renderInfographic(block.data, { format: 'tiktok' });
 // [{ bytes, contentType: 'image/jpeg', width, height, alt }]
 ```
 
-Rendering to PNG or JPEG needs `@resvg/resvg-js`. Each image comes with alt text written from its numbers.
+Rendering to PNG or JPEG needs `@resvg/resvg-js`; install `@fontsource/inter` to render offline. Each image comes with alt text written from its numbers. In a Cloudflare Worker both engines are passed in as WebAssembly modules: the [package README](https://github.com/intijs/inti/blob/main/packages/infographic/README.md#runtimes) has the setup, which CI runs in workerd.
 
 ## For n8n and other automations
 

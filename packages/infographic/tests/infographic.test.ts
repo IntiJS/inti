@@ -162,6 +162,60 @@ describe('as images', () => {
         }
     }, 60_000);
 
+    test('without fonts it uses an installed @fontsource package and never touches the network', async () => {
+        const realFetch = globalThis.fetch;
+        let fetched = 0;
+        globalThis.fetch = (async () => {
+            fetched++;
+            throw new Error('offline');
+        }) as unknown as typeof fetch;
+        try {
+            const { slides } = await renderInfographic(small, { format: 'og' });
+            expect(size(slides[0].bytes)).toEqual({ type: 'png', width: 1200, height: 630 });
+            expect(fetched).toBe(0);
+        } finally {
+            globalThis.fetch = realFetch;
+        }
+    }, 30_000);
+
+    test('WOFF is unwrapped to the font it carries; WOFF2 is refused with a reason', async () => {
+        const { woffToSfnt } = await import('../src/fonts.js');
+        const woff = new Uint8Array(fonts[0].data as Uint8Array);
+        const sfnt = await woffToSfnt(woff);
+        const view = new DataView(sfnt.buffer, sfnt.byteOffset);
+        expect([0x00010000, 0x4f54544f]).toContain(view.getUint32(0));
+        expect(view.getUint16(4)).toBe(new DataView(woff.buffer, woff.byteOffset).getUint16(12));
+        // Anything that is not WOFF comes back untouched
+        expect(await woffToSfnt(sfnt)).toBe(sfnt);
+
+        const woff2 = Uint8Array.from([0x77, 0x4f, 0x46, 0x32, 0, 0, 0, 0]);
+        await expect(renderInfographic(small, { format: 'og', output: 'svg', fonts: [{ name: 'X', data: woff2 }] })).rejects.toThrow(/WOFF2/);
+    }, 30_000);
+
+    test('a Satori that shapes with HarfBuzz draws real glyphs from WOFF files', async () => {
+        // satori 0.35 is the build a Worker uses; it hands fonts to HarfBuzz, which cannot read WOFF
+        const satori35 = (await import('satori-workers')).default;
+        const { slides } = await renderInfographic(small, { format: 'og', output: 'svg', fonts, satori: satori35 as never });
+        const { slides: reference } = await renderInfographic(small, { format: 'og', output: 'svg', fonts });
+        // Text becomes paths. "NO GLYPH" boxes draw about 1.75 times the path data of the real
+        // letters, so the drawing has to stay close to the one the default Satori makes
+        const pathData = (svg: string) => [...svg.matchAll(/ d="([^"]+)"/g)].reduce((sum, m) => sum + m[1].length, 0);
+        const ratio = pathData(slides[0].svg) / pathData(reference[0].svg);
+        expect(ratio).toBeGreaterThan(0.85);
+        expect(ratio).toBeLessThan(1.15);
+    }, 30_000);
+
+    test('the layout engine can be injected, as a Worker needs', async () => {
+        const satori = (await import('satori')).default;
+        let calls = 0;
+        const engine = (async (node: never, options: never) => {
+            calls++;
+            return satori(node, options);
+        }) as never;
+        await renderInfographic(small, { format: 'og', fonts, satori: engine, output: 'svg' });
+        expect(calls).toBeGreaterThan(1);
+    }, 30_000);
+
     test('TikTok keeps content out of the area its interface covers', () => {
         const box = contentBox(FORMATS.tiktok);
         expect(box.y).toBeGreaterThanOrEqual(FORMATS.tiktok.safe.top);

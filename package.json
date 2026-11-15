@@ -45,6 +45,7 @@
     "test:genui": "node scripts/genui-check.mjs",
     "test:kitsuden": "node scripts/kitsuden-check.mjs",
     "test:cloudflare": "node scripts/cloudflare-check.mjs",
+    "test:infographic-worker": "node scripts/infographic-worker-check.mjs",
     "clean": "rm -rf node_modules packages/*/node_modules apps/*/node_modules"
   },
   "engines": {
@@ -54,5 +55,8 @@
   "devDependencies": {
     "concurrently": "^9.2.1",
     "typescript": "^5.7.3"
+  },
+  "overrides": {
+    "fflate": "^0.8.3"
   }
 }

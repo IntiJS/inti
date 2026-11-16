@@ -277,6 +277,7 @@ export class InlineEditor {
     private async commit(el: HTMLElement, wrapper: HTMLElement, original: string, value: string): Promise<void> {
         const documentId = wrapper.dataset.intiDocumentId;
         const blockIndex = parseInt(wrapper.dataset.intiBlockIndex ?? '', 10);
+        const blockId = wrapper.dataset.intiBlockId || undefined;
         const field = el.dataset.intiField;
 
         if (!documentId || Number.isNaN(blockIndex) || !field) {
@@ -291,7 +292,7 @@ export class InlineEditor {
             const response = await fetch(this.config.actionPath, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ documentId, blockIndex, field, value })
+                body: JSON.stringify({ documentId, blockIndex, blockId, field, value })
             });
 
             if (!response.ok) {
@@ -300,7 +301,7 @@ export class InlineEditor {
             }
 
             result.success = true;
-            this.history.record({ documentId, blockIndex, field, previous: original, value, target: el });
+            this.history.record({ documentId, blockIndex, blockId, field, previous: original, value, target: el });
             this.flash(el, 'rgba(34, 197, 94, 0.7)');
             this.toast('Saved ✓', 'success', { label: 'Undo', run: () => void this.undo() });
         } catch (error) {
@@ -325,6 +326,7 @@ export class InlineEditor {
             body: JSON.stringify({
                 documentId: edit.documentId,
                 blockIndex: edit.blockIndex,
+                blockId: edit.blockId,
                 field: edit.field,
                 value
             })
@@ -502,6 +504,7 @@ export class InlineEditor {
 
         const documentId = wrapper.dataset.intiDocumentId;
         const blockIndex = parseInt(wrapper.dataset.intiBlockIndex ?? '', 10);
+        const blockId = wrapper.dataset.intiBlockId || undefined;
         const field = el.dataset.intiField;
 
         if (!documentId || Number.isNaN(blockIndex) || !field) {
@@ -518,7 +521,7 @@ export class InlineEditor {
             const response = await fetch(this.config.actionPath, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ documentId, blockIndex, field, value })
+                body: JSON.stringify({ documentId, blockIndex, blockId, field, value })
             });
 
             if (!response.ok) {

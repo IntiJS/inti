@@ -169,6 +169,38 @@ export interface KitsudenConfig {
      * not reachable from the Astro server and compatibility was verified by hand.
      */
     checkCompatibility?: boolean;
+    /**
+     * The site's key (Kitsuden's `SITE_API_KEY`). With it, anonymous reads are counted per
+     * visitor instead of all sharing the server's rate-limit bucket. Server-only.
+     */
+    siteKey?: string;
+    /**
+     * The visitor's IP for the current request, sent with `siteKey` so Kitsuden counts each
+     * visitor apart. Called on every read; `@intijs/adapter-kitsuden/astro` wires it to the
+     * request being rendered.
+     */
+    clientIp?: () => string | undefined;
+    /**
+     * Header names for `siteKey` and `clientIp`. Default: `x-kitsuden-site` and
+     * `x-kitsuden-client`. Kitsuden builds that still use the Spanish names expect
+     * `x-kitsuden-sitio` and `x-kitsuden-cliente`.
+     */
+    siteHeaders?: { site: string; client: string };
+    /**
+     * URL of a media file at a preset. Default: the CMS's own
+     * `<endpoint>/api/media/preset/:id/:preset`. When the endpoint is an internal address, or
+     * the site proxies media (`/img/:id/:preset`), return the public URL here: it is what
+     * ends up in `og:image` and in the generated blocks.
+     */
+    mediaUrl?: (id: string, preset: MediaPreset) => string;
+    /**
+     * Retries of a write the CMS answered with 429 (its per-key quota), waiting what its
+     * `retry_after` says up to `maxWaitMs` each time. Default: 3 retries, 20 s. Reads are not
+     * retried: a page being rendered should not wait on a quota.
+     */
+    retry?: { retries?: number; maxWaitMs?: number };
+    /** `fetch` to use (tests, proxies, a Worker binding). Default: the global one */
+    fetch?: typeof fetch;
 }
 
 /**

@@ -163,6 +163,13 @@ interface ActionContext {
     cookies?: unknown;
 }
 
+/**
+ * The id of the block the editor rendered (`data-inti-block-id`). Optional: adapters that
+ * can address a block by id use it so a write never lands on another block when the page
+ * changed since it loaded (see `BlockWriteOptions`).
+ */
+const blockId = z.string().min(1).max(200).optional();
+
 export const intiActions = {
   /**
    * Inline-editing write-back: updates one field of a block
@@ -175,6 +182,7 @@ export const intiActions = {
     input: z.object({
       documentId: z.string(),
       blockIndex: z.number().int(),
+      blockId,
       // A dot-path with these keys would pollute Object.prototype in any adapter
       field: z.string().min(1).refine((field) => !/(^|\.)(__proto__|constructor|prototype)(\.|$)/.test(field), 'Invalid field path'),
       value: z.any()
@@ -186,6 +194,7 @@ export const intiActions = {
           operation: 'updateBlockField',
           documentId: input.documentId,
           blockIndex: input.blockIndex,
+          blockId: input.blockId,
           field: input.field,
           value: input.value,
           request: context.request,
@@ -193,7 +202,7 @@ export const intiActions = {
         },
         async () => {
           const adapter = await requireAdapter();
-          return adapter.updateBlockField(input.documentId, input.blockIndex, input.field, input.value);
+          return adapter.updateBlockField(input.documentId, input.blockIndex, input.field, input.value, { blockId: input.blockId });
         },
         'Write-back failed'
       );
@@ -207,7 +216,9 @@ export const intiActions = {
     input: z.object({
       documentId: z.string(),
       fromIndex: z.number().int().min(0),
-      toIndex: z.number().int().min(0)
+      toIndex: z.number().int().min(0),
+      /** The block being moved */
+      blockId
     }),
     handler: async (input, context: ActionContext = {}): Promise<WriteResult> => {
       return guardedWrite(
@@ -217,6 +228,7 @@ export const intiActions = {
           fromIndex: input.fromIndex,
           toIndex: input.toIndex,
           blockIndex: input.fromIndex,
+          blockId: input.blockId,
           request: context.request,
           cookies: context.cookies
         },
@@ -225,7 +237,7 @@ export const intiActions = {
           if (!adapter.moveBlock) {
             throw new Error(`The "${adapter.name}" adapter does not support this operation.`);
           }
-          return adapter.moveBlock(input.documentId, input.fromIndex, input.toIndex);
+          return adapter.moveBlock(input.documentId, input.fromIndex, input.toIndex, { blockId: input.blockId });
         },
         'Move failed'
       );
@@ -335,7 +347,8 @@ export const intiActions = {
   removeBlock: defineAction({
     input: z.object({
       documentId: z.string(),
-      index: z.number().int().min(0)
+      index: z.number().int().min(0),
+      blockId
     }),
     handler: async (input, context: ActionContext = {}): Promise<WriteResult> => {
       return guardedWrite(
@@ -343,6 +356,7 @@ export const intiActions = {
           operation: 'removeBlock',
           documentId: input.documentId,
           blockIndex: input.index,
+          blockId: input.blockId,
           request: context.request,
           cookies: context.cookies
         },
@@ -351,7 +365,7 @@ export const intiActions = {
           if (!adapter.removeBlock) {
             throw new Error(`The "${adapter.name}" adapter does not support this operation.`);
           }
-          return adapter.removeBlock(input.documentId, input.index);
+          return adapter.removeBlock(input.documentId, input.index, { blockId: input.blockId });
         },
         'Remove failed'
       );
@@ -364,7 +378,8 @@ export const intiActions = {
   duplicateBlock: defineAction({
     input: z.object({
       documentId: z.string(),
-      index: z.number().int().min(0)
+      index: z.number().int().min(0),
+      blockId
     }),
     handler: async (input, context: ActionContext = {}): Promise<WriteResult> => {
       return guardedWrite(
@@ -372,6 +387,7 @@ export const intiActions = {
           operation: 'duplicateBlock',
           documentId: input.documentId,
           blockIndex: input.index,
+          blockId: input.blockId,
           request: context.request,
           cookies: context.cookies
         },
@@ -380,7 +396,7 @@ export const intiActions = {
           if (!adapter.duplicateBlock) {
             throw new Error(`The "${adapter.name}" adapter does not support this operation.`);
           }
-          return adapter.duplicateBlock(input.documentId, input.index);
+          return adapter.duplicateBlock(input.documentId, input.index, { blockId: input.blockId });
         },
         'Duplicate failed'
       );
@@ -394,6 +410,7 @@ export const intiActions = {
     input: z.object({
       documentId: z.string(),
       blockIndex: z.number().int().min(0),
+      blockId,
       data: z.record(z.string(), z.any())
     }),
     handler: async (input, context: ActionContext = {}): Promise<WriteResult> => {
@@ -402,6 +419,7 @@ export const intiActions = {
           operation: 'updateBlock',
           documentId: input.documentId,
           blockIndex: input.blockIndex,
+          blockId: input.blockId,
           data: input.data,
           request: context.request,
           cookies: context.cookies
@@ -411,7 +429,7 @@ export const intiActions = {
           if (!adapter.updateBlock) {
             throw new Error(`The "${adapter.name}" adapter does not support this operation.`);
           }
-          return adapter.updateBlock(input.documentId, input.blockIndex, input.data);
+          return adapter.updateBlock(input.documentId, input.blockIndex, input.data, { blockId: input.blockId });
         },
         'Update failed'
       );

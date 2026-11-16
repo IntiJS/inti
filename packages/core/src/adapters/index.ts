@@ -62,6 +62,20 @@ export interface WriteResult {
 }
 
 /**
+ * What the editor knows about the block it is writing to, besides its position.
+ *
+ * The editor addresses blocks by index: the position it rendered. If someone else moved,
+ * added or removed a block since the page loaded, that index points at another block.
+ * `blockId` is the block's id as the adapter returned it (`IntiBlock.id`, rendered as
+ * `data-inti-block-id`): an adapter that can find a block by id uses it to write to the
+ * right one, or to refuse instead of writing to the wrong one. Adapters that ignore it
+ * keep working by index.
+ */
+export interface BlockWriteOptions {
+    blockId?: string;
+}
+
+/**
  * Write contract for adapters that support write-back.
  *
  * An adapter that implements it enables inline editing from
@@ -79,18 +93,18 @@ export interface WritableAdapter {
      * @param field - Field name (supports dot-path: 'cta.label')
      * @param value - New value
      */
-    updateBlockField(documentId: string, blockIndex: number, field: string, value: any): Promise<WriteResult>;
+    updateBlockField(documentId: string, blockIndex: number, field: string, value: any, options?: BlockWriteOptions): Promise<WriteResult>;
 
     /**
      * Replaces the whole data of a block (optional)
      */
-    updateBlock?(documentId: string, blockIndex: number, data: Record<string, any>): Promise<WriteResult>;
+    updateBlock?(documentId: string, blockIndex: number, data: Record<string, any>, options?: BlockWriteOptions): Promise<WriteResult>;
 
     /**
      * Moves a block from one position to another (optional).
      * Enables block drag & drop with write-back.
      */
-    moveBlock?(documentId: string, fromIndex: number, toIndex: number): Promise<WriteResult>;
+    moveBlock?(documentId: string, fromIndex: number, toIndex: number, options?: BlockWriteOptions): Promise<WriteResult>;
 
     /**
      * Inserts a new block at the given position (optional).
@@ -119,10 +133,10 @@ export interface WritableAdapter {
     ): Promise<WriteResult>;
 
     /** Removes the block at the given position (optional) */
-    removeBlock?(documentId: string, index: number): Promise<WriteResult>;
+    removeBlock?(documentId: string, index: number, options?: BlockWriteOptions): Promise<WriteResult>;
 
     /** Duplicates the block at the given position, inserting it right after (optional) */
-    duplicateBlock?(documentId: string, index: number): Promise<WriteResult>;
+    duplicateBlock?(documentId: string, index: number, options?: BlockWriteOptions): Promise<WriteResult>;
 }
 
 /**

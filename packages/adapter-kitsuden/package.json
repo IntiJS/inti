@@ -20,6 +20,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./astro": {
+      "import": "./dist/astro/index.js",
+      "types": "./dist/astro/index.d.ts"
     }
   },
   "files": [

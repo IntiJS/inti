@@ -135,6 +135,53 @@ Kitsuden rows carry `isVisible`, `visibleFrom` and `visibleUntil`. The adapter p
 For the sitemap, `listPages()` returns the CMS's real slug and `updatedAt`,
 so `<lastmod>` is no longer made up.
 
+## In an Astro site: `@intijs/adapter-kitsuden/astro`
+
+What every Kitsuden site used to copy, in one place:
+
+```ts
+// src/middleware.ts
+import { kitsudenMiddleware, createPageCache } from '@intijs/adapter-kitsuden/astro';
+
+export const cache = createPageCache({ ttlSeconds: 60 });
+export const onRequest = kitsudenMiddleware({
+  api: process.env.KITSUDEN_API_URL!,   // as the server reaches it; may be internal
+  trustProxy: process.env.KITSUDEN_TRUST_PROXY === 'true',
+  cache
+});
+```
+
+The middleware registers the editor plugin (a better-auth session with role `admin` or
+`editor`, read without the 5-minute cookie cache, and every anonymous write refused); marks
+an editor's response `private, no-store`; serves anonymous visitors from the HTML cache; and
+when Kitsuden cannot answer serves a stale copy or a 503 with `Retry-After`. Images, assets and
+the media proxy never trigger a session lookup.
+
+```ts
+// The adapter, once per server
+import { KitsudenAdapter } from '@intijs/adapter-kitsuden';
+import { currentVisitorIp, sameOriginMediaUrl } from '@intijs/adapter-kitsuden/astro';
+
+export const adapter = new KitsudenAdapter({
+  endpoint: process.env.KITSUDEN_API_URL!,
+  siteKey: process.env.KITSUDEN_SITE_KEY,     // reads counted per visitor
+  clientIp: currentVisitorIp,                 // set by the middleware for each request
+  mediaUrl: sameOriginMediaUrl('https://www.example.com')
+});
+```
+
+| Piece | For |
+|---|---|
+| `mediaPresetRoute(api)`, `mediaFileRoute(api)` | `src/pages/img/[id]/[preset].ts` and `src/pages/media/[...key].ts`: media from the site's origin (the API sends `Cross-Origin-Resource-Policy: same-origin`), Range passed through for video, no SVG |
+| `imageSrc(value, preset)` | Any image reference in a block as something the browser can load, or null |
+| `purgeRoute(cache, secret)` | `src/pages/api/kitsuden/purge.ts`: a Kitsuden action's outbound webhook on `page:updated` / `page:deleted` (Kitsuden builds that declare `page-builder-publish`), verified with `X-Kitsuden-Signature`, empties the cached page |
+| `blockAttributes`, `fieldAttributes`, `blockJson`, `markupFor` | The `data-inti-*` markup, block id included, for sites that render blocks themselves; nothing for visitors |
+| `adapter.composerBlockTypes()` | The composer palette from `/block-types`: defaults and variants from the schema |
+| `stripSecretsForBuild()` | At the top of `astro.config.mjs`: removes the agent and site keys from `astro build` |
+| `kitsudenActions()` | Mounts `/_actions/*` without a `src/actions/index.ts`, when Inti is optional |
+
+Drafts use the core's `readDraftPage`: `const page = (await readDraftPage(slug, Astro)) ?? (await adapter.getPage(slug))`.
+
 ## Structure of a page in Kitsuden
 
 Unlike a CMS with a *dynamic zone*, blocks are **not** an array
@@ -189,7 +236,8 @@ block's `data`.
 
 | Inti operation | Kitsuden endpoint |
 |---|---|
-| `updateBlockField` / `updateBlock` | `PATCH /blocks/:id` |
+| `updateBlockField` | `PATCH /blocks/:id` with `contentPatch` (only that field) when Kitsuden declares `page-builder-patch`; otherwise with the whole `content` |
+| `updateBlock` | `PATCH /blocks/:id` |
 | `insertBlock` | `POST /pages/:pageId/blocks` (+ reorder) |
 | `moveBlock` | `POST /pages/:pageId/blocks/reorder` |
 | `duplicateBlock` | `POST /blocks/:id/duplicate` (+ reorder) |
@@ -202,15 +250,16 @@ Kitsuden only understands uuids. The adapter **re-reads the page on every write*
 to translate one into the other, instead of trusting the order of the previous
 read.
 
-There are two reasons, and both matter:
+`GET /pages/:id` **hides** invisible blocks and scheduled blocks outside their
+window, so the array Inti indexes is the one that was rendered — which is what makes
+the position mean something. The re-read is by uuid, with credentials: the id is what
+the write is about, and without credentials a draft does not exist for the API.
 
-1. `GET /pages/:id` **hides** invisible blocks and scheduled blocks outside their
-   window. The array Inti indexes is exactly the one that was rendered — which is
-   what makes the position mean something.
-2. The read is always by uuid, never by slug: the server caches the
-   response for 120 s under the key that was requested, but on write it invalidates by
-   uuid. Re-reading by slug could return the previous order, and writing against
-   that order would move the wrong block.
+A position can still go stale: if someone else moves, adds or removes a block after the
+page loaded, "block 1" is another block. That is why the editor also sends the id of the
+block it rendered (`data-inti-block-id`): the adapter finds the block by that id, wherever
+it is now, and when the block is gone it writes nothing and asks to reload. Sites that
+render blocks themselves get the attribute from `blockAttributes` (see below).
 
 ### Reordering does not renumber
 
@@ -227,15 +276,38 @@ Kitsuden has no bulk create. `insertBlocks` creates the blocks one by one and do
 created. It is as close to atomic as you can get without CMS support, and
 it avoids publishing half a pattern.
 
+### Block types
+
+The adapter does not refuse a type because `/block-types` does not list it: Kitsuden used
+to list a dozen of the 36+ types it accepts, and the check blocked valid inserts such as
+`callout`. The CMS decides; when it refuses a type that is also missing from the palette,
+the error says both.
+
+### Quotas, retries and outages
+
+- A write answered **429** (the agent key's quota, 60 requests a minute by default) waits
+  what Kitsuden's `retry_after` says and tries again, up to `retry.retries` times (3) and
+  `retry.maxWaitMs` per wait (20 s).
+- Every write carries an **`Idempotency-Key`**, kept across its retries, so a retry after a
+  lost answer is replayed by Kitsuden instead of applied twice.
+- A **read** Kitsuden cannot answer (429, 5xx, unreachable) throws
+  `KitsudenUnavailableError` (`status`, `retryAfter`): a site answers 503 with
+  `Retry-After`, or serves a cached copy, instead of a 500. Reads are not retried: a page
+  being rendered does not wait on a quota.
+- Anonymous reads are **revalidated** with the ETag of the last answer (Kitsuden builds that declare `page-builder-publish`),
+  so an unchanged page is a 304 and not a download.
+
 ## Drafts
 
 `createDraft` copies the page with `POST /pages/:id/clone`, which the CMS leaves in `draft`, with the slug `inti-draft-of-<uuid>`. It can also be seen and edited from the Kitsuden panel. See [Drafts and undo](/guides/drafts/).
 
-Publishing keeps the page's id, its slug and whether it is the homepage. The API has no atomic replace: the new blocks are created hidden and only once all of them exist are the old ones removed. If creation fails it is rolled back; a later failure leaves the copy so you can retry.
+Publishing keeps the page's id, its slug and whether it is the homepage. When Kitsuden declares `page-builder-publish`, it is one call (`POST /pages/:id/publish-draft`) and one transaction. Otherwise it takes one call per block: the new blocks are created hidden, then **shown**, and only then are the old ones removed, so a failure halfway (a quota, the network) leaves some blocks twice for a moment and never a page without them; the copy stays so you can retry. Before this order, publishing a 25-block draft with an agent at the default quota left the public page with 3 blocks.
 
 The API does not return hidden or scheduled blocks to anyone, not even with a token. That is why the editor does not see them, they cannot be edited in a draft, and publishing leaves them as they were in the original page, in their position.
 
-An agent key has 60 requests per minute by default, and publishing makes several per block: on a large page, or with several editors, raise its quota.
+An agent key has 60 requests per minute by default. Without `page-builder-publish`, publishing makes about three per block: the adapter waits on 429s, but on large pages, or with several editors, raise the key's quota.
+
+Kitsuden builds without `page-builder-publish` copy a draft without its blocks' schedule (`visibleFrom`, `visibleUntil`): a block scheduled for next week goes public when the draft is published. Builds with that contract copy it.
 
 ## AI generation
 
@@ -353,6 +425,13 @@ integer —the major version— for each surface that outside clients consume:
 | `page-builder` | `/api/page-builder/pages`, `/pages/:id`, `/block-types`, block writes | read and edit pages |
 | `games` | `GET /api/games/slug/:slug`, `GET /api/games/:id` | read `game:<uuid>` game pages |
 | `games-editorial` | `PATCH /api/games/:id/blocks/:blockId/editorial`, `PUT /api/games/:id/blocks/order` | edit game pages |
+| `page-builder-publish` (optional) | `POST /pages/:id/publish-draft` | publish a draft in one transaction |
+| `page-builder-patch` (optional) | `PATCH /blocks/:id` with `contentPatch` | change one field of a block, not all of it |
+
+The optional contracts (`OPTIONAL_CONTRACTS`, exported) add a capability: the adapter uses
+each one when the API declares it and otherwise falls back to `page-builder` v1, so it works
+against Kitsuden builds with and without them. `await adapter.supports('page-builder-patch')`
+says which applies.
 
 Each adapter version declares which versions it understands
 (`SUPPORTED_CONTRACTS`, exported). The check is **lazy**: constructing
@@ -420,9 +499,9 @@ requires the copy here to be identical.
   listing; the homepage (`isHomepage`) hangs off `/`.
 - **The relation picker only searches pages.** It is the only collection the
   builder exposes with text search.
-- **Public reads cached for 120 s.** After an edit, a read by slug may
-  keep serving the old version for that time. Inline editing does not suffer from it
-  because the adapter works by uuid.
+- **`/block-types` describes only some types.** Kitsuden builds with `page-builder-publish` list every type they
+  accepts, with `described: false` on those without a field schema; `composerBlockTypes()`
+  leaves those out of the palette unless `includeUndescribed`.
 
 ## Implementation
 

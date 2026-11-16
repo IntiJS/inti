@@ -12,6 +12,8 @@
 export interface EditRecord<Target = unknown> {
     documentId: string;
     blockIndex: number;
+    /** The block's id as rendered, so an undo reaches the same block even if it moved */
+    blockId?: string;
     field: string;
     previous: string;
     value: string;

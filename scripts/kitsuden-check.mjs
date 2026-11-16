@@ -45,14 +45,14 @@ async function waitForApi() {
  * with the SHA-256 hash the API still accepts: creating it through the API would
  * require an admin account, and this instance has none.
  */
-function createAgentKey() {
+function createAgentKey(rateLimit = 100000) {
     const token = `kitsuden_agent_machine_${randomBytes(24).toString('hex')}`;
     const hash = createHash('sha256').update(token).digest('hex');
     const id = `inti-check-${randomBytes(6).toString('hex')}`;
 
-    // Without the default quota of 60 requests per minute: many are made in a row here
+    // Without the default quota of 60 requests per minute unless asked: many are made in a row here
     sql(`INSERT INTO agent_identities (id, name, type, scopes, is_active, rate_limit)
-         VALUES ('${id}', 'inti-check', 'machine', '["content:edit"]', true, 100000)`);
+         VALUES ('${id}', 'inti-check', 'machine', '["content:edit"]', true, ${Number(rateLimit)})`);
     sql(`INSERT INTO agent_api_keys (agent_id, key_hash, key_prefix, algorithm)
          VALUES ('${id}', '${hash}', 'kitsuden_agent_machine', 'sha256')`);
     return token;
@@ -327,6 +327,86 @@ async function main() {
         const [item] = adapter.mediaAsData([{ id: 'abc', summary: 'Photo' }]);
         equal(item.value.url, `${ENDPOINT}/api/media/preset/abc/large`, 'url');
     });
+
+    // ── What the connector fixed (each was reproduced against a real Kitsuden) ──
+    const contracts = (await adapter.checkCompatibility([]))?.contracts ?? {};
+    const newPage = async (blocks) => {
+        const s = `fix-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const created = await api('POST', '/api/page-builder/pages', { title: 'Fix', slug: s, status: 'published', blocks });
+        return { id: created.id, slug: s };
+    };
+    const shown = async (s) => (await anonymous.getPage(s)).blocks.map((b) => b.data.headline);
+    const skipped = (name, contract) => console.log(`- ${name} (needs Kitsuden with "${contract}"; this one does not declare it)`);
+
+    await check('publishing a 25-block draft at the default agent quota never empties the page', async () => {
+        // Before: 62 calls, a 429 halfway, and the public page left with 3 of its 25 blocks
+        const limited = new KitsudenAdapter({ endpoint: ENDPOINT, token: createAgentKey(60) });
+        const p = await newPage(Array.from({ length: 25 }, (_, i) => ({ type: 'hero', content: { headline: `B${i}` } })));
+        const draft = await limited.createDraft(p.id);
+        ok(draft);
+        ok(await limited.updateBlockField(draft.documentId, 0, 'headline', 'Changed'));
+        ok(await limited.publishDraft(draft.documentId));
+        const after = await shown(p.slug);
+        equal(after.length, 25, 'public blocks');
+        equal(after[0], 'Changed', 'first block');
+    });
+
+    await check('an edit made after someone reordered the page reaches the block the editor rendered', async () => {
+        const p = await newPage([{ type: 'hero', content: { headline: 'First' } }, { type: 'hero', content: { headline: 'Second' } }]);
+        const rendered = (await anonymous.getPage(p.slug)).blocks;
+        ok(await adapter.moveBlock(p.id, 0, 1));
+        ok(await adapter.updateBlockField(p.id, 0, 'headline', 'First, edited', { blockId: rendered[0].id }));
+        equal(await shown(p.slug), ['Second', 'First, edited'], 'blocks');
+    });
+
+    await check('a type Kitsuden accepts can be inserted even if /block-types does not list it', async () => {
+        const p = await newPage([{ type: 'hero', content: { headline: 'x' } }]);
+        ok(await adapter.insertBlock(p.id, 1, 'callout', { text: 'Hi' }));
+        equal((await anonymous.getPage(p.slug)).blocks.map((b) => b.type), ['hero', 'callout'], 'types');
+    });
+
+    await check("a block edit moves the page's updatedAt", async () => {
+        const p = await newPage([{ type: 'hero', content: { headline: 'x' } }]);
+        const before = (await anonymous.getPage(p.slug)).meta.updatedAt;
+        await new Promise((r) => setTimeout(r, 1100));
+        ok(await adapter.updateBlockField(p.id, 0, 'headline', 'y'));
+        const after = (await anonymous.getPage(p.slug)).meta.updatedAt;
+        equal(Date.parse(after) > Date.parse(before), true, 'later');
+    });
+
+    if (contracts['page-builder-patch'] >= 1) {
+        await check('two fields of one block saved at the same moment both stay', async () => {
+            const p = await newPage([{ type: 'hero', content: { headline: 'A', subheadline: 'B' } }]);
+            const [a, b] = await Promise.all([adapter.updateBlockField(p.id, 0, 'headline', 'A2'), adapter.updateBlockField(p.id, 0, 'subheadline', 'B2')]);
+            ok(a);
+            ok(b);
+            const data = (await anonymous.getPage(p.slug)).blocks[0].data;
+            equal([data.headline, data.subheadline], ['A2', 'B2'], 'fields');
+        });
+    } else skipped('two fields of one block saved at the same moment both stay', 'page-builder-patch');
+
+    if (contracts['page-builder-publish'] >= 1) {
+        await check('a block scheduled for next week stays scheduled through a draft', async () => {
+            const p = await newPage([{ type: 'hero', content: { headline: 'Always' } }]);
+            await api('POST', `/api/page-builder/pages/${p.id}/blocks`, { type: 'hero', content: { headline: 'Next week' }, visibleFrom: new Date(Date.now() + 7 * 864e5).toISOString() });
+            const draft = await adapter.createDraft(p.id);
+            ok(await adapter.publishDraft(draft.documentId));
+            equal(await shown(p.slug), ['Always'], 'public');
+            equal(Number(sql(`SELECT count(*) FROM block_contents WHERE page_id='${p.id}' AND content->>'headline'='Next week'`)), 1, 'scheduled rows');
+        });
+
+        await check('an unchanged page is revalidated with its ETag instead of downloaded again', async () => {
+            const p = await newPage([{ type: 'hero', content: { headline: 'x' } }]);
+            const first = await fetch(`${ENDPOINT}/api/page-builder/pages/${p.slug}`);
+            const etag = first.headers.get('etag');
+            equal(typeof etag, 'string', 'etag');
+            const again = await fetch(`${ENDPOINT}/api/page-builder/pages/${p.slug}`, { headers: { 'If-None-Match': etag } });
+            equal(again.status, 304, 'status');
+        });
+    } else {
+        skipped('a block scheduled for next week stays scheduled through a draft', 'page-builder-publish');
+        skipped('an unchanged page is revalidated with its ETag', 'page-builder-publish');
+    }
 
     const failed = results.filter((r) => !r.ok);
     console.log(`\n${results.length - failed.length}/${results.length} checks against a real Kitsuden`);

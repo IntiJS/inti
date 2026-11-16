@@ -44,6 +44,7 @@
   },
   "files": [
     "dist",
+    "fonts",
     "src",
     "workers",
     "README.md",
@@ -62,7 +63,6 @@
     "satori": "^0.63.2"
   },
   "peerDependencies": {
-    "@fontsource/inter": "^5.0.0",
     "@intijs/core": "^0.1.0",
     "@resvg/resvg-js": "^2.6.0"
   },
@@ -71,9 +71,6 @@
       "optional": true
     },
     "@resvg/resvg-js": {
-      "optional": true
-    },
-    "@fontsource/inter": {
       "optional": true
     }
   },

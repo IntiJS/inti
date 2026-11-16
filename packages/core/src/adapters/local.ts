@@ -11,6 +11,7 @@
 
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
+import { explainDiskWrite } from './disk.js';
 
 import { IntiAdapter } from './index.js';
 import type {
@@ -90,10 +91,18 @@ export class LocalAdapter extends IntiAdapter implements WritableAdapter, Search
 
     /** Atomic write: temp file in the same directory + rename */
     private async write(store: StoreShape): Promise<void> {
-        await mkdir(dirname(this.file), { recursive: true });
-        const temp = join(dirname(this.file), `.inti-${process.pid}-${this.tempCounter++}.tmp`);
-        await writeFile(temp, JSON.stringify(store, null, 2), 'utf8');
-        await rename(temp, this.file);
+        try {
+            await mkdir(dirname(this.file), { recursive: true });
+            const temp = join(dirname(this.file), `.inti-${process.pid}-${this.tempCounter++}.tmp`);
+            await writeFile(temp, JSON.stringify(store, null, 2), 'utf8');
+            await rename(temp, this.file);
+        } catch (error) {
+            throw explainDiskWrite(
+                error,
+                this.file,
+                'The local store is for trying Inti out: in production, configure a CMS adapter (INTI_ADAPTER=wordpress, kitsuden, strapi, keystatic with INTI_KEYSTATIC_REPO…).'
+            );
+        }
     }
 
     /** Queues a mutation behind the previous ones, whether they fail or not */
@@ -130,7 +139,12 @@ export class LocalAdapter extends IntiAdapter implements WritableAdapter, Search
             }
 
             store.documents[documentId] = { ...document, blocks };
-            await this.write(store);
+            try {
+                await this.write(store);
+            } catch (error) {
+                // The contract: report, do not throw, so the reason reaches the editor
+                return { success: false, documentId, error: error instanceof Error ? error.message : String(error), source: 'local' };
+            }
 
             return { success: true, documentId, source: 'local' };
         });

@@ -46,6 +46,7 @@
     "test:kitsuden": "node scripts/kitsuden-check.mjs",
     "test:cloudflare": "node scripts/cloudflare-check.mjs",
     "test:infographic-worker": "node scripts/infographic-worker-check.mjs",
+    "test:vercel": "node scripts/vercel-check.mjs 7",
     "clean": "rm -rf node_modules packages/*/node_modules apps/*/node_modules"
   },
   "engines": {

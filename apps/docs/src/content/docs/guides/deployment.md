@@ -20,7 +20,23 @@ The CMS credentials go in as server environment variables, never with a `PUBLIC_
 
 ## Vercel, Netlify, Cloudflare
 
-Use the platform's adapter (`npx astro add vercel`, `netlify` or `cloudflare`) and set the `INTI_*` variables in its dashboard. You need none of what follows.
+Use the platform's adapter (`npx astro add vercel`, `netlify` or `cloudflare`) and set the `INTI_*` variables in its dashboard. You need none of the Docker section below.
+
+### Vercel
+
+Checked in CI on Astro 5, 6 and 7 (`node scripts/vercel-check.mjs <major>`): the site is built with `@astrojs/vercel`, and the function Vercel would upload is run **on its own, outside the project**, so a file the function needs and did not ship fails there as it would in production. It serves pages with no editor markup for visitors, refuses anonymous writes, and renders an infographic to PNG with the network cut.
+
+What changes on Vercel:
+
+- **No writable disk.** A function's disk is read-only and does not survive between calls. Connect a CMS; the local store and `createFilePatternStore` say so in their error instead of a bare `EROFS`. For shared patterns use `createCustomPatternStore` over your own storage.
+- **Do not turn on `isr` for pages that show the editor.** ISR caches a page by its URL for everyone: a render made for an editor, with the editing markup, would be served to visitors.
+- **Mark an editor's response `Cache-Control: private, no-store`,** so no CDN shares it. `kitsudenMiddleware`, drafts (`readDraftPage`) and personalization (`adaptPage`) do it; with another CMS, set it in the middleware where you resolve the editor's session.
+- **In-memory caches are per instance.** `createPageCache` (Kitsuden) and the infographic route's cache live in one function instance and start empty on a cold start. They still save work on a warm instance; for a shared cache, put the CDN in front with `Cache-Control` on anonymous pages.
+- **No WebSockets.** Saving works the same; editors on different instances just do not see each other's changes live.
+- **Infographics** work as they are: the native rasterizer is traced into the function, and the built-in font is embedded. A long carousel is CPU work: raise the function's `maxDuration` if it gets close to the limit.
+- **Keep the Kitsuden middleware on Node** (the default). It was not checked with `edgeMiddleware: true`.
+
+Netlify works the same way in principle (Node functions, read-only disk) but is not checked in CI.
 
 ## Your own server with Docker
 
@@ -158,4 +174,4 @@ A serverless deployment (Vercel, Cloudflare) uses no containers and does not use
 
 ## The local store is not for production
 
-With no CMS configured, Inti writes to `.inti/content.json`. It is for trying things out, not for production: inside a container that file is lost on rebuild, and with `USER node` the app directory is not writable. In production, connect a CMS.
+With no CMS configured, Inti writes to `.inti/content.json`. It is for trying things out, not for production: inside a container that file is lost on rebuild, with `USER node` the app directory is not writable, and on Vercel or Netlify the disk is read-only. In production, connect a CMS.

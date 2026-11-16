@@ -103,6 +103,36 @@ jobs:
       - name: Build a clean project against Astro ${{ matrix.astro-major }}
         run: node scripts/astro-compat.mjs ${{ matrix.astro-major }}
 
+  # Vercel ships a function only the files its tracer saw it import: a file
+  # read through a computed path works everywhere else and is missing
+  # there. The function is run on its own, outside the project, as Vercel
+  # would run it.
+  vercel:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        astro-major: [5, 6, 7]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build packages
+        run: npm run build
+
+      - name: The function Vercel deploys, on Astro ${{ matrix.astro-major }}
+        run: node scripts/vercel-check.mjs ${{ matrix.astro-major }}
+
   # `npm create inti` is the first thing a new user runs, and the
   # previous one did not work in any case without anything detecting it. This
   # runs it from its packed package for each CMS, builds the project

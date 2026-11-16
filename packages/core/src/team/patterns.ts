@@ -11,6 +11,7 @@
 
 import { readFile, writeFile, rename } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { explainDiskWrite } from '../adapters/disk.js';
 
 import type { Actor, Pattern, PatternStore } from '../plugins/index.js';
 
@@ -83,9 +84,17 @@ export function createFilePatternStore(filePath: string): PatternStore {
 
     async function write(patterns: Pattern[]): Promise<void> {
         // Temp file in the same directory so the rename is atomic
-        const temp = join(dirname(filePath), `.inti-patterns-${process.pid}-${counter++}.tmp`);
-        await writeFile(temp, JSON.stringify(patterns, null, 2), 'utf8');
-        await rename(temp, filePath);
+        try {
+            const temp = join(dirname(filePath), `.inti-patterns-${process.pid}-${counter++}.tmp`);
+            await writeFile(temp, JSON.stringify(patterns, null, 2), 'utf8');
+            await rename(temp, filePath);
+        } catch (error) {
+            throw explainDiskWrite(
+                error,
+                filePath,
+                'Keep patterns in a database instead: createCustomPatternStore over your own storage, or createD1PatternStore from @intijs/cloudflare.'
+            );
+        }
     }
 
     return {

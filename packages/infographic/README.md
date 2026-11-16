@@ -83,7 +83,7 @@ const { slides, warnings } = await renderInfographic(block.data, { format: 'inst
 What does not fit continues on the next image. Fitting is measured with the real fonts, not guessed. A chart that fits on an image of its own is never split; a long table, list or bar chart continues across images with the same scale, and steps keep their numbering. More images than the platform takes are dropped with a warning.
 
 - `planInfographic(data, options)` says how many images a format needs and their alt text, without rendering pixels.
-- `fonts`: TTF, OTF or WOFF (not WOFF2). Without it, see [Fonts](#fonts): an installed `@fontsource/inter` works offline.
+- `fonts`: TTF, OTF or WOFF (not WOFF2). Optional: see [Fonts](#fonts).
 - `rasterizer`: rendering to PNG or JPEG needs `@resvg/resvg-js` installed (an optional peer dependency). `output: 'svg'` needs nothing.
 - `imageOrigins`: a `logo` is drawn only from these origins or as a `data:` image. Nothing else is fetched.
 
@@ -153,31 +153,26 @@ import { initWasm, Resvg } from '@resvg/resvg-wasm';
 import { renderInfographic, resvgRasterizer } from '@intijs/infographic';
 import yoga from 'satori-workers/yoga.wasm';
 import resvg from '@resvg/resvg-wasm/index_bg.wasm';
-import inter400 from '@fontsource/inter/files/inter-latin-400-normal.woff';
-import inter800 from '@fontsource/inter/files/inter-latin-800-normal.woff';
-
-const fonts = [
-  { name: 'Inter', data: inter400, weight: 400 },
-  { name: 'Inter', data: inter800, weight: 800 }
-];
 let ready: Promise<unknown> | undefined;
 
 export default {
   async fetch(request: Request) {
     await (ready ??= Promise.all([init(yoga), initWasm(resvg)]));
-    const { slides } = await renderInfographic(data, { format: 'instagram-portrait', satori, rasterizer: resvgRasterizer(Resvg), fonts });
+    const { slides } = await renderInfographic(data, { format: 'instagram-portrait', satori, rasterizer: resvgRasterizer(Resvg) });
     return new Response(slides[0].bytes, { headers: { 'content-type': slides[0].contentType } });
   }
 };
 ```
 
-Import the fonts as data modules (a `[[rules]]` entry of type `Data` for `**/*.woff`): there is no disk, and fetching them on every cold start is slow. WOFF is unwrapped to TrueType before shaping, because HarfBuzz cannot read it; WOFF2 is refused. `npm run test:infographic-worker` runs this setup in workerd, without `nodejs_compat`, and checks that the Worker draws byte for byte the SVG Node draws with the same Satori.
+The built-in themes need no fonts: Inter is embedded. For another typeface, import its WOFF files as data modules (a `[[rules]]` entry of type `Data` for `**/*.woff`) and pass them as `fonts`. WOFF is unwrapped to TrueType before shaping, because HarfBuzz cannot read it; WOFF2 is refused. `npm run test:infographic-worker` runs this setup in workerd, without `nodejs_compat`, and checks that the Worker draws byte for byte the SVG Node draws with the same Satori.
 
 `renderInfographicHtml` and the Astro component have no runtime requirement.
 
 ## Fonts
 
-Without `fonts`, the renderer uses an installed `@fontsource/<family>` package for the theme's font (`npm install @fontsource/inter` for the built-in themes), reading its Latin and Latin Extended files from disk. Only when that package is missing does it fetch the font from Google Fonts, once per process. `loadFontsource(family)` and `loadGoogleFont(family)` are exported if you want to load them yourself.
+Without `fonts`, the built-in themes use **Inter, embedded in the package** (400, 600 and 800, Latin and Latin Extended; SIL Open Font License, in `fonts/OFL.txt`). It needs no disk and no network, so it renders the same in Node, inside a Vercel or Netlify function, and in a Worker. A theme with another `fontFamily` uses an installed `@fontsource/<family>` package, and only when that is missing fetches the font from Google Fonts, once per process. `loadFontsource(family)` and `loadGoogleFont(family)` are exported if you want to load them yourself.
+
+On Vercel or Netlify, a Fontsource package other than Inter has to be listed in the function's included files: their tracers only ship files the code names literally.
 
 ## Security note: `fflate`
 

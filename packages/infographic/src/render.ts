@@ -175,8 +175,20 @@ function prepareFont(font: FontInput): Promise<FontInput> {
     return pending;
 }
 
+let embeddedInter: Promise<FontInput[]> | null = null;
+
+/**
+ * Your fonts; else Inter, embedded in the package, for the themes that use it (no disk, no
+ * network, so it works the same in Node, on Vercel or Netlify and in a Worker); else an
+ * installed `@fontsource/<family>`; else Google Fonts, once per process.
+ */
 async function fontsFor(options: RenderOptions, theme: InfographicTheme): Promise<FontInput[]> {
-    const fonts = options.fonts?.length ? options.fonts : ((await loadFontsource(theme.fontFamily)) ?? (await loadGoogleFont(theme.fontFamily)));
+    let fonts = options.fonts?.length ? options.fonts : null;
+    if (!fonts && theme.fontFamily === 'Inter') {
+        embeddedInter ??= import('./fonts/inter.js').then(({ interFonts }) => interFonts());
+        fonts = await embeddedInter;
+    }
+    fonts ??= (await loadFontsource(theme.fontFamily)) ?? (await loadGoogleFont(theme.fontFamily));
     return Promise.all(fonts.map(prepareFont));
 }
 

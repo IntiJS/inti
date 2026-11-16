@@ -25,6 +25,7 @@ Setup requires four things, and skipping any of them breaks it silently:
 - [Drafts and undo](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/drafts.mdx): Change a page without visitors seeing it
 - [Personalization](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/personalization.mdx): Versions of a zone per visitor, with or without AI
 - [Generative UI](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/generative-ui.mdx): A model composes from your declared blocks
+- [Infographics](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/infographics.mdx): A block of numbers on the page and as images for Instagram, TikTok and the blog
 - [Cloudflare](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/cloudflare.mdx): Optional D1, Durable Objects, R2, Workers AI and Images
 - [MCP server](https://github.com/intijs/inti/blob/main/packages/mcp/README.md): Tools that let an AI agent read and edit CMS content
 - [Securing writes](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/securing-writes.md): Who can edit in production

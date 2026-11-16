@@ -1,0 +1,92 @@
+{
+  "name": "@intijs/infographic",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Data infographics and dashboards from CMS blocks on Astro sites: one block, rendered on the page as real text and as images for Instagram, TikTok and the blog",
+  "keywords": [
+    "astro",
+    "withastro",
+    "infographic",
+    "dashboard",
+    "charts",
+    "instagram",
+    "tiktok",
+    "og-image",
+    "satori",
+    "headless-cms",
+    "inti"
+  ],
+  "author": "Victor Antinori Broce",
+  "license": "MIT",
+  "homepage": "https://github.com/intijs/inti/tree/main/packages/infographic#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/intijs/inti.git",
+    "directory": "packages/infographic"
+  },
+  "bugs": {
+    "url": "https://github.com/intijs/inti/issues"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./route": {
+      "import": "./dist/route.js",
+      "types": "./dist/route.d.ts"
+    },
+    "./workers/harfbuzz": "./workers/harfbuzz.js",
+    "./Infographic.astro": "./src/Infographic.astro",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "workers",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepare": "node ../../scripts/prepare-package.mjs",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "bun test",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "jpeg-js": "^0.4.4",
+    "satori": "^0.63.2"
+  },
+  "peerDependencies": {
+    "@fontsource/inter": "^5.0.0",
+    "@intijs/core": "^0.1.0",
+    "@resvg/resvg-js": "^2.6.0"
+  },
+  "peerDependenciesMeta": {
+    "@intijs/core": {
+      "optional": true
+    },
+    "@resvg/resvg-js": {
+      "optional": true
+    },
+    "@fontsource/inter": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@fontsource/inter": "^5.2.5",
+    "@intijs/core": "^0.1.0",
+    "@intijs/genui": "^0.1.0",
+    "@resvg/resvg-js": "^2.6.2",
+    "@resvg/resvg-wasm": "^2.6.2",
+    "satori-workers": "npm:satori@0.35.0",
+    "typescript": "^5.7.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

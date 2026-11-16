@@ -39,6 +39,7 @@ export default defineConfig({
             { label: 'Drafts and Undo', link: '/guides/drafts/' },
             { label: 'Personalization', link: '/guides/personalization/' },
             { label: 'Generative UI', link: '/guides/generative-ui/' },
+            { label: 'Infographics', link: '/guides/infographics/' },
             { label: 'Deploying to Cloudflare', link: '/guides/cloudflare/' },
           ],
         },

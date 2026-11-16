@@ -1,0 +1,33 @@
+---
+/**
+ * An infographic block on the page: real text and inline SVG, scaled to the width
+ * it is given, editable in place.
+ *
+ *   ---
+ *   // src/blocks/infographic.astro
+ *   import Infographic from '@intijs/infographic/Infographic.astro';
+ *   ---
+ *   <Infographic data={Astro.props} format="blog" />
+ */
+import { renderInfographicHtml } from '@intijs/infographic';
+import type { InfographicFormat, InfographicTheme } from '@intijs/infographic';
+
+interface Props {
+    /** The block's CMS data. In a block component, `Astro.props` */
+    data: Record<string, unknown>;
+    /** Which canvas the figure keeps the proportions of. Default: `blog` */
+    format?: string | InfographicFormat;
+    formats?: InfographicFormat[];
+    theme?: string;
+    themes?: InfographicTheme[];
+    locale?: string;
+    imageOrigins?: string[];
+    /** Tables by id, for sections that store a dataset id */
+    datasets?: Record<string, unknown> | ((id: string) => unknown);
+    class?: string;
+}
+
+const { data, format = 'blog', formats, theme, themes, locale, imageOrigins, datasets, class: className } = Astro.props;
+const html = renderInfographicHtml(data, { format, formats, theme, themes, locale, imageOrigins, datasets, className });
+---
+<Fragment set:html={html} />

@@ -21,10 +21,11 @@
     "dev": "npm run dev -w @intijs/demo-site",
     "dev:all": "concurrently \"npm run dev -w @intijs/docs\" \"npm run dev -w @intijs/demo-site\"",
     "dev:docs": "npm run dev -w @intijs/docs",
-    "build": "npm run build:core && npm run build:genui && npm run build:cloudflare && npm run build:cli && npm run build:adapters && npm run build:mcp",
+    "build": "npm run build:core && npm run build:genui && npm run build:cloudflare && npm run build:infographic && npm run build:cli && npm run build:adapters && npm run build:mcp",
     "build:core": "npm run build -w @intijs/core",
     "build:genui": "npm run build -w @intijs/genui",
     "build:cloudflare": "npm run build -w @intijs/cloudflare",
+    "build:infographic": "npm run build -w @intijs/infographic",
     "build:cli": "npm run build -w @intijs/cli",
     "build:mcp": "npm run build -w @intijs/mcp",
     "build:docs": "npm run build -w @intijs/docs",
@@ -44,6 +45,7 @@
     "test:genui": "node scripts/genui-check.mjs",
     "test:kitsuden": "node scripts/kitsuden-check.mjs",
     "test:cloudflare": "node scripts/cloudflare-check.mjs",
+    "test:infographic-worker": "node scripts/infographic-worker-check.mjs",
     "clean": "rm -rf node_modules packages/*/node_modules apps/*/node_modules"
   },
   "engines": {
@@ -53,5 +55,8 @@
   "devDependencies": {
     "concurrently": "^9.2.1",
     "typescript": "^5.7.3"
+  },
+  "overrides": {
+    "fflate": "^0.8.3"
   }
 }

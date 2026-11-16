@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### New: `@intijs/infographic`, infographics and dashboards on the page and as images
+
+- **One block, two outputs from the same tree.** On the page, `<Infographic data={Astro.props} />` renders real text and inline SVG that scale with container units and are edited with a double click (`data-inti-field` on titles, labels and texts). As images, `renderInfographic(data, { format })` draws the same layout with Satori and resvg, with no browser.
+- **Formats for each platform:** `instagram-portrait` (1080×1350), `instagram-square`, `instagram-story` and `tiktok` (1080×1920, clear of what each interface covers) as JPEG, which is what Instagram's publishing API accepts; `blog` (1600×900, two columns) and `og` (1200×630) as PNG. `defineFormat` for your own.
+- **18 section kinds** for data infographics and dashboards: `kpis` (with change and sparkline), `stat`, `bar`, `column`, `line`, `area`, `donut`, `share`, `waffle`, `progress`, `gauge`, `funnel`, `heatmap`, `table`, `comparison`, `timeline`, `steps`, `text`.
+- **Carousels that fit by measurement.** What does not fit continues on the next image. A chart that fits on an image of its own is never cut; long tables, lists and bar charts continue with one shared scale, and steps keep their numbering.
+- **Data as a CMS stores it:** tables typed or pasted into a text field, `"1.234,5"` and `"1,234.5"`, arrays of objects, or a `@intijs/genui` data source. A value that is not a number is drawn as missing, never as zero. Numbers are formatted for the block's locale, with one notation per chart.
+- **Alt text from the numbers** for every image, and `planInfographic` to know how many images a format needs without rendering.
+- **`createInfographicRoute`** (`@intijs/infographic/route`) serves a page's infographic blocks by URL for n8n or any automation, with a JSON manifest of slide URLs and alt text. It reads the published page only, renders only the block types you list, honours scheduled visibility, caches by content with an `ETag` and limits concurrent renders.
+- **`infographicVocabulary`** declares the block for generative UI. With `datasets`, every number comes from a data source by id and the value fields are removed from what the model can write.
+- **Runs offline and in Workers.** Without `fonts` it reads an installed `@fontsource/<family>` before trying Google Fonts. In a Cloudflare Worker the layout engine and the rasterizer are passed in (`satori` and `rasterizer` options) as modules compiled at deploy time, and `@intijs/infographic/workers/harfbuzz` gives Satori its text shaper without fetching or compiling WebAssembly. `npm run test:infographic-worker` runs that setup in workerd, without `nodejs_compat`, and checks the Worker draws the same SVG as Node.
+- **WOFF fonts work with every Satori build.** They are unwrapped to TrueType before shaping: HarfBuzz cannot read WOFF and drew "NO GLYPH" boxes. WOFF2 is refused with a reason.
+- **`fflate` advisory cleared.** Satori pins `fflate@0.7.3` (GHSA-px8p-9vwx-vf98, in `unzipSync`, which Satori does not call); the repository overrides it to `^0.8.3` and the README shows how to do the same.
+- **Colour is declared, not passed.** Themes (`light`, `dark`, `sun`, `defineTheme`) are chosen by name; series colours follow a fixed order that keeps neighbours apart for colour-vision deficiencies; good and bad always come with an arrow and a sign. A logo loads only from origins you allow.
+
 ### The packages are not on npm yet, and now every document says so
 
 - **The README, `AGENTS.md`, `llms.txt`, every package README, the docs and the landing page told readers to run `npm install @intijs/…` and `npm create inti@latest`, which answer 404:** nothing is published and the `@intijs` scope does not exist on npm yet. They now lead with a notice and with the path that works today, from git, and keep the npm commands only as "once published".

@@ -160,6 +160,7 @@ The Astro content ecosystem in 2026 has a gap:
 *   **📝 Drafts and undo:** Work on a copy visitors cannot see, then publish or discard it. Text edits can be undone from the toast or with Ctrl/Cmd+Z. See [drafts](apps/docs/src/content/docs/guides/drafts.mdx).
 *   **🎯 Personalization, with or without AI:** Versions of a zone are ordinary CMS blocks with an audience (`device:mobile;pref.diet:vegan`). Decided on the server, with no client JavaScript, a control group to measure it, and "view as" for editors. See [personalization](apps/docs/src/content/docs/guides/personalization.mdx).
 *   **✨ Generative UI (`@intijs/genui`):** A model composes from your declared blocks. It generates no HTML, CSS or code, everything it returns is validated, and a price comes from your server, not from the model. Proposals are previewed on the page and written only when accepted. See [generative UI](apps/docs/src/content/docs/guides/generative-ui.mdx).
+*   **📊 Infographics and dashboards (`@intijs/infographic`):** A block of numbers becomes KPIs, charts, tables and timelines, on the page as real, editable text, and as images sized for Instagram, TikTok, the blog and social previews, with alt text written from the numbers. An endpoint serves them by URL for n8n or any automation. See [infographics](apps/docs/src/content/docs/guides/infographics.mdx).
 *   **☁️ Cloudflare, if you want it (`@intijs/cloudflare`):** Optional D1, Durable Objects, R2, Workers AI and Images backends. See [the guide](apps/docs/src/content/docs/guides/cloudflare.mdx).
 *   **⚡ Typed blocks:** `inti sync` introspects your CMS schema and generates TypeScript types, with a union that narrows each block by `type`.
 *   **🏝️ BlockRenderer:** Lazy-loaded component registry renders CMS blocks as Astro components (any framework island inside).
@@ -388,6 +389,7 @@ Writes go to your live CMS unless the agent works on a draft with `inti_create_d
 | `@intijs/mcp` | MCP server — lets AI agents read and edit your CMS content | MIT |
 | `@intijs/genui` | Generative UI: a model composes from your declared blocks | MIT |
 | `@intijs/cloudflare` | Optional D1, Durable Objects, R2, Workers AI and Images backends | MIT |
+| `@intijs/infographic` | Data infographics and dashboards from a block: on the page, and as images for Instagram, TikTok and the blog | MIT |
 | `create-inti` | Project scaffolder | MIT |
 
 Shared team patterns and multi-instance realtime (Valkey) are in `@intijs/core/team`, also MIT.

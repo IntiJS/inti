@@ -21,3 +21,5 @@ export { adaptPage } from './adapt-page.js';
 export type { AdaptPageOptions, AdaptPageRequest, AdaptPageResult } from './adapt-page.js';
 export { readDraftPage, DRAFT_PARAM } from './drafts.js';
 export type { DraftPageRequest } from './drafts.js';
+export { pageErrorResponse, unavailableResponse } from './responses.js';
+export type { ErrorResponseOptions } from './responses.js';

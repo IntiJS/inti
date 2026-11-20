@@ -1,3 +1,4 @@
+import { isNotFound } from '@intijs/core/errors';
 import { describe, test, expect } from 'bun:test';
 import { KitsudenAdapter, KitsudenUnavailableError, SUPPORTED_CONTRACTS } from '../src/index.js';
 
@@ -234,12 +235,13 @@ describe('quotas and outages', () => {
         }) as unknown as typeof fetch;
         const unreachable = await adapter(offline).getPage('home').catch((e) => e);
         expect(unreachable).toBeInstanceOf(KitsudenUnavailableError);
-        expect(unreachable.status).toBeNull();
+        expect(unreachable.status).toBeUndefined();
 
         // A missing page is not an outage
         const missing = fake(() => ({ status: 404, body: { error: 'Page not found' } }));
         const notFound = await adapter(missing.fetchImpl).getPage('nope').catch((e) => e);
         expect(notFound).not.toBeInstanceOf(KitsudenUnavailableError);
+        expect(isNotFound(notFound)).toBe(true);
     });
 });
 

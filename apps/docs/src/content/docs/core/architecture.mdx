@@ -248,20 +248,13 @@ registry.register('heavy', {
 
 ### Caching
 
+Pages are cached in front of the adapter, not inside it: `cachePages(adapter, { cache })` from `@intijs/core/cache` adds a fresh window, stale-while-revalidate, one request per page during a burst, stale-if-error and tags a purge can drop. The HTML is cached by `intiDelivery` from `@intijs/core/delivery`. See [Delivery and caching](/guides/delivery/).
+
 ```typescript
-// An adapter can implement a cache
-class CachedAdapter extends IntiAdapter {
-  private cache = new Map();
-  
-  async fetchPage(slug: string) {
-    if (this.cache.has(slug)) {
-      return this.cache.get(slug);
-    }
-    const data = await super.fetchPage(slug);
-    this.cache.set(slug, data);
-    return data;
-  }
-}
+import { createCacheManager, cachePages } from '@intijs/core/cache';
+
+const pages = cachePages(adapter, { cache: createCacheManager({ staleIfError: 86_400 }) });
+const page = await pages.fetchPageBySlug('home');
 ```
 
 ### Bundle Size

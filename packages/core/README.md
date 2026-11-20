@@ -52,12 +52,18 @@ import { WordPressAdapter } from '@intijs/adapter-wordpress';
 import { registerBlocks } from '@intijs/core/registry';
 import BlockRenderer from '@intijs/core/astro/BlockRenderer.astro';
 import VisualBridgeAuto from '@intijs/core/visual-bridge/VisualBridgeAuto.astro';
+import { pageErrorResponse } from '@intijs/core/server';
 
 // Each file in src/blocks is a block type: the file name is the type
 registerBlocks(import.meta.glob('/src/blocks/*.astro'));
 
 const adapter = new WordPressAdapter({ endpoint: import.meta.env.INTI_WP_ENDPOINT });
-const page = await adapter.fetchPageBySlug(Astro.params.slug ?? 'home');
+let page;
+try {
+  page = await adapter.fetchPageBySlug(Astro.params.slug ?? 'home');
+} catch (error) {
+  return pageErrorResponse(error);   // 404 if the page does not exist, 503 if the CMS cannot answer
+}
 ---
 <BlockRenderer blocks={page.blocks} />
 <VisualBridgeAuto />
@@ -140,6 +146,12 @@ const { title, slides } = Astro.props;
 | `@intijs/core/server` | Server helpers such as `env` and `readDraftPage` |
 | `@intijs/core/plugins` | `registerIntiPlugin` (`resolveActor`, `beforeWrite`, `afterWrite`) |
 | `@intijs/core/types` | `IntiPage`, `IntiBlock` and the other shared types |
+| `@intijs/core/errors` | `NotFoundError`, `UnavailableError` and the checks that tell them apart |
+| `@intijs/core/http` | `createHttpClient`, the HTTP client adapters share |
+| `@intijs/core/cache` | `cachePages`, `createCacheManager`, `createValkeyCacheProvider` |
+| `@intijs/core/delivery` | `intiDelivery` (CDN headers, HTML cache, editor markup only for editors) and `purgeRoute` |
+| `@intijs/core/catalog` | Products and other entities from an ERP or a shop, bound blocks, catalog sitemaps |
+| `@intijs/core/testing` | `adapterConformance`, the checks every adapter passes |
 
 ## Adapters
 

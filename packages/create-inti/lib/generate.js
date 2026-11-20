@@ -287,7 +287,7 @@ import Layout from '../layouts/Layout.astro';
 import { registerBlocks } from '@intijs/core/registry';
 import BlockRenderer from '@intijs/core/astro/BlockRenderer.astro';
 import VisualBridgeAuto from '@intijs/core/visual-bridge/VisualBridgeAuto.astro';
-import { readDraftPage } from '@intijs/core/server';
+import { pageErrorResponse, readDraftPage } from '@intijs/core/server';
 import { readPage } from '../lib/cms';
 
 // Each file in src/blocks is a block type: the file name
@@ -302,8 +302,10 @@ try {
     // other visitor this is null and the published version is read
     page = (await readDraftPage(slug, Astro)) ?? (await readPage(slug));
 } catch (error) {
-    const detail = import.meta.env.DEV && error instanceof Error ? \`: \${error.message}\` : '';
-    return new Response(\`Page not found\${detail}\`, { status: 404 });
+    // 404 only when the CMS says the page does not exist. A timeout or a 500
+    // is a 503 with Retry-After, so a search engine comes back instead of
+    // dropping a page that exists.
+    return pageErrorResponse(error);
 }
 ---
 
@@ -494,6 +496,57 @@ INTI_ADAPTER=keystatic
     }
 }
 
+/**
+ * The production image: the standalone server Astro builds, run as the
+ * unprivileged `node` user. Dependencies are installed with the lockfile and
+ * dev dependencies are dropped after the build.
+ *
+ * - `vendor`: the project depends on tarballs copied into `vendor/` (the
+ *   packages are not on npm yet), which have to be in the image before
+ *   installing.
+ * - `localStore`: the local JSON store ships in the image.
+ */
+function dockerfile({ vendor, localStore }) {
+    return [
+        '# syntax=docker/dockerfile:1',
+        'FROM node:22-slim AS build',
+        'WORKDIR /app',
+        'COPY package.json package-lock.json* ./',
+        ...(vendor ? ['COPY vendor ./vendor'] : []),
+        'RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi',
+        'COPY . .',
+        'RUN npm run build && npm prune --omit=dev',
+        '',
+        'FROM node:22-slim',
+        'WORKDIR /app',
+        'ENV NODE_ENV=production HOST=0.0.0.0 PORT=4321',
+        'COPY --from=build --chown=node:node /app/package.json ./',
+        'COPY --from=build --chown=node:node /app/node_modules ./node_modules',
+        'COPY --from=build --chown=node:node /app/dist ./dist',
+        ...(localStore
+            ? [
+                  '# The local store is a file: mount a volume on /app/.inti to keep the edits',
+                  'COPY --from=build --chown=node:node /app/.inti ./.inti'
+              ]
+            : []),
+        'USER node',
+        'EXPOSE 4321',
+        '# "The server answers", not "the CMS answers": a CMS outage is a 503, not a reason to restart',
+        `HEALTHCHECK --interval=30s --timeout=5s CMD node -e "fetch('http://127.0.0.1:4321/').then(() => process.exit(0), () => process.exit(1))"`,
+        'CMD ["node", "./dist/server/entry.mjs"]',
+        ''
+    ].join('\n');
+}
+
+const DOCKERIGNORE = `node_modules
+dist
+.astro
+.env
+.env.*
+!.env.example
+.git
+`;
+
 const GITIGNORE = `node_modules/
 dist/
 .astro/
@@ -542,6 +595,13 @@ In production Inti rejects edits until you decide who may make them. See \`src/m
 npm run build
 npm start
 \`\`\`
+
+Or as a container (the variables of \`.env\` are passed at run time, never baked into the image):
+
+\`\`\`bash
+docker build -t ${name} .
+docker run -p 4321:4321 --env-file .env ${name}
+\`\`\`
 `;
 }
 
@@ -559,6 +619,11 @@ export function generateProject({ name, cms, packages }) {
         'astro.config.mjs': ASTRO_CONFIG,
         'tsconfig.json': TSCONFIG,
         '.gitignore': GITIGNORE,
+        Dockerfile: dockerfile({
+            vendor: Object.values(packages ?? {}).some((spec) => String(spec).startsWith('file:vendor/')),
+            localStore: cms === 'local'
+        }),
+        '.dockerignore': DOCKERIGNORE,
         '.env.example': envExample(cms),
         'README.md': readme(name, cms),
         'src/actions/index.ts': ACTIONS,

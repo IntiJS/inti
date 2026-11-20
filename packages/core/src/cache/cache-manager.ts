@@ -16,6 +16,7 @@ import { MemoryCacheProvider } from './memory-provider.js';
 const DEFAULTS = {
     defaultTtl: 120,
     swr: 60,
+    staleIfError: 0,
     maxEntries: 1000,
     enabled: true,
 } as const;
@@ -31,7 +32,11 @@ export class CacheManager {
     private provider: CacheProvider;
     private defaultTtl: number;
     private defaultSwr: number;
+    private defaultStaleIfError: number;
     private enabled: boolean;
+
+    /** Loads in flight for a missing key: concurrent misses share one */
+    private pendingLoads = new Map<string, Promise<unknown>>();
 
     /** In-flight revalidation promises keyed by cache key (dedup guard) */
     private pendingRevalidations = new Map<string, Promise<void>>();
@@ -44,6 +49,7 @@ export class CacheManager {
     constructor(config: CacheConfig = {}) {
         this.defaultTtl = config.defaultTtl ?? DEFAULTS.defaultTtl;
         this.defaultSwr = config.swr ?? DEFAULTS.swr;
+        this.defaultStaleIfError = config.staleIfError ?? DEFAULTS.staleIfError;
         this.enabled = config.enabled ?? DEFAULTS.enabled;
         this.provider = config.provider ?? new MemoryCacheProvider(
             config.maxEntries ?? DEFAULTS.maxEntries
@@ -87,10 +93,20 @@ export class CacheManager {
             return entry.data;
         }
 
-        // Fully expired — evict and miss
-        await this.provider.delete(key);
+        // Past the SWR window: a miss (it stays stored only for stale-if-error)
+        if (age > entry.ttl + entry.swr + (entry.staleIfError ?? 0)) await this.provider.delete(key);
         this._misses++;
         return null;
+    }
+
+    /**
+     * The stored entry as it is, whatever its age (null when there is none).
+     * For callers that decide on freshness themselves, like the HTML cache
+     * that serves a stale page only when rendering fails.
+     */
+    async getEntry<T>(key: string): Promise<CacheEntry<T> | null> {
+        if (!this.enabled) return null;
+        return this.provider.get<T>(key);
     }
 
     /**
@@ -104,6 +120,7 @@ export class CacheManager {
             createdAt: Date.now(),
             ttl: options.ttl ?? this.defaultTtl,
             swr: options.swr ?? this.defaultSwr,
+            staleIfError: options.staleIfError ?? this.defaultStaleIfError,
             tags: options.tags ?? [],
         };
 
@@ -140,6 +157,7 @@ export class CacheManager {
         this._misses = 0;
         this._staleHits = 0;
         this.pendingRevalidations.clear();
+        this.pendingLoads.clear();
     }
 
     // ============================================
@@ -153,7 +171,11 @@ export class CacheManager {
      * 2. If fresh → returns cached data.
      * 3. If stale (within SWR window) → returns stale data AND triggers
      *    a background revalidation via the fetcher.
-     * 4. If miss → calls fetcher, caches the result, returns it.
+     * 4. If miss → calls fetcher, caches the result, returns it. Concurrent
+     *    misses for the same key share one call: a purge followed by a burst
+     *    of visitors reaches the CMS once, not once per visitor.
+     * 5. If the fetcher fails and an entry is still inside its
+     *    `staleIfError` window → returns that entry instead of failing.
      * 
      * @param key     - Cache key
      * @param fetcher - Async function that produces the data on a miss
@@ -187,15 +209,34 @@ export class CacheManager {
                 return entry.data;
             }
 
-            // Fully expired — fall through to fetch
-            await this.provider.delete(key);
         }
 
         // Cache miss
         this._misses++;
-        const data = await fetcher();
-        await this.set(key, data, options);
-        return data;
+        const pending = this.pendingLoads.get(key) as Promise<T> | undefined;
+        if (pending) return pending;
+
+        const load = (async () => {
+            try {
+                const data = await fetcher();
+                await this.set(key, data, options);
+                return data;
+            } catch (error) {
+                if (entry) {
+                    const age = (Date.now() - entry.createdAt) / 1000;
+                    if (age <= entry.ttl + entry.swr + (entry.staleIfError ?? 0)) {
+                        this._staleHits++;
+                        return entry.data;
+                    }
+                    await this.provider.delete(key);
+                }
+                throw error;
+            } finally {
+                this.pendingLoads.delete(key);
+            }
+        })();
+        this.pendingLoads.set(key, load);
+        return load;
     }
 
     // ============================================

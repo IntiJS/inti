@@ -9,6 +9,8 @@
  * system cannot tell the difference: there is no special "fallback" path.
  */
 
+import { NotFoundError } from '../errors/index.js';
+import { assertSafeFieldPath } from './paths.js';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { explainDiskWrite } from './disk.js';
@@ -205,7 +207,9 @@ export class LocalAdapter extends IntiAdapter implements WritableAdapter, Search
         const document = Object.values(store.documents).find((d) => d.slug === slug && !d.draftOf);
 
         if (!document) {
-            throw new Error(
+            throw new NotFoundError(
+                'page',
+                slug,
                 `No local document with slug "${slug}". ` +
                     `Add one to ${this.file}, or configure a CMS with INTI_ADAPTER.`
             );
@@ -304,6 +308,7 @@ export class LocalAdapter extends IntiAdapter implements WritableAdapter, Search
 
     async updateBlockField(documentId: string, blockIndex: number, field: string, value: any): Promise<WriteResult> {
         const result = await this.mutate(documentId, (blocks) => {
+            assertSafeFieldPath(field);
             this.assertIndex(blocks, blockIndex);
 
             const block = JSON.parse(JSON.stringify(blocks[blockIndex]));

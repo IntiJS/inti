@@ -93,6 +93,14 @@ export interface PageSeo {
     source?: string;
 }
 
+/** One language version of a page */
+export interface PageTranslation {
+    locale: string;
+    slug: string;
+    /** Absolute URL, when the CMS knows it; otherwise it is built from the slug */
+    url?: string;
+}
+
 export interface IntiPage {
     /** Unique page ID in the CMS */
     id: string;
@@ -104,6 +112,10 @@ export interface IntiPage {
     blocks: IntiBlock[];
     /** SEO metadata normalized from the CMS */
     seo?: PageSeo;
+    /** BCP 47 language of this page (`es`, `en-GB`), when the site has several */
+    locale?: string;
+    /** The same page in the other languages, for `hreflang` and the language switcher */
+    translations?: PageTranslation[];
     /** Optional metadata for Visual Bridge */
     meta?: {
         contentType?: string;

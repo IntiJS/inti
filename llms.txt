@@ -28,6 +28,9 @@ Setup requires four things, and skipping any of them breaks it silently:
 - [Infographics](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/infographics.mdx): A block of numbers on the page and as images for Instagram, TikTok and the blog
 - [Cloudflare](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/cloudflare.mdx): Optional D1, Durable Objects, R2, Workers AI and Images
 - [MCP server](https://github.com/intijs/inti/blob/main/packages/mcp/README.md): Tools that let an AI agent read and edit CMS content
+- [Delivery and caching](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/delivery.mdx): 404 vs 503, the page cache, CDN headers, signed purges, personalized zones as server islands
+- [Catalogs and sitemaps](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/catalog.mdx): Products from an ERP, blocks bound to live data, sitemaps past 50,000 URLs
+- [Languages](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/languages.mdx): Locale from the URL, hreflang in the head and the sitemap
 - [Securing writes](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/securing-writes.md): Who can edit in production
 - [Contributing](https://github.com/intijs/inti/blob/main/CONTRIBUTING.md): Development setup, code style, CLA
 - [Security](https://github.com/intijs/inti/blob/main/SECURITY.md): How to report a vulnerability

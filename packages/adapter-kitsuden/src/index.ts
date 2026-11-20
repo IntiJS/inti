@@ -1,4 +1,5 @@
 import { IntiAdapter } from '@intijs/core/adapters';
+import { NotFoundError, UnavailableError } from '@intijs/core/errors';
 import type {
     BlockWriteOptions,
     EntrySummary,
@@ -127,14 +128,9 @@ export type KitsudenOptionalContract = keyof typeof OPTIONAL_CONTRACTS;
  * turns it into a 503 with `Retry-After` instead of a 500, and a cache can keep serving
  * what it had.
  */
-export class KitsudenUnavailableError extends Error {
-    constructor(
-        message: string,
-        readonly status: number | null,
-        /** Seconds, when the CMS said how long to wait */
-        readonly retryAfter: number | null
-    ) {
-        super(message);
+export class KitsudenUnavailableError extends UnavailableError {
+    constructor(message: string, status: number | null, /** Seconds, when the CMS said how long to wait */ retryAfter: number | null) {
+        super(message, { status: status ?? undefined, retryAfter: retryAfter ?? undefined });
         this.name = 'KitsudenUnavailableError';
     }
 }
@@ -324,6 +320,11 @@ export class KitsudenAdapter
      * With the `game:` prefix (`game:<uuid>` or `game:<slug>`) it returns the game page: see
      * `getGame`.
      */
+    /** The contract's name for `getPage`: what the MCP server and the conformance suite call */
+    fetchPageBySlug(slug: string): Promise<IntiPage> {
+        return this.getPage(slug);
+    }
+
     async getPage(idOrSlug: string): Promise<IntiPage> {
         if (isGameDocument(idOrSlug)) return this.getGame(idOrSlug.slice(GAME_PREFIX.length));
         return this.parsePage(await this.fetchPage(idOrSlug));
@@ -1544,6 +1545,7 @@ export class KitsudenAdapter
                     if (method === 'GET' && (response.status === 429 || response.status >= 500)) {
                         throw new KitsudenUnavailableError(message, response.status, retryAfter);
                     }
+                    if (method === 'GET' && response.status === 404) throw new NotFoundError('page', path, message);
                     throw new Error(message);
                 }
 

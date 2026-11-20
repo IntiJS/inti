@@ -1,0 +1,37 @@
+---
+title: Languages and hreflang
+description: Several languages in the URL, hreflang in the head and in the sitemap
+---
+
+The CMS keeps the translations (WPML or Polylang, Strapi's i18n, Kitsuden's locales). Inti reads which language a URL asks for and tells search engines which pages are the same page in another language.
+
+## Which language a URL asks for
+
+```astro
+---
+import { localeFromPath } from '@intijs/core/seo';
+
+const routing = { locales: ['es', 'en'], defaultLocale: 'es' };
+const { locale, slug } = localeFromPath(Astro.url.pathname, routing);   // /en/about → en, about
+---
+```
+
+`localizedPath(slug, locale, routing)` is the inverse, for links and a language switcher. With `prefixDefault: true` the default language is prefixed too (`/es/about`).
+
+## hreflang
+
+An adapter that knows a page's language fills `page.locale` and `page.translations` (`[{ locale, slug, url? }]`). `IntiSeo` then emits one `<link rel="alternate" hreflang>` per version, this one included, plus `og:locale:alternate`:
+
+```astro
+<IntiSeo page={page} url={Astro.url.href} defaultLocale="es" />
+```
+
+`defaultLocale` adds `x-default`. When the CMS does not give a translation's URL, it is built as `/<locale>/<slug>` on the same origin; pass `translationUrl` for another scheme. Each version must list all the others and itself, or search engines ignore the set: that is why the page itself is always included.
+
+## In the sitemap
+
+`toSitemapEntries` turns `locale` and `translations` of each `PageSummary` into `xhtml:link` alternates, with `x-default` when `defaultLocale` is given:
+
+```ts
+toSitemapEntries(await adapter.listPages(), { site, defaultLocale: 'es' });
+```

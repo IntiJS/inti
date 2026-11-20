@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Delivery: the right status code, caches that hold, editors apart
+
+- **404 only when the page does not exist.** Adapters throw `NotFoundError` for a missing page and `UnavailableError` when the CMS cannot answer (`@intijs/core/errors`); `pageErrorResponse` answers 404 for the first and 503 with `Retry-After` for everything else. The generated page used to answer 404 to any failure, which told search engines to drop pages that exist whenever the CMS timed out.
+- **`fetchPageBySlug` is part of the base contract.** Contentful and Sanity gained it (they had no way to read a page), and Kitsuden has it as an alias of `getPage`, so the MCP server reads pages on every adapter.
+- **`createHttpClient` (`@intijs/core/http`)**, shared by adapters: a time limit per request, retries only on reads, `Retry-After` on 429/503, `If-None-Match`/304, one request for identical reads in flight, typed errors, `Content-Type: application/json` exactly.
+- **`CachedAdapter` is gone**: it called `adapter.fetchPage()`, which no adapter has. `cachePages(adapter, { cache })` replaces it with tags, stale-while-revalidate, one load per key during a burst, `staleIfError` and short-lived 404s. `createValkeyCacheProvider` shares the cache between instances.
+- **`intiDelivery` and `purgeRoute` (`@intijs/core/delivery`)**: `s-maxage` for anonymous visitors, `private, no-store` for editors, an HTML cache tagged by page, a stale copy when rendering fails, tracking parameters that do not split the cache, and a purge route that takes an HMAC-signed notice. Only requests with a cookie are asked about a session, and the answer is remembered for a few seconds.
+- **`data-inti-*` only for editors.** `BlockRenderer` writes its block attributes only for an editor, and the middleware removes `data-inti-field` from what a visitor receives.
+- **Personalized zones no longer make the page uncacheable**: `<BlockRenderer adaptive="island" />` renders each zone as a server island; the page carries the default version for everybody. The integration provides `virtual:inti/blocks`, so islands and the AI preview find the blocks in a fresh process.
+- **Images**: `MediaAsset` carries the `srcset`, `sources` (AVIF, WebP) and `video` (an animated GIF stored as a video) the CMS made, and `IntiImage` uses them as they are: a `<picture>` when there are formats, a muted looping `<video>` for the video.
+- **Catalogs** (`@intijs/core/catalog`): several sources per site, a cache keyed by id, a signed purge notice, product and category routes (`readItem`, `readCollection`) and blocks bound to live data with `inti_bind`.
+- **Sitemaps past 50,000 URLs**: `sitemapIndexRoute` / `sitemapFileRoute` serve an index and one file per 50,000 URLs (or 50 MB), reading a catalog a file at a time.
+- **Languages**: `page.locale` and `page.translations` give `hreflang` links in `IntiSeo` and `xhtml:link` alternates in the sitemap; `localeFromPath` reads the language from the URL.
+- **`adapterConformance` (`@intijs/core/testing`)**: the checks every adapter passes. It found that `LocalAdapter`, `WordPressAdapter` and `StrapiAdapter` let `updateBlockField(id, 0, '__proto__.x', …)` write to `Object.prototype`, reachable through the MCP server, which calls adapters directly. All three now refuse it (`assertSafeFieldPath`).
+- **`create-inti` makes a `Dockerfile`** (non-root, no dev dependencies, a health check that does not restart the container when the CMS is down) and a `.dockerignore`; with local tarballs it copies them into `vendor/`, so the project builds on its own.
+
 ### Vercel, checked like Astro's majors
 
 - **`scripts/vercel-check.mjs <5|6|7>`**, in CI for Astro 5, 6 and 7: the site is built with `@astrojs/vercel` and the function Vercel would upload is run on its own, outside the project, so a file it needs and did not ship fails as in production. It checks pages with no editor markup for visitors, anonymous writes refused, `/api/inti/search` closed, the Kitsuden middleware and page cache, and an infographic rendered to PNG with the network cut.

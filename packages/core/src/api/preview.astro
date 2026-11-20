@@ -7,6 +7,8 @@
  * cannot be left open.
  */
 
+// The preview runs in a request of its own: in a fresh process no page has registered the blocks
+import 'virtual:inti/blocks';
 import BlockRenderer from '../astro/BlockRenderer.astro';
 import { blockTypeForPreview } from '../registry/index.js';
 import { resolveEditorSession } from '../server/editor-session.js';

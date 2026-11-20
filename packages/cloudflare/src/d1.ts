@@ -5,6 +5,7 @@
  * already composed responses live.
  */
 
+import { NotFoundError } from '@intijs/core/errors';
 import { IntiAdapter } from '@intijs/core/adapters';
 import type {
     DraftableAdapter,
@@ -131,7 +132,7 @@ export class D1ContentAdapter extends IntiAdapter implements WritableAdapter, Li
             .prepare('SELECT * FROM inti_documents WHERE slug = ? AND draft_of IS NULL')
             .bind(slug)
             .first<DocumentRow>();
-        if (!row) throw new Error(`Page not found for slug: ${slug}`);
+        if (!row) throw new NotFoundError('page', slug, `Page not found for slug: ${slug}`);
         return this.parse(row);
     }
 

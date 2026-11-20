@@ -1,6 +1,7 @@
 ---
 import { getImage } from 'astro:assets';
 import type { MediaAsset, ImageTransformOptions, ResponsiveImageOptions } from '../types/media.js';
+import { srcsetAttribute } from '../types/media.js';
 import { getImageService } from './service.js';
 
 interface Props {
@@ -73,7 +74,25 @@ const options: ImageTransformOptions = {
 let optimized: any = null;
 let placeholderUrl: string | undefined;
 
-if (imageService) {
+/**
+ * The CMS already made the sizes and formats: use them as they are. Asking
+ * Astro or an image service to transform them again costs a request per
+ * size and gives nothing the CMS did not.
+ */
+const cmsSrcset = responsive ? srcsetAttribute(asset.srcset) : undefined;
+const cmsSources = responsive
+    ? (asset.sources ?? [])
+          .map((source) => ({ type: source.type, srcset: srcsetAttribute(source.srcset) }))
+          .filter((source): source is { type: string; srcset: string } => Boolean(source.type && source.srcset))
+    : [];
+if (cmsSrcset || cmsSources.length > 0) {
+    optimized = { src: asset.url, srcset: cmsSrcset, sizes: sizes ?? '100vw', width: width ?? asset.width, height: height ?? asset.height };
+    if (import.meta.env.DEV && !(asset.width && asset.height) && !(width && height)) {
+        console.warn(`[Inti] <IntiImage> ${asset.url} has no width/height: the browser cannot reserve its space. The adapter should return them.`);
+    }
+}
+
+if (imageService && !optimized) {
     try {
         if (responsive) {
             const responsiveOptions: ResponsiveImageOptions = {
@@ -196,7 +215,37 @@ if (import.meta.env.DEV && !resolvedAlt) {
 }
 ---
 
-{optimized?.srcset ? (
+{asset.video?.url ? (
+    <video
+        src={asset.video.url}
+        poster={asset.url}
+        width={imageWidth}
+        height={imageHeight}
+        autoplay
+        muted
+        loop
+        playsinline
+        preload={priority ? 'auto' : 'metadata'}
+        aria-label={resolvedAlt || undefined}
+        class={className}
+    />
+) : cmsSources.length > 0 ? (
+    <picture>
+        {cmsSources.map((source) => <source type={source.type} srcset={source.srcset} sizes={optimized.sizes} />)}
+        <img
+            src={imageSrc}
+            srcset={optimized.srcset}
+            sizes={optimized.srcset ? optimized.sizes : undefined}
+            width={imageWidth}
+            height={imageHeight}
+            alt={resolvedAlt}
+            loading={imageLoading}
+            fetchpriority={fetchPriority}
+            decoding="async"
+            class={className}
+        />
+    </picture>
+) : optimized?.srcset ? (
     <img
         src={imageSrc}
         srcset={optimized.srcset}
@@ -225,7 +274,7 @@ if (import.meta.env.DEV && !resolvedAlt) {
 )}
 
 <style>
-    img {
+    img, video {
         max-width: 100%;
         height: auto;
     }

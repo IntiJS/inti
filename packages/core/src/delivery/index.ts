@@ -28,6 +28,7 @@ import type { CacheManager } from '../cache/cache-manager.js';
 import { normalizeSlug, pageTags } from '../cache/pages.js';
 import { resolveEditorSession } from '../server/editor-session.js';
 import { pageErrorResponse } from '../server/responses.js';
+import { isDevelopmentRuntime } from '../server/access.js';
 import { verifySignature, signBody } from './signature.js';
 
 export { signBody, verifySignature };
@@ -203,7 +204,8 @@ export function intiDelivery(options: DeliveryOptions = {}) {
     return async (context: DeliveryContext, next: Next): Promise<Response> => {
         if (skip(context.url.pathname)) return next();
 
-        const editor = mayBeEditor(context.request) ? await isEditor(context) : false;
+        // In development everybody edits, as `resolveEditorSession` says: no session to ask about
+        const editor = isDevelopmentRuntime() || (mayBeEditor(context.request) ? await isEditor(context) : false);
         if (context.locals) context.locals.intiEditor = editor;
 
         const cache = !editor && context.request.method === 'GET' ? options.cache : undefined;

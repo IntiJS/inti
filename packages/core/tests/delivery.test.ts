@@ -105,6 +105,23 @@ describe('intiDelivery', () => {
     });
 });
 
+describe('development', () => {
+    test('everybody is an editor: the markup stays and nothing is cached', async () => {
+        const previous = process.env.NODE_ENV;
+        process.env.NODE_ENV = 'development';
+        try {
+            const delivery = intiDelivery({ cache: createCacheManager() });
+            const ctx = context('/about');
+            const response = await delivery(ctx, async () => html('<h1 data-inti-field="heading">Hi</h1>'));
+            expect(await response.text()).toContain('data-inti-field');
+            expect(response.headers.get('cache-control')).toBe('private, no-store');
+            expect(ctx.locals.intiEditor).toBe(true);
+        } finally {
+            process.env.NODE_ENV = previous;
+        }
+    });
+});
+
 describe('purgeRoute', () => {
     test('refuses a bad signature and answers 503 without a secret', async () => {
         const cache = createCacheManager();

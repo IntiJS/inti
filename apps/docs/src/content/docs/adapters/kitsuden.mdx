@@ -141,9 +141,11 @@ What every Kitsuden site used to copy, in one place:
 
 ```ts
 // src/middleware.ts
-import { kitsudenMiddleware, createPageCache } from '@intijs/adapter-kitsuden/astro';
+import { createCacheManager } from '@intijs/core/cache';
+import { kitsudenMiddleware } from '@intijs/adapter-kitsuden/astro';
 
-export const cache = createPageCache({ ttlSeconds: 60 });
+// The core's cache: in memory, or shared on Valkey (createValkeyCacheProvider)
+export const cache = createCacheManager({ defaultTtl: 60, swr: 300, staleIfError: 86_400 });
 export const onRequest = kitsudenMiddleware({
   api: process.env.KITSUDEN_API_URL!,   // as the server reaches it; may be internal
   trustProxy: process.env.KITSUDEN_TRUST_PROXY === 'true',
@@ -152,10 +154,20 @@ export const onRequest = kitsudenMiddleware({
 ```
 
 The middleware registers the editor plugin (a better-auth session with role `admin` or
-`editor`, read without the 5-minute cookie cache, and every anonymous write refused); marks
-an editor's response `private, no-store`; serves anonymous visitors from the HTML cache; and
-when Kitsuden cannot answer serves a stale copy or a 503 with `Retry-After`. Images, assets and
-the media proxy never trigger a session lookup.
+`editor`, read without the 5-minute cookie cache, and every anonymous write refused) and
+delivers through the core's `intiDelivery`: anonymous visitors get the HTML cache and CDN
+headers (`s-maxage`), editors get `private, no-store`, the editor's `data-inti-*` attributes
+never reach a visitor, and tracking parameters (`utm_*`, `gclid`…) do not split the cache.
+When Kitsuden cannot answer it serves a stale copy or a 503 with `Retry-After`.
+
+The session is asked about only when the request carries a Kitsuden session cookie, and the
+answer is remembered per cookie for `sessionMemoSeconds` (5): a visitor with other cookies is
+served from the cache with no round-trip, and an editor costs one lookup every few seconds,
+not one per page. Images, assets and the media proxy never trigger a lookup.
+
+`npm create inti -- --cms kitsuden` (or `scaffold-local.mjs --cms kitsuden`) generates all of
+it: the middleware, one cache for pages and HTML, the purge route, the media routes and the
+site key.
 
 ```ts
 // The adapter, once per server
@@ -173,14 +185,32 @@ export const adapter = new KitsudenAdapter({
 | Piece | For |
 |---|---|
 | `mediaPresetRoute(api)`, `mediaFileRoute(api)` | `src/pages/img/[id]/[preset].ts` and `src/pages/media/[...key].ts`: media from the site's origin (the API sends `Cross-Origin-Resource-Policy: same-origin`), Range passed through for video, no SVG |
+| `kitsudenImage(value, { width, height })` + `mediaTransformRoute(api)` | A media as Inti's image contract: `srcset` and AVIF and WebP `sources` from `/api/media/transform`, served from `src/pages/img/t/[id]/[file].ts` as `immutable` for a year. `<IntiImage src={kitsudenImage(hero.image, { width: 1600, height: 900 })} />` |
 | `imageSrc(value, preset)` | Any image reference in a block as something the browser can load, or null |
-| `purgeRoute(cache, secret)` | `src/pages/api/kitsuden/purge.ts`: a Kitsuden action's outbound webhook on `page:updated` / `page:deleted` (Kitsuden builds that declare `page-builder-publish`), verified with `X-Kitsuden-Signature`, empties the cached page |
+| `purgeRoute(cache, secret)` | `src/pages/api/kitsuden/purge.ts`: a Kitsuden action's outbound webhook on `page:updated` / `page:deleted` (Kitsuden builds that declare `page-builder-publish`), verified with `X-Kitsuden-Signature`, drops the page's data and HTML and the home page; an `entry:*` event of a dataset served as a catalog drops that item |
 | `blockAttributes`, `fieldAttributes`, `blockJson`, `markupFor` | The `data-inti-*` markup, block id included, for sites that render blocks themselves; nothing for visitors |
 | `adapter.composerBlockTypes()` | The composer palette from `/block-types`: defaults and variants from the schema |
 | `stripSecretsForBuild()` | At the top of `astro.config.mjs`: removes the agent and site keys from `astro build` |
 | `kitsudenActions()` | Mounts `/_actions/*` without a `src/actions/index.ts`, when Inti is optional |
 
 Drafts use the core's `readDraftPage`: `const page = (await readDraftPage(slug, Astro)) ?? (await adapter.getPage(slug))`.
+
+### Reading for visitors, navigation and search
+
+- `adapter.getRenderedPage(slug)` reads `GET /render/:slug`: published pages and visible blocks only (the API filters them), with `mediaUrls` and each block's style fields, kept five minutes in Kitsuden's own cache. It is the cheap read for visitors; editors read `getPage`, which has every block, hidden ones included.
+- Every block carries `meta.style` (`className`, `backgroundColor`, `textColor`, `padding`, `columnSpan`), which `BlockRenderer` passes to the component as `intiBlock.style`.
+- `adapter.fetchNavigation()` reads `mainNav` from the public `GET /api/settings`: Kitsuden has no menus endpoint.
+- `adapter.search(query, { type, limit, datasetId })` posts to `/api/search`, which searches public datasets (not pages).
+
+### Edits that never overwrite
+
+Every block carries `meta.version` (its `updatedAt`), rendered as `data-inti-block-version`. The editor sends it with the block id, so a Kitsuden that declares `page-builder-patch` gets one `PATCH /blocks/:id` with `If-Match` and no read of the page first. When the block changed since the page loaded, Kitsuden answers 409 and the editor says so; nothing is written. After each save the editor takes the new version from the answer, so the next edit of the same block is conditional on it.
+
+### A catalog from a dataset
+
+Kitsuden has no product API. `kitsudenCatalogSource({ endpoint, datasetId, fields })` reads a dataset's public entries as `CatalogSource` items (title, slug, price, stock, collections, attributes for filters and facets), for the product routes and bound blocks of `@intijs/core/catalog`. It is named `kitsuden-<datasetId>`; a Kitsuden action with an outbound webhook on `entry:updated` / `entry:deleted` to `purgeRoute` drops the item and its listings.
+
+The anonymous ETag store keeps `revalidationEntries` answers (default 500; it was a fixed 100).
 
 ## Structure of a page in Kitsuden
 

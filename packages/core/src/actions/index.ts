@@ -170,6 +170,9 @@ interface ActionContext {
  */
 const blockId = z.string().min(1).max(200).optional();
 
+/** The block's version as rendered (`data-inti-block-version`), for a conditional write */
+const blockVersion = z.string().min(1).max(100).optional();
+
 export const intiActions = {
   /**
    * Inline-editing write-back: updates one field of a block
@@ -183,6 +186,7 @@ export const intiActions = {
       documentId: z.string(),
       blockIndex: z.number().int(),
       blockId,
+      blockVersion,
       // A dot-path with these keys would pollute Object.prototype in any adapter
       field: z.string().min(1).refine((field) => !/(^|\.)(__proto__|constructor|prototype)(\.|$)/.test(field), 'Invalid field path'),
       value: z.any()
@@ -202,7 +206,10 @@ export const intiActions = {
         },
         async () => {
           const adapter = await requireAdapter();
-          return adapter.updateBlockField(input.documentId, input.blockIndex, input.field, input.value, { blockId: input.blockId });
+          return adapter.updateBlockField(input.documentId, input.blockIndex, input.field, input.value, {
+            blockId: input.blockId,
+            blockVersion: input.blockVersion
+          });
         },
         'Write-back failed'
       );

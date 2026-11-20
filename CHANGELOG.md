@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Kitsuden: cached pages that cost nothing, writes that cannot overwrite
+
+- **`kitsudenMiddleware` delivers through the core's `intiDelivery`**, with the core's cache (memory or Valkey) instead of its own: CDN headers, the editor's markup only for editors, tracking parameters out of the cache key. `createPageCache` and `isCacheable` are gone; `purgeRoute(cache, secret)` takes the core cache.
+- **The session is asked about after the cache.** Only a request with a Kitsuden session cookie is looked up, and the answer is remembered per cookie for a few seconds: every cached page used to cost an auth round-trip.
+- **Conditional writes without a read.** Blocks carry `meta.version`; the editor sends it with the block id, and the adapter sends one `PATCH /blocks/:id` with `If-Match`. A block that changed since the page loaded is a 409 and nothing is written; the editor takes the new version from each answer.
+- **`getRenderedPage(slug)`** (`/render/:slug`) for visitors, **block styles** (`meta.style`, passed as `intiBlock.style`), **`fetchNavigation()`** from the settings' `mainNav`, **`search()`** over `/api/search`.
+- **`kitsudenImage` + `mediaTransformRoute`**: AVIF, WebP and `srcset` from `/api/media/transform`, served from the site's origin as `immutable`.
+- **`kitsudenCatalogSource`**: a dataset served as a catalog, purged by `entry:*` webhooks.
+- **`revalidationEntries`** (default 500): the ETag store was a fixed 100.
+- **`create-inti --cms kitsuden`** generates the middleware, one cache for pages and HTML, the purge route, the media routes and the site key.
+- **CI checks a real Kitsuden** when `KITSUDEN_REPO_TOKEN` is set (the image is built from its repository); the contract copy is synced with Kitsuden's canonical file.
+
 ### Delivery: the right status code, caches that hold, editors apart
 
 - **404 only when the page does not exist.** Adapters throw `NotFoundError` for a missing page and `UnavailableError` when the CMS cannot answer (`@intijs/core/errors`); `pageErrorResponse` answers 404 for the first and 503 with `Retry-After` for everything else. The generated page used to answer 404 to any failure, which told search engines to drop pages that exist whenever the CMS timed out.

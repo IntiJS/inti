@@ -2,7 +2,6 @@ import { describe, test, expect } from 'bun:test';
 import { toComposerBlockTypes, KitsudenUnavailableError } from '../src/index.js';
 import {
     blockAttributes,
-    createPageCache,
     currentVisitorIp,
     fieldAttributes,
     imageSrc,
@@ -16,6 +15,8 @@ import {
     sessionCookies,
     stripSecretsForBuild
 } from '../src/astro/index.js';
+import { createCacheManager, pageTags } from '@intijs/core/cache';
+import { htmlTag } from '@intijs/core/delivery';
 
 /**
  * The glue every Kitsuden site copied (four copies that had drifted apart), now in one place.
@@ -91,13 +92,13 @@ describe('middleware', () => {
     });
 
     test('anonymous HTML is served from the cache; editors always get a fresh render', async () => {
-        const cache = createPageCache({ ttlSeconds: 60 });
+        const cache = createCacheManager();
         let renders = 0;
         const render = async () => html(`<p>render ${++renders}</p>`);
 
         const anonymous = kitsudenMiddleware({ api: 'https://cms.test', fetch: sessionApi(null), cache, registerPlugin: false });
         const first = await anonymous(ctx('/about'), render);
-        const second = await anonymous(ctx('/about'), render);
+        const second = await anonymous(ctx('/about?utm_source=newsletter'), render);
         expect(first.headers.get('x-inti-cache')).toBe('MISS');
         expect(second.headers.get('x-inti-cache')).toBe('HIT');
         expect(await second.text()).toBe('<p>render 1</p>');
@@ -106,17 +107,41 @@ describe('middleware', () => {
         expect(await (await editor(ctx('/about', { headers: { cookie: SESSION } }), render)).text()).toBe('<p>render 2</p>');
     });
 
+    test('a visitor with unrelated cookies is served from the cache without a session lookup', async () => {
+        const seen: string[] = [];
+        const cache = createCacheManager();
+        const onRequest = kitsudenMiddleware({ api: 'https://cms.test', fetch: sessionApi(null, seen), cache, registerPlugin: false });
+        await onRequest(ctx('/about'), async () => html('x'));
+        const hit = await onRequest(ctx('/about', { headers: { cookie: '_ga=1; theme=dark' } }), async () => html('y'));
+        expect(hit.headers.get('x-inti-cache')).toBe('HIT');
+        expect(seen).toHaveLength(0);
+    });
+
+    test('an editor session is looked up once per few seconds, not once per page', async () => {
+        const seen: string[] = [];
+        const onRequest = kitsudenMiddleware({ api: 'https://cms.test', fetch: sessionApi('editor', seen), registerPlugin: false });
+        for (const path of ['/a', '/b', '/c']) {
+            const context = ctx(path, { headers: { cookie: SESSION } });
+            await onRequest(context, async () => html('x'));
+            expect(context.locals.kitsudenEditor).toMatchObject({ role: 'editor' });
+        }
+        expect(seen).toHaveLength(1);
+    });
+
     test('responses that set cookies or say private are not cached', async () => {
-        const cache = createPageCache();
+        const cache = createCacheManager();
         const onRequest = kitsudenMiddleware({ api: 'https://cms.test', fetch: sessionApi(null), cache, registerPlugin: false });
-        await onRequest(ctx('/a'), async () => html('x', { 'set-cookie': 'a=1' }));
-        await onRequest(ctx('/b'), async () => html('x', { 'cache-control': 'private' }));
-        expect(cache.size).toBe(0);
+        let renders = 0;
+        await onRequest(ctx('/a'), async () => (renders++, html('x', { 'set-cookie': 'a=1' })));
+        await onRequest(ctx('/a'), async () => (renders++, html('x', { 'set-cookie': 'a=1' })));
+        await onRequest(ctx('/b'), async () => (renders++, html('x', { 'cache-control': 'private' })));
+        await onRequest(ctx('/b'), async () => (renders++, html('x', { 'cache-control': 'private' })));
+        expect(renders).toBe(4);
     });
 
     test('when Kitsuden cannot answer: a stale copy if there is one, a 503 otherwise', async () => {
-        const cache = createPageCache({ ttlSeconds: 0 });
-        const onRequest = kitsudenMiddleware({ api: 'https://cms.test', fetch: sessionApi(null), cache, registerPlugin: false });
+        const cache = createCacheManager();
+        const onRequest = kitsudenMiddleware({ api: 'https://cms.test', fetch: sessionApi(null), cache, htmlTtl: 0, registerPlugin: false });
         await onRequest(ctx('/about'), async () => html('<p>old</p>'));
         await new Promise((resolve) => setTimeout(resolve, 5));
 
@@ -155,34 +180,41 @@ describe('purge webhook', () => {
     const post = async (body: string, signature: string | null) =>
         new Request('https://site.test/api/kitsuden/purge', { method: 'POST', body, headers: signature ? { 'x-kitsuden-signature': signature } : {} });
 
-    function seeded() {
-        const cache = createPageCache();
-        for (const path of ['/', '/about', '/about?ref=x', '/pricing']) cache.store(new URL(`https://site.test${path}`), { status: 200, headers: [], body: path });
+    async function seeded() {
+        const cache = createCacheManager();
+        for (const [path, slug] of [['/', 'home'], ['/about', 'about'], ['/about?ref=x', 'about'], ['/pricing', 'pricing']]) {
+            await cache.set(`inti:html:${path}`, { status: 200, headers: [], body: path }, { tags: [htmlTag, pageTags.page(slug)] });
+        }
         return cache;
     }
+    const present = async (cache: ReturnType<typeof createCacheManager>) => {
+        const out: string[] = [];
+        for (const path of ['/', '/about', '/about?ref=x', '/pricing']) if (await cache.getEntry(`inti:html:${path}`)) out.push(path);
+        return out;
+    };
 
     test('a page:updated with a slug purges that page and the home page', async () => {
-        const cache = seeded();
+        const cache = await seeded();
         const body = JSON.stringify({ event: 'page:updated', data: { id: 'p1', slug: 'about' } });
         const response = await purgeRoute(cache, secret)({ request: await post(body, await sign(body)) });
-        expect(await response.json()).toEqual({ purged: 3 });
-        expect(cache.fresh(new URL('https://site.test/pricing'))).toBeDefined();
+        expect(response.status).toBe(200);
+        expect(await present(cache)).toEqual(['/pricing']);
     });
 
     test('a deletion purges everything', async () => {
-        const cache = seeded();
+        const cache = await seeded();
         const body = JSON.stringify({ event: 'page:deleted', slug: 'about' });
         await purgeRoute(cache, secret)({ request: await post(body, await sign(body)) });
-        expect(cache.size).toBe(0);
+        expect(await present(cache)).toEqual([]);
     });
 
     test('without the right signature nothing is purged', async () => {
-        const cache = seeded();
+        const cache = await seeded();
         const body = JSON.stringify({ slug: 'about' });
         expect((await purgeRoute(cache, secret)({ request: await post(body, null) })).status).toBe(401);
         expect((await purgeRoute(cache, secret)({ request: await post(body, await sign(body, 'wrong')) })).status).toBe(401);
         expect((await purgeRoute(cache, () => undefined)({ request: await post(body, await sign(body)) })).status).toBe(503);
-        expect(cache.size).toBe(4);
+        expect(await present(cache)).toHaveLength(4);
     });
 });
 

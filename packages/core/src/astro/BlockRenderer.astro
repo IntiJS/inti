@@ -84,6 +84,7 @@ const editorAttributes = (
         ? {
               "data-inti-block": type,
               "data-inti-block-id": id,
+              "data-inti-block-version": meta?.version,
               "data-inti-document-id": meta?.documentId,
               "data-inti-content-type": meta?.contentType,
               "data-inti-locale": meta?.locale,
@@ -210,7 +211,7 @@ const renderableBlocks = await Promise.all(
                   lazily, which is what decides the LCP.
                 */}
                 {/* @ts-expect-error - Dynamic Prop Spread for Astro Components */}
-                <Component {...data} intiBlock={{ index, isFirst: index === 0, total: renderableBlocks.length }} />
+                <Component {...data} intiBlock={{ index, isFirst: index === 0, total: renderableBlocks.length, style: meta?.style }} />
                 {editable && (
                     <script type="application/json" data-inti-block-json set:html={toSafeJson(data)} />
                 )}

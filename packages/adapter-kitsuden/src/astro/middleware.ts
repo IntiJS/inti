@@ -2,30 +2,35 @@
  * Everything a Kitsuden site needs per request, in one middleware:
  *
  *   // src/middleware.ts
+ *   import { createCacheManager } from '@intijs/core/cache';
  *   import { kitsudenMiddleware } from '@intijs/adapter-kitsuden/astro';
- *   export const onRequest = kitsudenMiddleware({ api: process.env.KITSUDEN_API_URL! });
+ *   export const cache = createCacheManager({ staleIfError: 86_400 });
+ *   export const onRequest = kitsudenMiddleware({ api: process.env.KITSUDEN_API_URL!, cache });
  *
  * 1. Registers, once, the plugin that recognises Kitsuden editors. Here and not in the actions
  *    module: Astro loads that one on the first action, and without the plugin nobody could open
  *    the editor to send one.
  * 2. Runs the request with its visitor's IP, which the adapter sends with `siteKey` (set
  *    `clientIp: currentVisitorIp` on it) so the API counts each visitor apart.
- * 3. Marks an editor's response `private, no-store` with `Vary: Cookie`: it carries the editing
- *    markup, and a shared cache must never give it to anyone else.
- * 4. With `cache`, serves anonymous visitors from the HTML cache (see `createPageCache`).
- * 5. When Kitsuden cannot answer (`KitsudenUnavailableError`), serves a stale copy if there is
- *    one, or a 503 with `Retry-After`: "come back later" is the one answer that does not make a
- *    search engine forget the page.
- *
- * Static files and the media proxy are not asked about sessions: an image does not need to
- * know who is looking, and the old starters spent one auth round-trip per image.
+ * 3. Delivers through `intiDelivery` (`@intijs/core/delivery`): anonymous visitors get the HTML
+ *    cache and CDN headers, editors get `private, no-store` with `Vary: Cookie`, the editor's
+ *    `data-inti-*` attributes never reach a visitor, and tracking parameters do not split the
+ *    cache.
+ * 4. The session is asked about only when the request carries a Kitsuden session cookie, and the
+ *    answer is remembered per cookie for a few seconds: a cached page used to cost one auth
+ *    round-trip per view anyway.
+ * 5. When Kitsuden cannot answer (`KitsudenUnavailableError`), a stale copy if there is one, or
+ *    a 503 with `Retry-After`: "come back later" is the one answer that does not make a search
+ *    engine forget the page.
  */
 
+import type { CacheManager } from '@intijs/core/cache';
+import { intiDelivery, type CdnOptions } from '@intijs/core/delivery';
+import { isUnavailable, type UnavailableError } from '@intijs/core/errors';
 import { registerIntiPlugin } from '@intijs/core/plugins';
+import { pageErrorResponse } from '@intijs/core/server';
 
-import { KitsudenUnavailableError } from '../index.js';
-import { isCacheable, type CachedPage, type PageCache } from './cache.js';
-import { DEFAULT_EDITOR_ROLES, kitsudenEditorPlugin, perRequest, resolveEditor, type KitsudenEditor } from './session.js';
+import { DEFAULT_EDITOR_ROLES, kitsudenEditorPlugin, resolveEditor, sessionCookies, type KitsudenEditor } from './session.js';
 import { runWithVisitor, visitorIp } from './visitor.js';
 
 /** What the middleware reads from Astro's context; structural, so no Astro types are needed */
@@ -33,6 +38,7 @@ export interface MiddlewareContextLike {
     request: Request;
     url: URL;
     clientAddress?: string;
+    cookies?: unknown;
     locals?: Record<string, unknown>;
 }
 
@@ -45,48 +51,79 @@ export interface KitsudenMiddlewareOptions {
     roles?: readonly string[];
     /** Read the visitor's IP from the last `X-Forwarded-For` entry (see `visitorIp`) */
     trustProxy?: boolean;
-    /** HTML cache for anonymous visitors */
-    cache?: PageCache;
+    /** HTML cache for anonymous visitors: the core's cache manager, in memory or on Valkey */
+    cache?: CacheManager;
+    /** Seconds a cached page is served without rendering. Default 60 */
+    htmlTtl?: number;
+    /** Seconds a stale page is served while Kitsuden cannot answer. Default 86400 */
+    staleIfError?: number;
+    /** Headers for a CDN, or `false`. Default: `s-maxage=60` and friends for anonymous pages */
+    cdn?: CdnOptions | false;
+    /** Seconds a session answer is remembered per session cookie. Default 5 */
+    sessionMemoSeconds?: number;
     /** Paths that never need to know about sessions. Default: assets, `/img/`, `/media/`, robots, favicons */
     skip?: (pathname: string) => boolean;
     /** The page shown when Kitsuden cannot answer and nothing is cached */
-    unavailable?: (error: KitsudenUnavailableError) => Response;
+    unavailable?: (error: UnavailableError) => Response;
     /** `false` to register the editor plugin yourself. Default: true */
     registerPlugin?: boolean;
     fetch?: typeof fetch;
 }
 
-const STATIC = /^\/(?:_astro\/|_image|img\/|media\/|favicon|robots\.txt$|sitemap[^/]*\.xml$|manifest\.webmanifest$|apple-touch-icon)/;
+const STATIC =
+    /^\/(?:_astro\/|_image|_server-islands\/|img\/|media\/|favicon|robots\.txt$|sitemap[^/]*\.xml$|manifest\.webmanifest$|apple-touch-icon)/;
 
 let registered = false;
 
-function defaultUnavailable(error: KitsudenUnavailableError): Response {
-    const retry = String(Math.max(30, Math.min(600, error.retryAfter ?? 60)));
-    return new Response(
-        '<!doctype html><html><head><meta charset="utf-8"><meta name="robots" content="noindex">' +
-            '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Back in a moment</title></head>' +
-            '<body style="font-family:system-ui,sans-serif;max-width:40rem;margin:4rem auto;padding:0 1rem">' +
-            '<h1>Back in a moment</h1><p>This page cannot be shown right now. Please try again in a minute.</p></body></html>',
-        { status: 503, headers: { 'content-type': 'text/html; charset=utf-8', 'retry-after': retry, 'cache-control': 'no-store' } }
-    );
+/** Session answers per session cookie, for a few seconds, bounded */
+function memoized(seconds: number, resolve: (cookie: string) => Promise<KitsudenEditor | null>) {
+    const answers = new Map<string, { value: Promise<KitsudenEditor | null>; until: number }>();
+    return (cookie: string): Promise<KitsudenEditor | null> => {
+        if (!cookie) return Promise.resolve(null);
+        if (seconds <= 0) return resolve(cookie).catch(() => null);
+        const now = Date.now();
+        const known = answers.get(cookie);
+        if (known && known.until > now) return known.value;
+        const value = resolve(cookie).catch(() => null);
+        answers.set(cookie, { value, until: now + seconds * 1000 });
+        if (answers.size > 1000) for (const [key, entry] of answers) if (entry.until <= now) answers.delete(key);
+        return value;
+    };
 }
-
-const fromCache = (page: CachedPage, state: 'HIT' | 'STALE') => {
-    const headers = new Headers(page.headers);
-    headers.set('x-inti-cache', state);
-    return new Response(page.body, { status: page.status, headers });
-};
 
 export function kitsudenMiddleware(options: KitsudenMiddlewareOptions) {
     const apiUrl = () => (typeof options.api === 'function' ? options.api() : options.api);
     const roles = options.roles ?? DEFAULT_EDITOR_ROLES;
     const skip = options.skip ?? ((pathname: string) => STATIC.test(pathname));
-    const editorOf = perRequest((cookie) => resolveEditor(cookie, { api: apiUrl(), roles, fetch: options.fetch }));
+    const editorFor = memoized(options.sessionMemoSeconds ?? 5, (cookie) => resolveEditor(cookie, { api: apiUrl(), roles, fetch: options.fetch }));
+    const editorOf = (request: Request | undefined) => editorFor(sessionCookies(request?.headers.get('cookie')));
 
     if (options.registerPlugin !== false && !registered) {
         registerIntiPlugin(kitsudenEditorPlugin(editorOf, roles) as Parameters<typeof registerIntiPlugin>[0]);
         registered = true;
     }
+
+    const delivery = intiDelivery({
+        cache: options.cache,
+        htmlTtl: options.htmlTtl,
+        staleIfError: options.staleIfError,
+        cdn: options.cdn,
+        // Static paths are left alone before delivery runs
+        skip: () => false,
+        // Only a Kitsuden session cookie can make an editor
+        mayBeEditor: (request) => Boolean(sessionCookies(request.headers.get('cookie'))),
+        // Remembered here instead, so `locals.kitsudenEditor` is set on every request
+        sessionMemoSeconds: 0,
+        isEditor: async (context) => {
+            const editor = await editorOf(context.request);
+            if (context.locals) context.locals.kitsudenEditor = editor;
+            return Boolean(editor);
+        },
+        onError: (error) => {
+            if (isUnavailable(error)) console.warn(`[kitsuden] ${(error as Error).message}`);
+            return isUnavailable(error) && options.unavailable ? options.unavailable(error) : pageErrorResponse(error);
+        }
+    });
 
     return async (context: MiddlewareContextLike, next: Next): Promise<Response> => {
         let ip: string | undefined;
@@ -98,43 +135,8 @@ export function kitsudenMiddleware(options: KitsudenMiddlewareOptions) {
 
         return runWithVisitor(ip, async () => {
             if (skip(context.url.pathname)) return next();
-
-            const editor: KitsudenEditor | null = await editorOf(context.request);
-            if (context.locals) context.locals.kitsudenEditor = editor;
-
-            const cache = !editor && context.request.method === 'GET' ? options.cache : undefined;
-            const hit = cache?.fresh(context.url);
-            if (hit) return fromCache(hit, 'HIT');
-
-            let response: Response;
-            try {
-                response = await next();
-            } catch (error) {
-                if (error instanceof KitsudenUnavailableError) {
-                    console.warn(`[kitsuden] ${error.message}`);
-                    const stale = options.cache?.stale(context.url);
-                    if (stale && !editor) return fromCache(stale, 'STALE');
-                    return (options.unavailable ?? defaultUnavailable)(error);
-                }
-                throw error;
-            }
-
-            if (editor) {
-                const headers = new Headers(response.headers);
-                headers.set('cache-control', 'private, no-store');
-                if (!/\bcookie\b/i.test(headers.get('vary') ?? '')) headers.append('vary', 'Cookie');
-                return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
-            }
-
-            if (cache && isCacheable(context.request, response)) {
-                const body = await response.text();
-                const headers = [...response.headers.entries()];
-                cache.store(context.url, { status: response.status, headers, body });
-                const fresh = new Headers(headers);
-                fresh.set('x-inti-cache', 'MISS');
-                return new Response(body, { status: response.status, headers: fresh });
-            }
-            return response;
+            if (context.locals) context.locals.kitsudenEditor = null;
+            return delivery(context, next);
         });
     };
 }

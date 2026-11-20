@@ -99,7 +99,7 @@ INTI_WP_APP_PASSWORD=xxxx xxxx xxxx xxxx
 INTI_WP_BLOCKS_FIELD=content_blocks
 ```
 
-For Kitsuden: `INTI_ADAPTER=kitsuden`, `INTI_KITSUDEN_ENDPOINT`, `INTI_KITSUDEN_TOKEN` (an agent key, `kitsuden_agent_…`). A Kitsuden site registers `kitsudenMiddleware` from `@intijs/adapter-kitsuden/astro` in `src/middleware.ts`: it is the editor-session plugin, the HTML cache and the 503 page in one. For Strapi: `INTI_STRAPI_ENDPOINT`, `INTI_STRAPI_TOKEN`. For Keystatic: `INTI_ADAPTER=keystatic`; in production also `INTI_KEYSTATIC_REPO` and `INTI_KEYSTATIC_TOKEN`, so each edit is a commit. With no `INTI_ADAPTER`, writes go to the local JSON store.
+For Kitsuden: `INTI_ADAPTER=kitsuden`, `INTI_KITSUDEN_ENDPOINT`, `INTI_KITSUDEN_TOKEN` (an agent key, `kitsuden_agent_…`). A Kitsuden site registers `kitsudenMiddleware({ api, cache })` from `@intijs/adapter-kitsuden/astro` in `src/middleware.ts`, with a core cache (`createCacheManager`): it is the editor-session plugin and `intiDelivery` in one. Visitors read `adapter.getRenderedPage(slug)`, editors `adapter.getPage(slug)`; writes are conditional on the block's version (`If-Match`). For Strapi: `INTI_STRAPI_ENDPOINT`, `INTI_STRAPI_TOKEN`. For Keystatic: `INTI_ADAPTER=keystatic`; in production also `INTI_KEYSTATIC_REPO` and `INTI_KEYSTATIC_TOKEN`, so each edit is a commit. With no `INTI_ADAPTER`, writes go to the local JSON store.
 
 ## Delivery: 404 or 503, caches, CDN, purges
 
@@ -296,8 +296,8 @@ Without that, the original is served unoptimized and Inti says so in dev, naming
 | `Infographic.astro` | `@intijs/infographic/` |
 | `createInfographicRoute` | `@intijs/infographic/route` |
 | `StrapiAdapter` | `@intijs/adapter-strapi` |
-| `KitsudenAdapter`, `KitsudenUnavailableError`, `toComposerBlockTypes` | `@intijs/adapter-kitsuden` |
-| `kitsudenMiddleware`, `createPageCache`, `purgeRoute`, `mediaPresetRoute`, `mediaFileRoute`, `imageSrc`, `blockAttributes`, `currentVisitorIp`, `stripSecretsForBuild` | `@intijs/adapter-kitsuden/astro` |
+| `KitsudenAdapter`, `KitsudenUnavailableError`, `toComposerBlockTypes`, `kitsudenCatalogSource` | `@intijs/adapter-kitsuden` |
+| `kitsudenMiddleware`, `purgeRoute`, `mediaPresetRoute`, `mediaFileRoute`, `mediaTransformRoute`, `kitsudenImage`, `imageSrc`, `blockAttributes`, `currentVisitorIp`, `stripSecretsForBuild` | `@intijs/adapter-kitsuden/astro` |
 
 | `NotFoundError`, `UnavailableError`, `RateLimitError`, `ConflictError`, `isNotFound`, `isUnavailable` | `@intijs/core/errors` |
 | `createHttpClient` | `@intijs/core/http` |

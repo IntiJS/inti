@@ -193,6 +193,45 @@ jobs:
       - name: Check against a real WordPress
         run: node scripts/wordpress-check.mjs
 
+  # The adapter against a real Kitsuden. Its image is not public: it is built
+  # from the Kitsuden repository with KITSUDEN_REPO_TOKEN (read access). Without
+  # the secret (a fork) the job says so and passes, instead of failing for
+  # something the contributor cannot fix.
+  kitsuden:
+    runs-on: ubuntu-latest
+    env:
+      KITSUDEN_REPO_TOKEN: ${{ secrets.KITSUDEN_REPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Skip without access to Kitsuden
+        if: env.KITSUDEN_REPO_TOKEN == ''
+        run: echo "::notice::KITSUDEN_REPO_TOKEN is not set; the real-Kitsuden check did not run."
+      - uses: actions/checkout@v4
+        if: env.KITSUDEN_REPO_TOKEN != ''
+        with:
+          repository: Kitsuden/kitsuden
+          token: ${{ secrets.KITSUDEN_REPO_TOKEN }}
+          path: kitsuden
+      - name: Build the Kitsuden API image
+        if: env.KITSUDEN_REPO_TOKEN != ''
+        run: docker build -f kitsuden/docker/Dockerfile.prod --target api -t kitsuden/api:ci kitsuden
+      - uses: actions/setup-node@v4
+        if: env.KITSUDEN_REPO_TOKEN != ''
+        with:
+          node-version: 22
+      - name: Install dependencies
+        if: env.KITSUDEN_REPO_TOKEN != ''
+        run: npm ci
+      - name: Build
+        if: env.KITSUDEN_REPO_TOKEN != ''
+        run: npm run build
+      - name: Check against a real Kitsuden
+        if: env.KITSUDEN_REPO_TOKEN != ''
+        env:
+          KITSUDEN_API_IMAGE: kitsuden/api:ci
+          KITSUDEN_REPO: ${{ github.workspace }}/kitsuden
+        run: node scripts/kitsuden-check.mjs
+
   # In workerd, Cloudflare's runtime, with local D1, R2 and Durable Objects
   cloudflare:
     runs-on: ubuntu-latest

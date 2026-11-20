@@ -154,3 +154,84 @@ export function mediaFileRoute(apiUrl: string | (() => string), options: Omit<Pr
         return proxyMedia(api, `/media/${key.split('/').map(encodeURIComponent).join('/')}`, { ...options, request });
     };
 }
+
+// ============================================
+// Transformed images: AVIF, WebP and srcset from /api/media/transform
+// ============================================
+
+/** Widths a transformed image is offered at. Kitsuden rounds to its own steps anyway */
+export const TRANSFORM_WIDTHS = [320, 640, 960, 1280, 1920] as const;
+export const TRANSFORM_FORMATS = ['avif', 'webp', 'jpeg', 'png', 'auto'] as const;
+export type TransformFormat = (typeof TRANSFORM_FORMATS)[number];
+
+const FILE = /^(\d{2,4})\.(avif|webp|jpeg|png|auto)$/;
+
+/** `/img/t/<id>/<width>.<format>`: one size of a media in one format, from the site's origin */
+export function transformPath(id: string, width: number, format: TransformFormat = 'auto'): string {
+    return `/img/t/${id.toLowerCase()}/${Math.round(width)}.${format}`;
+}
+
+/** The media id behind a value a block holds: an id, or a preset URL of the API */
+function mediaIdOf(value: unknown): string | null {
+    if (isMediaId(value)) return value.toLowerCase();
+    if (typeof value !== 'string') return null;
+    const id = value.match(/\/api\/media\/(?:preset|transform)\/([0-9a-f-]{36})/i)?.[1];
+    return id && isMediaId(id) ? id.toLowerCase() : null;
+}
+
+export interface KitsudenImageOptions {
+    /** Intrinsic size of the original, when the block knows it: `IntiImage` reserves the space */
+    width?: number;
+    height?: number;
+    alt?: string;
+    /** Widths to offer. Default 320 to 1920, never wider than `width` */
+    widths?: readonly number[];
+    /** Modern formats, best first. Default AVIF then WebP */
+    formats?: Array<'avif' | 'webp'>;
+}
+
+/**
+ * A Kitsuden media as Inti's image contract: `srcset` in the original format plus AVIF and WebP
+ * `sources`, every URL on the site's origin (`mediaTransformRoute`). `<IntiImage src={…} />`
+ * uses them as they are. Null when the value is not a Kitsuden media.
+ */
+export function kitsudenImage(value: unknown, options: KitsudenImageOptions = {}) {
+    const id = mediaIdOf(value);
+    if (!id) return null;
+    const max = options.width ?? Infinity;
+    const widths = [...(options.widths ?? TRANSFORM_WIDTHS)].filter((w) => w <= max);
+    if (widths.length === 0) widths.push(Math.min(...(options.widths ?? TRANSFORM_WIDTHS)));
+    const largest = widths[widths.length - 1];
+    const candidates = (format: TransformFormat) => widths.map((width) => ({ url: transformPath(id, width, format), width }));
+    return {
+        id,
+        url: transformPath(id, largest, 'auto'),
+        alt: options.alt,
+        width: options.width,
+        height: options.height,
+        srcset: candidates('auto'),
+        sources: (options.formats ?? ['avif', 'webp']).map((format) => ({ type: `image/${format}`, srcset: candidates(format) }))
+    };
+}
+
+/**
+ * `src/pages/img/t/[id]/[file].ts`: `export const GET = mediaTransformRoute(KITSUDEN_API)`.
+ *
+ * Proxies `/api/media/transform/:id?w=&f=` from the site's origin. Kitsuden stores every
+ * transformed file and never changes it for the same id and parameters, so it is served as
+ * `immutable` for a year: a visitor downloads each size once.
+ */
+export function mediaTransformRoute(apiUrl: string | (() => string), options: Omit<ProxyMediaOptions, 'request' | 'cacheControl'> = {}) {
+    return ({ params, request }: { params: Record<string, string | undefined>; request: Request }): Promise<Response> | Response => {
+        const id = params.id;
+        const file = (params.file ?? '').match(FILE);
+        if (!isMediaId(id) || !file) return new Response(null, { status: 404 });
+        const width = Math.min(4096, Number(file[1]));
+        const api = typeof apiUrl === 'function' ? apiUrl() : apiUrl;
+        return proxyMedia(api, `/api/media/transform/${id.toLowerCase()}?w=${width}&f=${file[2]}`, {
+            ...options,
+            request,
+            cacheControl: 'public, max-age=31536000, immutable'
+        });
+    };
+}

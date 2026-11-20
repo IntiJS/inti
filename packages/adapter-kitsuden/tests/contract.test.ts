@@ -208,7 +208,12 @@ describe('writing: the routes, bodies and responses of the contract', () => {
         expect(r.success).toBe(true);
         const patch = writes()[0];
         expect(`${patch.method} ${patch.path}`).toBe(`PATCH ${new URL(caseNamed('editBlock').path, ENDPOINT).pathname}`);
-        expect(patch.body).toEqual(request);
+        // A Kitsuden that declares page-builder-patch takes only the edited field (contentPatch);
+        // the reference file has no case of its own for that body yet, so it is derived from editBlock
+        const patches = REF.contracts['page-builder-patch'] !== undefined;
+        expect(patch.body).toEqual(
+            patches ? { contentPatch: Object.entries(request.content).map(([path, value]) => ({ path, value })) } : request
+        );
     });
 
     test('page moveBlock → POST reorder permuting the existing sortOrders (the contract body)', async () => {

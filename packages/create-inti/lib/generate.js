@@ -11,6 +11,8 @@
  * The prompt interface lives in bin/create-inti.js.
  */
 
+import { STORE_ACTIONS, STORE_ASTRO_CONFIG, STORE_DEPENDENCIES, STORE_ENV, STORE_MIDDLEWARE_DELIVERY, storeFiles } from './store.js';
+
 /** Dependency versions for the generated project */
 export const VERSIONS = {
     // Pinned to 7.3: Astro 7.4 requires Node 22.23.4, and a `^` would make the same command
@@ -67,8 +69,17 @@ export const CMS = {
         hint: 'Files in your repo, locally or via GitHub',
         package: '@intijs/adapter-keystatic',
         block: { file: 'hero.astro', type: 'hero', native: 'hero', heading: 'heading', text: 'subheading' }
+    },
+    odoo: {
+        label: 'Odoo (store)',
+        hint: 'Pages in the local store, products, stock and orders from Odoo',
+        package: '@intijs/adapter-odoo',
+        block: { file: 'Hero.astro', type: 'Hero', native: 'Hero', heading: 'heading', text: 'subheading' }
     }
 };
+
+/** A store keeps its pages in the local store: Odoo is the catalog, not the pages */
+const pagesFromLocalStore = (cms) => cms === 'local' || cms === 'odoo';
 
 export const CMS_IDS = Object.keys(CMS);
 
@@ -102,6 +113,7 @@ function packageJson(name, cms, packages = {}) {
         astro: VERSIONS.astro
     };
     for (const dep of intiPackages(cms)) dependencies[dep] = packages[dep] ?? VERSIONS.inti;
+    if (cms === 'odoo') for (const [dep, version] of Object.entries(STORE_DEPENDENCIES)) dependencies[dep] = packages[dep] ?? version;
 
     const sorted = Object.fromEntries(Object.entries(dependencies).sort(([a], [b]) => a.localeCompare(b)));
 
@@ -185,6 +197,7 @@ export const onRequest = defineMiddleware((_context, next) => next());
 
 function cmsModule(cms) {
     switch (cms) {
+        case 'odoo':
         case 'local':
             return `import { LocalAdapter } from '@intijs/core/adapters/local';
 
@@ -355,7 +368,7 @@ function blockComponent(cms) {
     return `---
 /**
  * "${b.type}" block. The file name is the block type${
-        cms === 'local' ? '' : `: in ${CMS[cms].label} it maps to "${b.native}"`
+        pagesFromLocalStore(cms) ? '' : `: in ${CMS[cms].label} it maps to "${b.native}"`
     }.
  * The CMS fields arrive as props. data-inti-field marks which field is
  * edited by double-clicking that element.
@@ -452,6 +465,11 @@ function envExample(cms) {
 # Without INTI_ADAPTER, Inti writes to the local store.
 # INTI_LOCAL_STORE=.inti/content.json
 `;
+        case 'odoo':
+            return `${common}
+# The pages live in the local store (.inti/content.json); mount a volume on it in production
+# INTI_LOCAL_STORE=.inti/content.json
+${STORE_ENV}`;
         case 'wordpress':
             return `${common}
 INTI_ADAPTER=wordpress
@@ -616,18 +634,19 @@ export function generateProject({ name, cms, packages }) {
 
     const files = {
         'package.json': packageJson(name, cms, packages),
-        'astro.config.mjs': ASTRO_CONFIG,
+        'astro.config.mjs': cms === 'odoo' ? STORE_ASTRO_CONFIG : ASTRO_CONFIG,
         'tsconfig.json': TSCONFIG,
         '.gitignore': GITIGNORE,
         Dockerfile: dockerfile({
             vendor: Object.values(packages ?? {}).some((spec) => String(spec).startsWith('file:vendor/')),
-            localStore: cms === 'local'
+            localStore: pagesFromLocalStore(cms)
         }),
         '.dockerignore': DOCKERIGNORE,
         '.env.example': envExample(cms),
         'README.md': readme(name, cms),
         'src/actions/index.ts': ACTIONS,
-        'src/middleware.ts': MIDDLEWARE,
+        'src/middleware.ts':
+            cms === 'odoo' ? MIDDLEWARE.replace("export const onRequest = defineMiddleware((_context, next) => next());", STORE_MIDDLEWARE_DELIVERY.trim()) : MIDDLEWARE,
         'src/lib/cms.ts': cmsModule(cms),
         'src/pages/[...slug].astro': PAGE,
         'src/layouts/Layout.astro': LAYOUT,
@@ -638,10 +657,12 @@ export function generateProject({ name, cms, packages }) {
         files['content/pages/home.yaml'] = KEYSTATIC_HOME;
     }
 
-    if (cms === 'local') {
+    if (pagesFromLocalStore(cms)) {
         files['src/blocks/Text.astro'] = TEXT_BLOCK;
         files['.inti/content.json'] = localContent();
     }
+
+    if (cms === 'odoo') Object.assign(files, storeFiles());
 
     return files;
 }

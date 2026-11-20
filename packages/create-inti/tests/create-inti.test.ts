@@ -37,8 +37,10 @@ describe('generateProject', () => {
             test('the complete setup from AGENTS.md: no step is missing', () => {
                 expect(files['astro.config.mjs']).toContain("output: 'server'");
                 expect(files['astro.config.mjs']).toContain("adapter: node({ mode: 'standalone' })");
-                expect(files['astro.config.mjs']).toContain('integrations: [inti()]');
-                expect(files['src/actions/index.ts']).toContain('export const server = { inti: intiActions }');
+                // A store adds Svelte for its islands, and an order action next to the editing ones
+                expect(files['astro.config.mjs']).toMatch(/integrations: \[inti\(\)(, svelte\(\))?\]/);
+                expect(files['src/actions/index.ts']).toContain('export const server = {');
+                expect(files['src/actions/index.ts']).toMatch(/inti: intiActions/);
                 expect(files['src/pages/[...slug].astro']).toContain("registerBlocks(import.meta.glob('/src/blocks/*.astro'))");
                 expect(files['src/pages/[...slug].astro']).toContain('<BlockRenderer blocks={page.blocks} page={page} />');
                 expect(files['src/pages/[...slug].astro']).toContain('<VisualBridgeAuto />');
@@ -271,5 +273,38 @@ describe('delivery', () => {
         expect(wordpress.Dockerfile).not.toContain('COPY vendor');
         expect(wordpress['.dockerignore']).toContain('.env');
         expect(generateProject({ name: 'site', cms: 'local' }).Dockerfile).toContain('/app/.inti ./.inti');
+    });
+});
+
+describe('odoo store', () => {
+    const files = generateProject({ name: 'shop', cms: 'odoo' });
+
+    test('pages from the local store, products from Odoo, islands from tallao', () => {
+        expect(files['src/lib/cms.ts']).toContain('LocalAdapter');
+        expect(files['src/lib/catalog.ts']).toContain('odooCatalogSource');
+        expect(files['src/lib/catalog.ts']).toContain('envKeyStore(env)');
+        const pkg = JSON.parse(files['package.json']);
+        expect(pkg.dependencies.tallao).toBeDefined();
+        expect(pkg.dependencies['@astrojs/svelte']).toBeDefined();
+        expect(files['src/components/BuyBox.svelte']).toContain("from 'tallao'");
+    });
+
+    test('a product page answers 404 or 503 by what happened, and tags its HTML with the product', () => {
+        const page = files['src/pages/products/[slug].astro'];
+        expect(page).toContain('return pageErrorResponse(error);');
+        expect(page).toContain("Astro.locals.intiCacheTags = itemCacheTags('odoo', item)");
+        expect(page).toContain('client:visible');
+    });
+
+    test('the order travels as references and quantities only: Odoo prices it', () => {
+        expect(files['src/actions/index.ts']).toContain('createOdooOrder(odoo, input)');
+        expect(files['src/actions/index.ts']).not.toMatch(/price\w*\s*:/);
+    });
+
+    test('the image proxy, the purge route and the sitemap index are there', () => {
+        expect(files['src/pages/media/odoo/[model]/[id]/[size].ts']).toContain('odooImageRoute');
+        expect(files['src/pages/api/odoo/purge.ts']).toContain("token: () => env('INTI_ODOO_PURGE_TOKEN')");
+        expect(files['src/pages/sitemap.xml.ts']).toContain('sitemapIndexRoute');
+        expect(files['.env.example']).toContain('INTI_ODOO_API_KEY_NEXT');
     });
 });

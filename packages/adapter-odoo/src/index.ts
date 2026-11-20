@@ -13,7 +13,7 @@ export { detectOdoo } from './detect.js';
 export type { OdooCapabilities } from './detect.js';
 export { odooCatalogSource, odooSlug, referenceFromSlug, referenceOf, applyTaxes, slugify } from './source.js';
 export type { OdooCatalogOptions } from './source.js';
-export { odooImageRoute, sniffImage } from './images.js';
+export { odooImageRoute, sniffImage, binaryContent } from './images.js';
 export type { OdooImageRouteOptions } from './images.js';
 export { odooPurgeRoute, parseOdooNotice } from './purge.js';
 export type { OdooPurgeOptions, OdooNotice } from './purge.js';

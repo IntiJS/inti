@@ -34,6 +34,16 @@ function base64ToBytes(value: string): Uint8Array {
     return bytes;
 }
 
+/**
+ * The base64 of a binary field: a string up to Odoo 19, `{ content, size }` from Odoo 20 on.
+ * Null when the field is empty.
+ */
+export function binaryContent(value: unknown): string | null {
+    if (typeof value === 'string' && value) return value;
+    const content = (value as { content?: unknown } | null)?.content;
+    return typeof content === 'string' && content ? content : null;
+}
+
 export interface OdooImageRouteOptions {
     client: OdooClient;
     /** Also require `is_published` (when the website module is installed). Default true */
@@ -80,8 +90,8 @@ export function odooImageRoute(options: OdooImageRouteOptions) {
                 if (!template || !(await visible(template[0]))) return new Response(null, { status: 404 });
             }
 
-            const data = record[size];
-            if (typeof data !== 'string' || !data) return new Response(null, { status: 404 });
+            const data = binaryContent(record[size]);
+            if (!data) return new Response(null, { status: 404 });
             const bytes = base64ToBytes(data);
             const type = sniffImage(bytes);
             if (!type) return new Response(null, { status: 404 });

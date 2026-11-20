@@ -13,6 +13,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import { get } from 'node:http';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -50,25 +51,46 @@ function shell(code) {
     return compose(['run', '--rm', '-T', 'odoo', 'odoo', 'shell', '-d', DATABASE, '--no-http'], code);
 }
 
+/**
+ * Is Odoo answering? With node:http and a time limit: while Odoo boots, Docker's port proxy
+ * accepts the connection and drops it, and fetch (undici) can hang on that forever.
+ */
+function probe(url) {
+    return new Promise((resolve) => {
+        const request = get(url, { timeout: 3000 }, (response) => {
+            response.resume();
+            resolve(response.statusCode === 200);
+        });
+        request.on('timeout', () => request.destroy());
+        request.on('error', () => resolve(false));
+    });
+}
+
 async function waitForOdoo() {
     for (let i = 0; i < 120; i++) {
-        const up = await fetch(`${ENDPOINT}/web/login`).then((r) => r.ok).catch(() => false);
-        if (up) return;
+        if (await probe(`${ENDPOINT}/web/login`)) return;
         await new Promise((r) => setTimeout(r, 2000));
     }
-    throw new Error(`Odoo did not start:\n${compose(['logs', 'odoo', '--tail', '30'])}`);
+    throw new Error(`Odoo did not start:
+${compose(['logs', 'odoo', '--tail', '30'])}`);
 }
 
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
 async function main() {
     console.log(`\n=== Odoo ${version} ===`);
+    const step = (text) => console.log(`  · ${text}`);
+    step('database');
     compose(['up', '-d', '--wait', 'db']);
+    step('installing sale_management, stock and website_sale');
     compose(['run', '--rm', 'odoo', 'odoo', '-d', DATABASE, '-i', 'sale_management,stock,website_sale', '--stop-after-init', '--without-demo=True']);
 
+    step('creating an API key');
     const keyOutput = shell(`
 from datetime import datetime, timedelta
-env['ir.config_parameter'].sudo().set_param('base.enable_programmatic_api_keys', True)
+params = env['ir.config_parameter'].sudo()
+# Odoo 20 has typed setters (set_bool); 19 has set_param
+(params.set_bool if hasattr(params, 'set_bool') else params.set_param)('base.enable_programmatic_api_keys', True)
 admin = env.ref('base.user_admin')
 key = env['res.users.apikeys'].with_user(admin)._generate('rpc', 'inti-check', datetime.now() + timedelta(days=30))
 env.cr.commit()
@@ -77,8 +99,10 @@ print('KEY=' + key)
     const apiKey = keyOutput.match(/KEY=(\S+)/)?.[1];
     if (!apiKey) throw new Error(`no API key:\n${keyOutput.slice(-1500)}`);
 
+    step('starting Odoo');
     compose(['up', '-d', 'odoo']);
     await waitForOdoo();
+    step('creating products, variants, a tax and stock');
 
     const odoo = await import(pathToFileURL(join(ROOT, 'packages/adapter-odoo/dist/index.js')).href);
     const { createCacheManager } = await import(pathToFileURL(join(ROOT, 'packages/core/dist/cache/index.js')).href);
@@ -239,6 +263,14 @@ print('KEY=' + key)
     console.log(`\n${results.length - failed.length}/${results.length} checks against a real Odoo ${version}`);
     if (failed.length) process.exitCode = 1;
 }
+
+// Node exits quietly when nothing is left to wait on: say so instead of passing
+process.on('exit', (code) => {
+    if (code === 0 && results.length === 0) {
+        console.error('✗ the check ended before running any check');
+        process.exitCode = 1;
+    }
+});
 
 main()
     .catch((error) => {

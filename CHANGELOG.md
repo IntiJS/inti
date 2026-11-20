@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Keys that expire, rotated.** `envKeyStore` switches to `INTI_ODOO_API_KEY_NEXT` when the current key is refused; `rotateOdooKey` / `rotateIfExpiring` generate the next key with Odoo's own API, store it, then revoke the old one.
 - **Detected with `fields_get`**: stock, website, the storable flag (18+ or 17) and the tax "price included" flag.
 - **`odooCatalogSource`**: products, variants with their options, categories, free stock (`free_qty`), prices with or without taxes, published products only, identity by internal reference (never the variant id), listing with search, category, price range, stock and attribute filters, and the sitemap.
-- **`odooImageRoute`**: images from the site's origin for published products only, no SVG, `immutable` with a versioned URL.
+- **`odooImageRoute`**: images from the site's origin for published products only, no SVG, `immutable` with a versioned URL; binary fields are read as Odoo 19 sends them (base64) and as Odoo 20 does (`{ content, size }`).
 - **`odooPurgeRoute`**: Odoo's webhook payload, authenticated by a token in the URL, drops the product and the listings.
 - **`createOdooOrder`**: a quotation from the cart, with only references and quantities; Odoo prices it.
 - **`create-inti --cms odoo`**: a store with pages in the local store, product and category routes, the image proxy, the purge route, a sitemap index and tallao islands (gallery, variant picker, cart with the order form).

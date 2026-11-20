@@ -7,6 +7,7 @@ import {
     parseOdooNotice,
     validateOrder,
     sniffImage,
+    binaryContent,
     envKeyStore,
     rotateIfExpiring
 } from '../src/index.js';
@@ -111,6 +112,13 @@ describe('catalog helpers', () => {
         expect(validateOrder({ customer: { email: 'nope', name: 'A' }, lines: [{ reference: 'X', quantity: 1 }] })).toContain('email');
         expect(validateOrder({ customer, lines: [{ reference: 'X', quantity: 0 }] })).toContain('Quantities');
         expect(validateOrder({ customer, lines: [] })).toContain('no lines');
+    });
+
+    test('a binary field is read as Odoo 19 and Odoo 20 send it', () => {
+        expect(binaryContent('iVBOR')).toBe('iVBOR');
+        expect(binaryContent({ content: 'iVBOR', size: 70 })).toBe('iVBOR');
+        expect(binaryContent(false)).toBeNull();
+        expect(binaryContent({ content: '', size: 0 })).toBeNull();
     });
 
     test('the image proxy only serves real raster images', () => {

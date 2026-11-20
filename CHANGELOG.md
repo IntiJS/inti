@@ -19,6 +19,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`create-inti --cms kitsuden`** generates the middleware, one cache for pages and HTML, the purge route, the media routes and the site key.
 - **CI checks a real Kitsuden** when `KITSUDEN_REPO_TOKEN` is set (the image is built from its repository); the contract copy is synced with Kitsuden's canonical file.
 
+### WordPress: writes that cannot overwrite, notices that purge, and the rest of a site
+
+- **Every write through the companion plugin, in one PHP call.** Moving, inserting, removing, duplicating and replacing rows now run on the server (`POST /inti/v1/rows`) instead of a read-modify-write of the whole array, and Gutenberg documents go through `POST /inti/v1/content`. Each write carries the `modified_gmt` the adapter read; the plugin answers 409 when the page changed since, and the editor says so instead of overwriting someone's work.
+- **The plugin is no longer switched off by one failure.** Only a 404 for its route means it is missing, and the adapter checks again after ten minutes. Any other failure is reported, never retried through the REST path behind the user's back.
+- **Signed purge notices** on publish, update, unpublish, delete and slug change (`INTI_PURGE_URL`, `INTI_PURGE_SECRET`), for `purgeRoute` of `@intijs/core/delivery`.
+- **`inti_blocks`**: the blocks as `parse_blocks()` reads them, with the rendered HTML of bound (`metadata.bindings`) and dynamic blocks. A bound block shows its real value and is not editable.
+- **Gutenberg writes kept classic content.** Serializing joined blocks with blank lines and dropped any HTML between them; the document now round-trips byte for byte, and Block Hooks metadata survives.
+- **Only the fields a page needs** (`_fields`), **every page of a listing** in parallel with no 5,000 cap, and the shared HTTP client with exactly `Content-Type: application/json`.
+- **Images** gain `srcset`, AVIF and WebP `sources`, `video` for animated GIFs stored as video, and `size`.
+- **Languages, menus, taxonomies and archives**: `page.locale` / `page.translations` from Polylang or WPML, `fetchNavigation(location)`, `listTerms`, `fetchTerm`, `fetchArchive`.
+- **Abilities API**: `inti/get-page`, `inti/update-block-field`, `inti/purge`.
+- `npm run test:wordpress` runs on **WordPress 7.1.5** and checks all of the above against the real thing, plus nested page-level groups and that writes keep the page's author.
+
 ### Delivery: the right status code, caches that hold, editors apart
 
 - **404 only when the page does not exist.** Adapters throw `NotFoundError` for a missing page and `UnavailableError` when the CMS cannot answer (`@intijs/core/errors`); `pageErrorResponse` answers 404 for the first and 503 with `Retry-After` for everything else. The generated page used to answer 404 to any failure, which told search engines to drop pages that exist whenever the CMS timed out.

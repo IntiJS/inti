@@ -34,7 +34,16 @@ export interface GutenbergBlock {
     closeComment: string;
     /** Full raw content of the block (for a lossless round-trip) */
     raw: string;
+    /**
+     * What came before the block in `post_content`: whitespace, or classic
+     * HTML outside any block. Serializing puts it back, so a write never
+     * drops content that is not a block.
+     */
+    leading?: string;
 }
+
+/** The blocks of a document, plus whatever follows the last one */
+export type GutenbergDocument = GutenbergBlock[] & { trailing?: string };
 
 // Block comment token: opening, closing or self-closing
 const BLOCK_COMMENT = /<!--\s*(\/)?wp:([a-z][a-z0-9_-]*\/)?([a-z][a-z0-9_-]*)((?:\s+\{[\s\S]*?\})?)\s*(\/)?-->/g;
@@ -48,9 +57,11 @@ const BLOCK_COMMENT = /<!--\s*(\/)?wp:([a-z][a-z0-9_-]*\/)?([a-z][a-z0-9_-]*)((?
  * Content outside blocks (freeform) is ignored for editing but
  * preserved through the block indexes.
  */
-export function parseGutenberg(content: string): GutenbergBlock[] {
-    const blocks: GutenbergBlock[] = [];
+export function parseGutenberg(content: string): GutenbergDocument {
+    const blocks: GutenbergDocument = [];
     BLOCK_COMMENT.lastIndex = 0;
+    // End of the previous top-level block: what lies between is that block's `leading`
+    let previousEnd = 0;
 
     let match: RegExpExecArray | null;
     let depth = 0;
@@ -69,8 +80,10 @@ export function parseGutenberg(content: string): GutenbergBlock[] {
                     innerHTML: '',
                     openComment: full,
                     closeComment: '',
-                    raw: full
+                    raw: full,
+                    leading: content.slice(previousEnd, match.index)
                 });
+                previousEnd = match.index + full.length;
             }
             continue;
         }
@@ -98,14 +111,27 @@ export function parseGutenberg(content: string): GutenbergBlock[] {
                     innerHTML,
                     openComment: current.openComment,
                     closeComment: full,
-                    raw: content.slice(current.start, match.index + full.length)
+                    raw: content.slice(current.start, match.index + full.length),
+                    leading: content.slice(previousEnd, current.start)
                 });
+                previousEnd = match.index + full.length;
                 current = null;
             }
         }
     }
 
+    Object.defineProperty(blocks, 'trailing', { value: content.slice(previousEnd), writable: true, enumerable: false });
     return blocks;
+}
+
+/**
+ * Does the block take its content from a binding (`metadata.bindings`,
+ * WordPress 6.5+)? Then what is stored in `post_content` is not what renders,
+ * and editing it would change nothing visible: it is not editable here.
+ */
+export function isBound(block: Pick<GutenbergBlock, 'attrs'>): boolean {
+    const bindings = block.attrs?.metadata?.bindings;
+    return !!bindings && typeof bindings === 'object' && Object.keys(bindings).length > 0;
 }
 
 function parseAttrs(attrsJson: string): Record<string, any> {
@@ -129,7 +155,7 @@ const SIMPLE_BLOCK = /^(\s*)<([a-zA-Z][a-zA-Z0-9]*)((?:\s[^>]*)?)>([\s\S]*?)<\/\
  * Can the block be text-edited inline safely?
  */
 export function isTextEditable(block: GutenbergBlock): boolean {
-    if (!block.innerHTML) return false;
+    if (!block.innerHTML || isBound(block)) return false;
     const match = block.innerHTML.match(SIMPLE_BLOCK);
     if (!match) return false;
     // The inner content must not have child tags (inline formatting included)
@@ -140,6 +166,7 @@ export function isTextEditable(block: GutenbergBlock): boolean {
  * Extracts the plain text of a simple block (or null if it is not editable)
  */
 export function extractText(block: GutenbergBlock): string | null {
+    if (isBound(block)) return null;
     const match = block.innerHTML.match(SIMPLE_BLOCK);
     if (!match || /[<>]/.test(match[4])) return null;
     return decodeEntities(match[4]);
@@ -176,10 +203,26 @@ export function patchBlockText(block: GutenbergBlock, newText: string): Gutenber
 
 /**
  * Serializes the block list back to `post_content`.
- * Untouched blocks use their original `raw` (lossless round-trip).
+ *
+ * Untouched blocks use their original `raw`, and the text between blocks
+ * (whitespace, classic HTML) is put back where it was: an unchanged document
+ * serializes byte for byte. A new block gets a blank line before it.
  */
-export function serializeGutenberg(blocks: GutenbergBlock[]): string {
-    return blocks.map(block => block.raw).join('\n\n');
+export function serializeGutenberg(blocks: GutenbergDocument): string {
+    const body = blocks.map((block, index) => (block.leading ?? (index === 0 ? '' : '\n\n')) + block.raw).join('');
+    return body + (blocks.trailing ?? '');
+}
+
+/**
+ * Removes the block at `index` without losing classic content that preceded
+ * it: non-blank text before a removed block moves to the next one.
+ */
+export function removeGutenbergBlock(blocks: GutenbergDocument, index: number): void {
+    const [removed] = blocks.splice(index, 1);
+    const leading = removed?.leading ?? '';
+    if (!leading.trim()) return;
+    if (blocks[index]) blocks[index] = { ...blocks[index], leading: leading + (blocks[index].leading ?? '') };
+    else blocks.trailing = leading + (blocks.trailing ?? '');
 }
 
 // ============================================

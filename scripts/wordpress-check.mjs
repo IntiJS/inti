@@ -12,6 +12,8 @@
  */
 
 import { execFileSync, spawn } from 'node:child_process';
+import { createHmac } from 'node:crypto';
+import { createServer } from 'node:http';
 import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -228,9 +230,39 @@ export const onRequest = (_ctx, next) => next();
     }
 }
 
+/**
+ * Where WordPress sends its purge notices (INTI_PURGE_URL in the compose file):
+ * a server on the host that records what arrives and whether it is signed.
+ */
+function purgeReceiver() {
+    const notices = [];
+    const server = createServer((request, response) => {
+        let body = '';
+        request.on('data', (chunk) => (body += chunk));
+        request.on('end', () => {
+            const expected = 'sha256=' + createHmac('sha256', 'inti-check-secret').update(body).digest('hex');
+            notices.push({ body: JSON.parse(body || '{}'), signed: request.headers['x-inti-signature'] === expected });
+            response.end('ok');
+        });
+    });
+    server.listen(43482, '0.0.0.0');
+    return { notices, close: () => server.close() };
+}
+
+async function until(condition, ms = 15000) {
+    const start = Date.now();
+    while (Date.now() - start < ms) {
+        if (condition()) return true;
+        await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    return false;
+}
+
 async function main() {
     setup();
     const password = createAppPassword();
+    const receiver = purgeReceiver();
+    const auth = 'Basic ' + Buffer.from(`admin:${password.replace(/\s+/g, '')}`).toString('base64');
 
     const { WordPressAdapter } = await import(
         pathToFileURL(join(ROOT, 'packages/adapter-wordpress/dist/index.js')).href
@@ -475,6 +507,129 @@ async function main() {
         if (!found?.updatedAt) throw new Error('the page or its date is missing');
     });
 
+    // ============================================
+    // inti-bridge 0.2: rows, versions, blocks, purges, menus, abilities
+    // ============================================
+
+    const rowsSlug = `rows-${Date.now()}`;
+    const rowsId = createPage(rowsSlug);
+    const readRows = async () => (await anonymous.fetchPageBySlug(rowsSlug)).blocks;
+
+    await check('inti-bridge: insert, move, duplicate and remove run on the server', async () => {
+        const first = await bridged.insertBlocks(rowsId, 0, [{ nativeType: 'hero_banner', data: { heading: 'Inserted' } }]);
+        equal(first.source, 'wordpress-bridge', 'source');
+        ok(first);
+        ok(await bridged.moveBlock(rowsId, 0, 2));
+        ok(await bridged.duplicateBlock(rowsId, 0));
+        ok(await bridged.removeBlock(rowsId, 1));
+        equal((await readRows()).map((b) => b.data.heading ?? b.data.title), ['Hello', 'Benefits', 'Inserted'], 'order');
+    });
+
+    await check('inti-bridge: moving rows keeps image and relationship', async () => {
+        const rows = () => JSON.parse(wp('eval', `echo wp_json_encode(get_field('content_blocks', ${richId}, false));`));
+        const withImage = (list) => list.find((row) => Object.keys(row).some((key) => key.includes('image')) && Object.entries(row).some(([key, value]) => key.includes('image') && value));
+        const before = withImage(rows());
+        ok(await bridged.insertBlock(richId, 0, 'hero_banner', { heading: 'Zero' }));
+        ok(await bridged.moveBlock(richId, 0, 2));
+        const rich = withImage(rows());
+        if (!before || !rich) throw new Error('the block with the image is missing');
+        const compare = (block) => Object.fromEntries(Object.entries(block).filter(([k]) => !k.includes('heading')));
+        equal(compare(rich), compare(before), 'stored values');
+    });
+
+    await check('inti-bridge: a write against an old version is a 409 and changes nothing', async () => {
+        const response = await fetch(`${ENDPOINT}/wp-json/inti/v1/patch`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: auth },
+            body: JSON.stringify({ post_id: Number(rowsId), blocks_field: 'content_blocks', block_index: 0, field: 'heading', value: 'STALE', expected_modified: '2001-01-01T00:00:00Z' })
+        });
+        equal(response.status, 409, 'status');
+        if ((await readRows())[0].data.heading === 'STALE') throw new Error('the stale write landed');
+    });
+
+    await check('a page-level group field is written by dot-path (nested meta), with and without the plugin', async () => {
+        ok(await adapter.updateBlockField(rowsId, -1, 'page_settings.tagline', 'Via REST'));
+        ok(await bridged.updateBlockField(rowsId, -1, 'page_settings.theme', 'dark'));
+        const settings = JSON.parse(wp('eval', `echo wp_json_encode(get_field('page_settings', ${rowsId}));`));
+        equal(settings, { tagline: 'Via REST', theme: 'dark' }, 'page_settings');
+    });
+
+    await check('writes keep the page author and move the modification date', async () => {
+        wp('post', 'update', rowsId, '--post_author=1');
+        const before = wp('post', 'get', rowsId, '--field=post_modified_gmt');
+        await new Promise((resolve) => setTimeout(resolve, 1100));
+        ok(await bridged.updateBlockField(rowsId, 0, 'heading', 'Dated'));
+        ok(await adapter.updateBlockField(rowsId, 1, 'title', 'Dated too'));
+        equal(wp('post', 'get', rowsId, '--field=post_author'), '1', 'author');
+        if (wp('post', 'get', rowsId, '--field=post_modified_gmt') === before) throw new Error('post_modified did not move');
+    });
+
+    await check('inti_blocks: a bound block carries what WordPress renders for it', async () => {
+        const gSlug = `bound-${Date.now()}`;
+        const gId = wp('post', 'create', '--post_type=page', `--post_title=${gSlug}`, `--post_name=${gSlug}`, '--post_status=publish', '--porcelain',
+            '--post_content=<!-- wp:paragraph --><p>Plain</p><!-- /wp:paragraph -->\n\n<!-- wp:paragraph {"metadata":{"bindings":{"content":{"source":"core/post-meta","args":{"key":"inti_price"}}}}} --><p>placeholder</p><!-- /wp:paragraph -->');
+        wp('post', 'meta', 'update', gId, 'inti_price', '19.99');
+        const gutenberg = new WordPressAdapter({ endpoint: ENDPOINT, username: 'admin', appPassword: password, mode: 'gutenberg' });
+        const page = await gutenberg.fetchPageBySlug(gSlug);
+        equal(page.blocks.length, 2, 'blocks');
+        if (!String(page.blocks[1].data.html).includes('19.99')) throw new Error(`bound block shows ${page.blocks[1].data.html}`);
+        equal(page.blocks[1].data.text, undefined, 'bound text is not editable');
+        equal(page.blocks[0].data.text, 'Plain', 'plain text');
+        const refused = await gutenberg.updateBlockField(gId, 1, 'text', 'x');
+        equal(refused.success, false, 'writing a bound block');
+        ok(await gutenberg.updateBlockField(gId, 0, 'text', 'Edited'));
+        const raw = wp('post', 'get', gId, '--field=post_content');
+        if (!raw.includes('<p>Edited</p>') || !raw.includes('"key":"inti_price"')) throw new Error(`content after the edit: ${raw}`);
+    });
+
+    await check('a change in WordPress sends a signed purge notice to the site', async () => {
+        receiver.notices.length = 0;
+        wp('post', 'update', rowsId, '--post_title=Purged');
+        const arrived = await until(() => receiver.notices.some((n) => n.body.id === Number(rowsId)));
+        if (!arrived) throw new Error('no notice arrived');
+        const notice = receiver.notices.find((n) => n.body.id === Number(rowsId));
+        equal(notice.signed, true, 'signature');
+        equal(notice.body.event, 'post.updated', 'event');
+        equal(notice.body.slug, rowsSlug, 'slug');
+
+        receiver.notices.length = 0;
+        wp('post', 'delete', rowsId);
+        if (!(await until(() => receiver.notices.some((n) => n.body.event === 'post.deleted')))) throw new Error('no notice for the deletion');
+    });
+
+    await check('the menu of a location comes as a tree, with no credentials', async () => {
+        const menu = wp('menu', 'create', `Main ${Date.now()}`, '--porcelain');
+        const parent = wp('menu', 'item', 'add-custom', menu, 'Services', `${ENDPOINT}/services/`, '--porcelain');
+        wp('menu', 'item', 'add-custom', menu, 'Design', `${ENDPOINT}/services/design/`, `--parent-id=${parent}`);
+        wp('menu', 'location', 'assign', menu, 'primary');
+        const nav = await anonymous.fetchNavigation('primary');
+        equal(nav.items[0].label, 'Services', 'label');
+        equal(nav.items[0].url, '/services/', 'path');
+        equal(nav.items[0].children?.[0]?.label, 'Design', 'child');
+    });
+
+    await check('Abilities API: Inti registers get-page, update-block-field and purge', async () => {
+        const names = wp('eval', `echo implode(',', array_filter(['inti/get-page','inti/update-block-field','inti/purge'], 'wp_get_ability'));`);
+        equal(names, 'inti/get-page,inti/update-block-field,inti/purge', 'abilities');
+        const result = JSON.parse(wp('eval', `echo wp_json_encode(wp_get_ability('inti/get-page')->execute(['path' => '${bridgeSlug}']));`, '--user=admin'));
+        equal(result.path, bridgeSlug, 'path');
+    });
+
+    await check('an archive of a category pages through its posts with totals', async () => {
+        const term = wp('term', 'create', 'category', `News ${Date.now()}`, '--porcelain');
+        const termSlug = wp('term', 'get', 'category', term, '--field=slug');
+        wp('eval', `for ($i = 0; $i < 12; $i++) { wp_insert_post(['post_title' => "Post $i", 'post_status' => 'publish', 'post_category' => [${term}]]); }`);
+        const archive = await anonymous.fetchArchive({ taxonomy: 'categories', term: termSlug, perPage: 5, page: 3 });
+        equal({ total: archive.total, totalPages: archive.totalPages, items: archive.items.length }, { total: 12, totalPages: 3, items: 2 }, 'archive');
+    });
+
+    await check('listPages walks past 100 pages', async () => {
+        wp('eval', `for ($i = 0; $i < 130; $i++) { wp_insert_post(['post_type' => 'page', 'post_title' => "Bulk $i", 'post_status' => 'publish']); }`);
+        const pages = await anonymous.listPages();
+        if (pages.length < 130) throw new Error(`only ${pages.length} pages`);
+    });
+
+    receiver.close();
     await fullStack(password);
 
     const failed = results.filter((r) => !r.ok);

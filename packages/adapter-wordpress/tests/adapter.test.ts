@@ -34,6 +34,9 @@ const wpPost = {
 // fetch mock that records calls
 // ============================================
 
+/** What WordPress answers for a route no plugin registered */
+const NO_ROUTE = JSON.stringify({ code: 'rest_no_route', message: 'No route was found matching the URL and request method.', data: { status: 404 } });
+
 let fetchCalls: Array<{ url: string; init?: RequestInit }> = [];
 let originalFetch: typeof fetch;
 
@@ -44,7 +47,7 @@ function mockFetch(handler: (url: string, init?: RequestInit) => { status?: numb
         // The inti-bridge companion plugin is NOT installed in these tests
         // (the bridge tests mock it explicitly)
         if (url.includes('/wp-json/inti/v1/')) {
-            return new Response('{}', { status: 404, headers: { 'Content-Type': 'application/json' } });
+            return new Response(NO_ROUTE, { status: 404, headers: { 'Content-Type': 'application/json' } });
         }
         const result = handler(url, init);
         const status = result.status ?? 200;

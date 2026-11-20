@@ -17,7 +17,7 @@ services:
       retries: 40
 
   wordpress:
-    image: wordpress:6-php8.3-apache
+    image: wordpress:7.1.5-php8.3-apache
     depends_on:
       db:
         condition: service_healthy
@@ -28,8 +28,14 @@ services:
       WORDPRESS_DB_USER: wordpress
       WORDPRESS_DB_PASSWORD: wordpress
       WORDPRESS_DB_NAME: wordpress
-      # Application Passwords require HTTPS except in a local environment
-      WORDPRESS_CONFIG_EXTRA: "define('WP_ENVIRONMENT_TYPE', 'local');"
+      # Application Passwords require HTTPS except in a local environment.
+      # The purge notices go to a server the check starts on the host.
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_ENVIRONMENT_TYPE', 'local');
+        define('INTI_PURGE_URL', 'http://host.docker.internal:43482/purge');
+        define('INTI_PURGE_SECRET', 'inti-check-secret');
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     volumes:
       - wordpress:/var/www/html
       - ./inti-check-fields.php:/var/www/html/wp-content/mu-plugins/inti-check-fields.php:ro
@@ -46,6 +52,13 @@ services:
       WORDPRESS_DB_USER: wordpress
       WORDPRESS_DB_PASSWORD: wordpress
       WORDPRESS_DB_NAME: wordpress
+      # wp-config.php reads these at run time: the CLI needs the same ones to send notices
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_ENVIRONMENT_TYPE', 'local');
+        define('INTI_PURGE_URL', 'http://host.docker.internal:43482/purge');
+        define('INTI_PURGE_SECRET', 'inti-check-secret');
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     volumes:
       - wordpress:/var/www/html
       - ./inti-check-fields.php:/var/www/html/wp-content/mu-plugins/inti-check-fields.php:ro

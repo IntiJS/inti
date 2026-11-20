@@ -45,14 +45,14 @@ async function waitForApi() {
  * with the SHA-256 hash the API still accepts: creating it through the API would
  * require an admin account, and this instance has none.
  */
-function createAgentKey(rateLimit = 100000) {
+function createAgentKey(rateLimit = 100000, scopes = ['content:edit']) {
     const token = `kitsuden_agent_machine_${randomBytes(24).toString('hex')}`;
     const hash = createHash('sha256').update(token).digest('hex');
     const id = `inti-check-${randomBytes(6).toString('hex')}`;
 
     // Without the default quota of 60 requests per minute unless asked: many are made in a row here
     sql(`INSERT INTO agent_identities (id, name, type, scopes, is_active, rate_limit)
-         VALUES ('${id}', 'inti-check', 'machine', '["content:edit"]', true, ${Number(rateLimit)})`);
+         VALUES ('${id}', 'inti-check', 'machine', '${JSON.stringify(scopes)}', true, ${Number(rateLimit)})`);
     sql(`INSERT INTO agent_api_keys (agent_id, key_hash, key_prefix, algorithm)
          VALUES ('${id}', '${hash}', 'kitsuden_agent_machine', 'sha256')`);
     return token;
@@ -97,7 +97,10 @@ function shape(value, path = '', out = new Set()) {
 async function main() {
     compose('up', '-d', '--wait');
     await waitForApi();
+    // The adapter's key has only the scope Inti asks for; the fixtures (creating pages to
+    // test against) use another one, since content:edit does not create pages
     const token = createAgentKey();
+    const fixtureToken = createAgentKey(100000, ['admin']);
 
     const { KitsudenAdapter, SUPPORTED_CONTRACTS, toGeneratorBlockTypes } = await import(
         pathToFileURL(join(ROOT, 'packages/adapter-kitsuden/dist/index.js')).href
@@ -108,7 +111,7 @@ async function main() {
     const api = async (method, path, body) => {
         const response = await fetch(`${ENDPOINT}${path}`, {
             method,
-            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            headers: { Authorization: `Bearer ${fixtureToken}`, 'Content-Type': 'application/json' },
             body: body === undefined ? undefined : JSON.stringify(body)
         });
         const text = await response.text();
@@ -407,6 +410,41 @@ async function main() {
         skipped('a block scheduled for next week stays scheduled through a draft', 'page-builder-publish');
         skipped('an unchanged page is revalidated with its ETag', 'page-builder-publish');
     }
+
+    // ============================================
+    // Delivery: the rendered page, settings navigation, conditional writes
+    // ============================================
+
+    await check('getRenderedPage reads /render/:slug: published, visible blocks only', async () => {
+        const page = await anonymous.getRenderedPage(slug);
+        equal(page.id, id, 'id');
+        if (page.blocks.length === 0) throw new Error('no blocks');
+    });
+
+    await check('fetchNavigation reads mainNav from the public settings', async () => {
+        const nav = await anonymous.fetchNavigation();
+        if (!Array.isArray(nav.items)) throw new Error('no items');
+    });
+
+    await check('an edit with the rendered block id and version goes straight to the block, and returns its new version', async () => {
+        const page = await adapter.getPage(id);
+        const hero = page.blocks[0];
+        const result = await adapter.updateBlockField(id, 0, 'headline', 'Direct', { blockId: hero.id, blockVersion: hero.meta.version });
+        ok(result);
+        if (!result.version || result.version === hero.meta.version) throw new Error(`version did not move: ${result.version}`);
+        equal((await read())[0].data.headline, 'Direct', 'headline');
+        // The second edit of the same block, with the version the first one returned
+        ok(await adapter.updateBlockField(id, 0, 'headline', 'Direct again', { blockId: hero.id, blockVersion: result.version }));
+    });
+
+    await check('an edit against an old version is refused and writes nothing', async () => {
+        const page = await adapter.getPage(id);
+        const hero = page.blocks[0];
+        const stale = await adapter.updateBlockField(id, 0, 'headline', 'STALE', { blockId: hero.id, blockVersion: '2001-01-01T00:00:00.000Z' });
+        equal(stale.success, false, 'success');
+        if (!/changed in Kitsuden/.test(stale.error)) throw new Error(stale.error);
+        if ((await read())[0].data.headline === 'STALE') throw new Error('the stale write landed');
+    });
 
     const failed = results.filter((r) => !r.ok);
     console.log(`\n${results.length - failed.length}/${results.length} checks against a real Kitsuden`);

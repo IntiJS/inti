@@ -54,6 +54,8 @@ export interface ConformanceTarget {
     unavailable?(): IntiAdapter | Promise<IntiAdapter>;
     /** Milliseconds per check. Default 10000 */
     timeout?: number;
+    /** Checks a double of the CMS cannot support (`drafts`, `listing`) */
+    skip?: Array<'drafts' | 'listing'>;
 }
 
 async function rejection(promise: Promise<unknown>): Promise<unknown> {
@@ -111,7 +113,7 @@ export function adapterConformance(api: TestApi, target: ConformanceTarget): voi
 
         test('lists pages with ISO dates, when it can list', async () => {
             const adapter = await target.create();
-            if (!isListableAdapter(adapter)) return;
+            if (!isListableAdapter(adapter) || target.skip?.includes('listing')) return;
             const pages = await adapter.listPages();
             expect(pages.map((page) => page.slug)).toContain(target.existingSlug);
             for (const page of pages) {
@@ -169,7 +171,7 @@ export function adapterConformance(api: TestApi, target: ConformanceTarget): voi
 
         test('drafts round-trip, when it has drafts', async () => {
             const adapter = await target.create();
-            if (!isDraftableAdapter(adapter)) return;
+            if (!isDraftableAdapter(adapter) || target.skip?.includes('drafts')) return;
             const page = await adapter.fetchPageBySlug(target.existingSlug);
             const draft = await adapter.createDraft(page.meta?.documentId ?? page.id);
             expect(draft.success).toBe(true);

@@ -1,6 +1,8 @@
-import { NotFoundError } from '@intijs/core/errors';
+import { NotFoundError, isConflict, isNotFound } from '@intijs/core/errors';
+import { createHttpClient, type HttpClient, type HttpRequestOptions } from '@intijs/core/http';
 import { assertSafeFieldPath } from '@intijs/core/adapters';
 import { IntiAdapter } from '@intijs/core/adapters';
+import { augmentMedia } from './media.js';
 import { extractWordPressSeo } from './seo.js';
 import { normalizeAcfForWrite } from './acf-write.js';
 import type { RestSchema } from './acf-write.js';
@@ -19,7 +21,8 @@ import type {
     DraftResult,
     FieldType,
     ListableAdapter,
-    PageSummary
+    PageSummary,
+    PageTranslation
 } from '@intijs/core/adapters';
 import { IntrospectionAdapter } from '@intijs/core/adapters';
 import {
@@ -28,8 +31,11 @@ import {
     serializeGutenberg,
     extractText,
     isTextEditable,
+    isBound,
+    removeGutenbergBlock,
     gutenbergNameToType
 } from './gutenberg.js';
+import type { GutenbergDocument } from './gutenberg.js';
 
 export {
     parseGutenberg,
@@ -37,9 +43,12 @@ export {
     serializeGutenberg,
     extractText,
     isTextEditable,
+    isBound,
+    removeGutenbergBlock,
     gutenbergNameToType
 } from './gutenberg.js';
-export type { GutenbergBlock } from './gutenberg.js';
+export type { GutenbergBlock, GutenbergDocument } from './gutenberg.js';
+export { augmentMedia, wordpressImage } from './media.js';
 
 // ============================================
 // WordPress REST Payload Types
@@ -90,7 +99,67 @@ export interface WordPressConfig extends IntrospectionConfig {
      * atomically in PHP and avoids the round-trip of the whole ACF array.
      */
     useBridgePlugin?: boolean | 'auto';
+    /**
+     * Ask WordPress only for the fields a page needs (`_fields`). Default
+     * true. Add a plugin's REST field with `extraFields`.
+     */
+    trimFields?: boolean;
+    /** More top-level REST fields to keep when trimming */
+    extraFields?: string[];
+    /** Milliseconds before a request to WordPress is abandoned. Default 10000 */
+    timeoutMs?: number;
+    /** Requests in flight while walking every page of a listing. Default 4 */
+    concurrency?: number;
+    fetch?: typeof fetch;
 }
+
+/** One entry of a taxonomy */
+export interface WordPressTerm {
+    id: number;
+    slug: string;
+    name: string;
+    taxonomy: string;
+    description?: string;
+    count?: number;
+    parent?: number;
+    link?: string;
+}
+
+/** A page of an archive (a post type, or a term of a taxonomy) */
+export interface WordPressArchive {
+    items: Array<PageSummary & { id: string; excerpt?: string; date?: string }>;
+    total: number;
+    totalPages: number;
+    page: number;
+    term?: WordPressTerm;
+}
+
+export interface ArchiveQuery {
+    /** REST base of the post type. Default `posts` */
+    postType?: string;
+    /** REST base of the taxonomy (`categories`, `tags`, a custom one) */
+    taxonomy?: string;
+    /** Slug of the term */
+    term?: string;
+    page?: number;
+    perPage?: number;
+    search?: string;
+    locale?: string;
+}
+
+/** The fields a page needs from `wp/v2`, for `_fields` */
+const PAGE_FIELDS = [
+    'id', 'slug', 'type', 'status', 'link', 'modified', 'modified_gmt', 'date_gmt', 'title', 'content', 'excerpt',
+    'featured_media', 'acf', 'parent', 'lang', 'translations',
+    'yoast_head_json', 'rank_math_head_json', 'rank_math', 'aioseo_head_json', 'aioseo', 'seopress',
+    'seopress_titles_title', 'seopress_titles_desc', 'seopress_robots_canonical', 'seopress_social_fb_img',
+    'seopress_robots_index', 'seopress_social_fb_title', 'seopress_social_fb_desc', 'seopress_social_twitter_title',
+    'seopress_social_twitter_desc', 'seopress_social_twitter_img',
+    'inti_blocks', 'inti_locale', 'inti_translations'
+];
+
+/** How long the adapter believes the companion plugin is missing after a 404 for its route */
+const BRIDGE_RETRY_MS = 10 * 60 * 1000;
 
 // ============================================
 // Helpers
@@ -132,18 +201,6 @@ function setByPath(target: Record<string, any>, path: string, value: any): void 
 /** Slug of a post's working copy: `inti-draft-of-<id>` */
 const DRAFT_SLUG_PREFIX = 'inti-draft-of-';
 
-/**
- * `fetch` that retries once if the connection drops before there is a response.
- *
- * Apache closes idle connections after 5 s and Node may reuse one right
- * then: the first save after a pause failed with "fetch failed".
- * Retrying is safe because every write from this adapter sends the final
- * state, not an increment. A rejection from the CMS is not retried: that is a response.
- */
-function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
-    return fetch(url, init).catch(() => fetch(url, init));
-}
-
 // ============================================
 // WordPress Adapter (read + write-back)
 // ============================================
@@ -169,31 +226,37 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
     readonly writable = true as const;
 
     private introspection: WordPressIntrospection;
+    /** Timeouts, retries on reads, Retry-After, ETags and typed errors for every request */
+    private http: HttpClient;
 
     constructor(config: WordPressConfig) {
         super('WordPress', config);
         this.introspection = new WordPressIntrospection(config);
+        this.http = createHttpClient({
+            name: 'wordpress',
+            baseUrl: config.endpoint.replace(/\/$/, ''),
+            headers: () => this.authHeaders(),
+            timeoutMs: config.timeoutMs,
+            fetch: config.fetch
+        });
     }
 
     private get wpConfig(): WordPressConfig {
         return this.config as WordPressConfig;
     }
 
-    /** Base URL of the REST collection (e.g. https://cms.x.com/wp-json/wp/v2/pages) */
-    private get restBase(): string {
-        const endpoint = this.wpConfig.endpoint.replace(/\/$/, '');
-        const postType = this.wpConfig.postType || 'pages';
-        return `${endpoint}/wp-json/wp/v2/${postType}`;
-    }
-
     private get blocksField(): string {
         return this.wpConfig.blocksField || 'content_blocks';
     }
 
-    /** Headers for write operations (Basic auth with an Application Password) */
+    /**
+     * Basic auth with an Application Password, when there is one. The body's
+     * `Content-Type` is set by the HTTP client, exactly `application/json`:
+     * WordPress reads a JSON body only with that type.
+     */
     private authHeaders(): Record<string, string> {
         const { username, appPassword } = this.wpConfig;
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        const headers: Record<string, string> = {};
 
         if (username && appPassword) {
             // Application Passwords are shown with spaces; WP accepts them with or without
@@ -235,6 +298,7 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
                 blocks,
                 // Yoast, RankMath, AIOSEO or SEOPress if present; ACF otherwise
                 seo: extractWordPressSeo(raw, acf),
+                ...this.languageOf(raw),
                 meta: {
                     contentType: raw.type || this.wpConfig.postType || 'pages',
                     documentId: String(raw.id),
@@ -267,7 +331,8 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
             type,
             // Flexible Content layouts have no ID of their own: the index is the identity
             id: `${post.id}-${this.blocksField}-${index}`,
-            data,
+            // Images gain `srcset`, `sources` (AVIF, WebP) and `video` from what WordPress made
+            data: augmentMedia(data),
             meta: {
                 documentId: String(post.id),
                 contentType: post.type || this.wpConfig.postType || 'pages',
@@ -291,15 +356,23 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
 
         if (typeof rawContent === 'string' && rawContent.includes('<!-- wp:')) {
             const gutenbergBlocks = parseGutenberg(rawContent);
+            // The plugin's `inti_blocks` has the same positions, with what bound and dynamic blocks render
+            const fromPlugin: Array<{ name: string; rendered?: string | null }> | undefined = Array.isArray(post.inti_blocks)
+                ? post.inti_blocks
+                : undefined;
+            const aligned = fromPlugin?.length === gutenbergBlocks.length && fromPlugin.every((b, i) => b.name === gutenbergBlocks[i].name);
 
             return gutenbergBlocks.map((block, index) => {
                 const text = extractText(block);
+                const rendered = aligned ? fromPlugin![index].rendered : undefined;
                 return {
                     type: gutenbergNameToType(block.name),
                     id: `${post.id}-gutenberg-${index}`,
                     data: {
                         attrs: block.attrs,
-                        html: block.innerHTML,
+                        // A bound or dynamic block shows what WordPress renders, not what is stored
+                        html: rendered ?? block.innerHTML,
+                        ...(isBound(block) ? { bound: true } : {}),
                         // `text` enables the inline editor's auto-bind
                         // (and is the only writable field in Gutenberg mode)
                         ...(text !== null ? { text } : {})
@@ -313,6 +386,23 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
                     }
                 };
             });
+        }
+
+        // No raw, but the plugin parsed the blocks: per-block rendering, read only
+        if (Array.isArray(post.inti_blocks) && post.inti_blocks.length > 0) {
+            const parsed = post.inti_blocks as Array<{ name: string; attrs?: Record<string, any>; innerHTML?: string; rendered?: string | null }>;
+            return parsed.map((block, index) => ({
+                type: gutenbergNameToType(block.name),
+                id: `${post.id}-gutenberg-${index}`,
+                data: { attrs: block.attrs ?? {}, html: block.rendered ?? block.innerHTML ?? '' },
+                meta: {
+                    documentId: String(post.id),
+                    contentType: post.type || this.wpConfig.postType || 'pages',
+                    label: `gutenberg:${block.name}`,
+                    index,
+                    total: parsed.length
+                }
+            }));
         }
 
         // No raw: a single block with the rendered HTML
@@ -333,10 +423,41 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
         }];
     }
 
-    parseNavigation(_raw: any): IntiNavigation {
-        // WP menus are not in wp/v2 core (they require a plugin).
-        // To be solved in a later phase of the adapter.
-        return { items: [] };
+    /** The tree `GET /inti/v1/menus/<location>` returns, as IntiNavigation */
+    parseNavigation(raw: any): IntiNavigation {
+        const convert = (items: any[]): IntiNavigation['items'] =>
+            (Array.isArray(items) ? items : []).map((item) => ({
+                label: String(item?.label ?? item?.title?.rendered ?? item?.title ?? ''),
+                // The site's own route when the link points inside it
+                url: String(item?.path ?? item?.url ?? '#'),
+                ...(Array.isArray(item?.children) && item.children.length ? { children: convert(item.children) } : {})
+            }));
+        return { items: convert(raw?.items ?? raw) };
+    }
+
+    /**
+     * The menu assigned to a theme location (`primary`, `footer`…), in a
+     * language when the site has several. Needs the companion plugin: core
+     * WordPress only exposes menus to logged-in users.
+     */
+    async fetchNavigation(location: string, options: { locale?: string } = {}): Promise<IntiNavigation> {
+        const raw = await this.http.get(`/wp-json/inti/v1/menus/${encodeURIComponent(location)}`, {
+            query: { lang: options.locale },
+            resource: 'menu'
+        });
+        return this.parseNavigation(raw);
+    }
+
+    /** `locale` and `translations` from the plugin's fields, or from Polylang's own */
+    private languageOf(raw: WordPressPost): { locale?: string; translations?: PageTranslation[] } {
+        const locale = raw.inti_locale ?? (typeof raw.lang === 'string' ? raw.lang : undefined);
+        if (!locale) return {};
+        const translations: PageTranslation[] = Array.isArray(raw.inti_translations)
+            ? raw.inti_translations
+                  .filter((t: any) => t && typeof t.locale === 'string' && typeof t.slug === 'string')
+                  .map((t: any) => ({ locale: t.locale, slug: t.slug, ...(typeof t.url === 'string' ? { url: t.url } : {}) }))
+            : [];
+        return { locale, ...(translations.length ? { translations } : {}) };
     }
 
     // ============================================
@@ -348,152 +469,347 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
         return !!(this.wpConfig.username && this.wpConfig.appPassword);
     }
 
-    async fetchPageBySlug(slug: string): Promise<IntiPage> {
-        // With credentials we request context=edit to get content.raw
-        // (essential for per-block editing in Gutenberg mode)
-        const editContext = this.hasCredentials ? '&context=edit' : '';
-        const url = `${this.restBase}?slug=${encodeURIComponent(slug)}&acf_format=standard${editContext}`;
-        const response = await fetchWithRetry(url, { headers: this.authHeaders() });
+    /** `_fields` for a page, or nothing when trimming is off */
+    private pageFields(): string | undefined {
+        if (this.wpConfig.trimFields === false) return undefined;
+        return [...PAGE_FIELDS, ...(this.wpConfig.extraFields ?? [])].join(',');
+    }
 
-        if (!response.ok) {
-            throw new Error(`Failed to fetch page: ${response.status} ${response.statusText}`);
-        }
+    /**
+     * The published page with that slug. A nested page can be asked for by
+     * its path (`services/design`): WordPress matches the last segment, and
+     * the path picks between pages that share it.
+     */
+    async fetchPageBySlug(slug: string, options: { locale?: string } = {}): Promise<IntiPage> {
+        const path = slug.replace(/^\/+|\/+$/g, '');
+        const last = path.split('/').pop() || 'home';
+        const posts = await this.http.get<WordPressPost[]>(this.restPath, {
+            query: {
+                slug: last,
+                acf_format: 'standard',
+                // With credentials, context=edit gives content.raw (per-block editing in Gutenberg mode)
+                context: this.hasCredentials ? 'edit' : undefined,
+                _fields: this.pageFields(),
+                lang: options.locale
+            },
+            resource: 'page'
+        });
 
-        const data = await response.json();
-        const post = Array.isArray(data) ? data[0] : data;
+        const list = Array.isArray(posts) ? posts : [];
+        const post =
+            list.length > 1 && path.includes('/')
+                ? (list.find((candidate) => {
+                      try {
+                          return new URL(String(candidate.link)).pathname.replace(/\/+$/, '').endsWith(`/${path}`);
+                      } catch {
+                          return false;
+                      }
+                  }) ?? list[0])
+                : list[0];
 
-        if (!post) {
-            throw new NotFoundError('page', slug, `Page not found for slug: ${slug}`);
-        }
-
+        if (!post) throw new NotFoundError('page', slug, `Page not found for slug: ${slug}`);
         return this.parsePage(post);
     }
 
     async fetchAllPages(): Promise<IntiPage[]> {
-        const editContext = this.hasCredentials ? '&context=edit' : '';
-        const url = `${this.restBase}?per_page=100&acf_format=standard${editContext}`;
-        const response = await fetchWithRetry(url, { headers: this.authHeaders() });
+        const posts = await this.walk<WordPressPost>(this.restPath, {
+            acf_format: 'standard',
+            context: this.hasCredentials ? 'edit' : undefined,
+            _fields: this.pageFields()
+        });
+        return posts.map((post) => this.parsePage(post));
+    }
 
-        if (!response.ok) {
-            throw new Error(`Failed to fetch pages: ${response.status} ${response.statusText}`);
-        }
-
-        const posts: WordPressPost[] = await response.json();
-        return posts.map(post => this.parsePage(post));
+    /** Path of the post type's REST collection: `/wp-json/wp/v2/pages` */
+    private get restPath(): string {
+        return `/wp-json/wp/v2/${this.wpConfig.postType || 'pages'}`;
     }
 
     /**
-     * Lists the published pages for the sitemap.
-     *
-     * It only requests the needed fields (`_fields`), so it is much
-     * cheaper than fetching every page's full blocks.
+     * Every page of a REST listing. The first answer says how many pages
+     * there are (`X-WP-TotalPages`); the rest are asked for in parallel, a
+     * few at a time. There is no cap: a sitemap that stops at 5,000 URLs
+     * hides the rest of the site.
      */
+    private async walk<T>(path: string, query: HttpRequestOptions['query'] = {}): Promise<T[]> {
+        const perPage = 100;
+        const first = await this.http.request<T[]>('GET', path, { query: { ...query, per_page: perPage, page: 1 } });
+        const totalPages = Number(first.headers.get('x-wp-totalpages')) || 1;
+        const pages: T[][] = [Array.isArray(first.data) ? first.data : []];
+
+        const remaining = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
+        const concurrency = Math.max(1, this.wpConfig.concurrency ?? 4);
+        const results = new Map<number, T[]>();
+        await Promise.all(
+            Array.from({ length: Math.min(concurrency, remaining.length) }, async () => {
+                for (let next = remaining.shift(); next !== undefined; next = remaining.shift()) {
+                    const batch = await this.http.get<T[]>(path, { query: { ...query, per_page: perPage, page: next } });
+                    results.set(next, Array.isArray(batch) ? batch : []);
+                }
+            })
+        );
+        for (let page = 2; page <= totalPages; page++) pages.push(results.get(page) ?? []);
+        return pages.flat();
+    }
+
     async listPages(): Promise<PageSummary[]> {
-        const summaries: PageSummary[] = [];
-        let page = 1;
+        const posts = await this.walk<WordPressPost>(this.restPath, {
+            status: 'publish',
+            _fields: 'slug,link,modified_gmt,title,inti_locale,inti_translations,lang'
+        });
 
-        // WP paginates at 100; walk until exhausted
-        while (page <= 50) {
-            const url = `${this.restBase}?per_page=100&page=${page}&status=publish&_fields=slug,modified_gmt,title`;
-            const response = await fetchWithRetry(url, { headers: this.authHeaders() });
+        return posts.map((post) => ({
+            slug: this.pathOf(post),
+            // modified_gmt comes without a zone; mark it as UTC
+            updatedAt: post.modified_gmt ? `${post.modified_gmt}Z` : undefined,
+            title: post.title?.rendered,
+            ...this.languageOf(post)
+        }));
+    }
 
-            if (!response.ok) {
-                // Requesting a page that does not exist returns 400: end of the walk
-                if (response.status === 400 && page > 1) break;
-                throw new Error(`Failed to list pages: ${response.status} ${response.statusText}`);
-            }
-
-            const batch: Array<{ slug: string; modified_gmt?: string; title?: { rendered?: string } }> =
-                await response.json();
-
-            if (!Array.isArray(batch) || batch.length === 0) break;
-
-            for (const post of batch) {
-                summaries.push({
-                    slug: post.slug,
-                    // modified_gmt comes without a zone; mark it as UTC
-                    updatedAt: post.modified_gmt ? `${post.modified_gmt}Z` : undefined,
-                    title: post.title?.rendered
-                });
-            }
-
-            if (batch.length < 100) break;
-            page++;
+    /** The path a post has on the site, from its link (nested pages keep their parents) */
+    private pathOf(post: WordPressPost): string {
+        try {
+            const link = new URL(String(post.link));
+            const root = new URL(this.wpConfig.endpoint);
+            const path = link.pathname.replace(root.pathname.replace(/\/$/, ''), '').replace(/^\/+|\/+$/g, '');
+            if (path) return path;
+        } catch {
+            // no link: the slug
         }
+        return post.slug;
+    }
 
-        return summaries;
+    // ============================================
+    // Taxonomies and archives
+    // ============================================
+
+    /** Terms of a taxonomy (`categories`, `tags`, a custom REST base), every page of them */
+    async listTerms(taxonomy: string, options: { locale?: string; hideEmpty?: boolean } = {}): Promise<WordPressTerm[]> {
+        const terms = await this.walk<Record<string, any>>(`/wp-json/wp/v2/${taxonomy}`, {
+            hide_empty: options.hideEmpty === false ? undefined : 'true',
+            lang: options.locale,
+            _fields: 'id,slug,name,taxonomy,description,count,parent,link'
+        });
+        return terms.map((term) => this.toTerm(term));
+    }
+
+    /** One term by slug; `NotFoundError` when there is none */
+    async fetchTerm(taxonomy: string, slug: string, options: { locale?: string } = {}): Promise<WordPressTerm> {
+        const terms = await this.http.get<Record<string, any>[]>(`/wp-json/wp/v2/${taxonomy}`, {
+            query: { slug, lang: options.locale, _fields: 'id,slug,name,taxonomy,description,count,parent,link' },
+            resource: 'term'
+        });
+        const term = Array.isArray(terms) ? terms[0] : undefined;
+        if (!term) throw new NotFoundError('term', slug);
+        return this.toTerm(term);
+    }
+
+    private toTerm(term: Record<string, any>): WordPressTerm {
+        return {
+            id: Number(term.id),
+            slug: String(term.slug),
+            name: String(term.name ?? term.slug),
+            taxonomy: String(term.taxonomy ?? ''),
+            description: term.description || undefined,
+            count: typeof term.count === 'number' ? term.count : undefined,
+            parent: term.parent || undefined,
+            link: term.link
+        };
+    }
+
+    /**
+     * A page of an archive: the posts of a type, optionally of one term.
+     * `total` and `totalPages` come from WordPress's headers, for pagination.
+     */
+    async fetchArchive(query: ArchiveQuery = {}): Promise<WordPressArchive> {
+        const postType = query.postType ?? 'posts';
+        const page = Math.max(1, query.page ?? 1);
+        const perPage = Math.max(1, Math.min(100, query.perPage ?? 10));
+        const term = query.taxonomy && query.term ? await this.fetchTerm(query.taxonomy, query.term, { locale: query.locale }) : undefined;
+
+        const result = await this.http.request<WordPressPost[]>('GET', `/wp-json/wp/v2/${postType}`, {
+            query: {
+                page,
+                per_page: perPage,
+                search: query.search,
+                lang: query.locale,
+                ...(term && query.taxonomy ? { [query.taxonomy]: term.id } : {}),
+                _fields: 'id,slug,link,title,excerpt,date_gmt,modified_gmt,inti_locale,inti_translations,lang'
+            },
+            resource: 'archive'
+        }).catch((error) => {
+            // WordPress answers 400 for a page past the last one: an empty page, not an error
+            if ((error as { status?: number }).status === 400 && page > 1) {
+                return { data: [] as WordPressPost[], status: 200, headers: new Headers() };
+            }
+            throw error;
+        });
+
+        const posts = Array.isArray(result.data) ? result.data : [];
+        return {
+            items: posts.map((post) => ({
+                id: String(post.id),
+                slug: this.pathOf(post),
+                title: post.title?.rendered,
+                excerpt: post.excerpt?.rendered,
+                date: post.date_gmt ? `${post.date_gmt}Z` : undefined,
+                updatedAt: post.modified_gmt ? `${post.modified_gmt}Z` : undefined,
+                ...this.languageOf(post)
+            })),
+            total: Number(result.headers.get('x-wp-total')) || posts.length,
+            totalPages: Number(result.headers.get('x-wp-totalpages')) || 1,
+            page,
+            term
+        };
     }
 
     /** Gets the raw post (with ACF) — basis of the read-modify-write */
     private async fetchRawPost(documentId: string): Promise<WordPressPost> {
         // `light` avoids formatting what it can, but inside a Flexible
         // Content it still arrives expanded: `pushAcf` takes care of that
-        const url = `${this.restBase}/${documentId}?acf_format=light&context=edit`;
-        let response = await fetchWithRetry(url, { headers: this.authHeaders() });
-
-        // context=edit requires auth; if it fails (e.g. read permissions), retry with context=view
-        if (!response.ok && response.status === 401) {
-            response = await fetchWithRetry(`${this.restBase}/${documentId}?acf_format=light`, {
-                headers: this.authHeaders()
+        try {
+            return await this.http.get<WordPressPost>(`${this.restPath}/${documentId}`, {
+                query: { acf_format: 'light', context: 'edit' },
+                resource: 'post'
             });
+        } catch (error) {
+            // context=edit requires edit permission; reading still works without it
+            if ((error as { status?: number }).status !== 401) throw error;
+            return this.http.get<WordPressPost>(`${this.restPath}/${documentId}`, { query: { acf_format: 'light' }, resource: 'post' });
         }
-
-        if (!response.ok) {
-            throw new Error(`Failed to fetch post ${documentId}: ${response.status} ${response.statusText}`);
-        }
-
-        return response.json();
     }
 
     // ============================================
     // Write-Back (Inline Editing)
     // ============================================
+    //
+    // With the companion plugin (inti-bridge) every write is one PHP call:
+    // a field with `acf_update_value`, a structural change on the raw rows,
+    // a Gutenberg document as a whole. Each carries the `modified_gmt` the
+    // adapter read when it read anything, and the plugin answers 409 when the
+    // page changed since: two editors never silently lose each other's work.
+    //
+    // Without the plugin the adapter falls back to the REST API: read the
+    // whole Flexible Content array, change it, post it back.
+
+    /** Until when the plugin is believed to be missing (a 404 for its route) */
+    private bridgeMissingUntil = 0;
+
+    private get bridgeSetting(): boolean | 'auto' {
+        return this.wpConfig.useBridgePlugin ?? 'auto';
+    }
 
     /**
-     * Updates a field of a block (a Flexible Content layout).
+     * Calls the plugin. `null` means "not installed" (or turned off): the
+     * caller uses the REST fallback. Any other failure is thrown, typed: a
+     * conflict, a refused write or a timeout is not a reason to try the
+     * racier path behind the user's back.
+     */
+    private async bridge<T = Record<string, any>>(route: string, body: Record<string, unknown>): Promise<T | null> {
+        if (this.bridgeSetting === false) return null;
+        if (this.bridgeSetting === 'auto' && Date.now() < this.bridgeMissingUntil) return null;
+
+        try {
+            // A version check (or a final value) makes a resend harmless: one retry after a dropped connection
+            return await this.http.post<T>(`/wp-json/inti/v1/${route}`, { json: body, idempotent: true, resource: 'inti-bridge route' });
+        } catch (error) {
+            // Only a missing route means "no plugin"; a 404 for a post is a real answer
+            if (isNotFound(error) && /rest_no_route/.test(String((error as Error).message)) && this.bridgeSetting === 'auto') {
+                this.bridgeMissingUntil = Date.now() + BRIDGE_RETRY_MS;
+                return null;
+            }
+            throw error;
+        }
+    }
+
+    /** `{ success: false }` with a message the editor can act on */
+    private failure(operation: string, documentId: string, error: unknown): WriteResult {
+        const message = isConflict(error)
+            ? 'The page changed in WordPress since it was read. Reload it and edit again.'
+            : error instanceof Error
+              ? error.message
+              : String(error);
+        console.error(`[${this.name}Adapter] ${operation} failed:`, message);
+        return { success: false, documentId, error: message, source: 'wordpress' };
+    }
+
+    /** Does this post keep its blocks in the Flexible Content field? */
+    private usesAcf(post: WordPressPost): boolean {
+        const mode = this.wpConfig.mode || 'auto';
+        return mode === 'acf' || (mode === 'auto' && Array.isArray(post.acf?.[this.blocksField]));
+    }
+
+    /** The plugin's error code (`inti_no_rows`), when the error carries one */
+    private static bridgeCode(error: unknown): string | undefined {
+        const text = String((error as { body?: string })?.body ?? (error as Error)?.message ?? '');
+        return text.match(/"code"\s*:\s*"([a-z_]+)"/)?.[1];
+    }
+
+    /**
+     * A structural change done by the plugin on the raw rows. `null` when the
+     * plugin is missing or the post has no Flexible Content (Gutenberg).
+     */
+    private async bridgeRows(documentId: string, op: string, params: Record<string, unknown>): Promise<WriteResult | null> {
+        if ((this.wpConfig.mode || 'auto') === 'gutenberg') return null;
+        try {
+            const result = await this.bridge('rows', { post_id: Number(documentId), blocks_field: this.blocksField, op, ...params });
+            return result ? { success: true, documentId, value: params, source: 'wordpress-bridge' } : null;
+        } catch (error) {
+            if (WordPressAdapter.bridgeCode(error) === 'inti_no_rows' && (this.wpConfig.mode || 'auto') === 'auto') return null;
+            throw error;
+        }
+    }
+
+    /**
+     * Updates a field of a block (a Flexible Content layout), or of the page
+     * with blockIndex === -1.
      *
-     * ACF REST requires the FULL value of the Flexible Content field,
-     * so the flow is read-modify-write:
-     * 1. GET the post with its current ACF array
-     * 2. Patch the field inside the `blockIndex` layout (supports dot-paths)
-     * 3. POST the whole array back (layouts keep acf_fc_layout)
-     *
-     * With blockIndex === -1 a page-level ACF field is updated.
+     * With the plugin: one atomic `acf_update_value`. Without it, ACF REST
+     * requires the FULL Flexible Content value, so the flow is
+     * read-modify-write of the whole array.
      */
     async updateBlockField(documentId: string, blockIndex: number, field: string, value: any): Promise<WriteResult> {
         try {
             this.assertWriteCredentials();
             assertSafeFieldPath(field);
 
-            // Atomic patch via the companion plugin (if installed)
-            const bridged = await this.tryBridgePatch(documentId, blockIndex, field, value);
-            if (bridged) return bridged;
+            if ((this.wpConfig.mode || 'auto') !== 'gutenberg' || blockIndex === -1) {
+                try {
+                    const bridged = await this.bridge('patch', {
+                        post_id: Number(documentId),
+                        blocks_field: this.blocksField,
+                        block_index: blockIndex,
+                        field,
+                        value
+                    });
+                    if (bridged) return { success: true, documentId, value, source: 'wordpress-bridge' };
+                } catch (error) {
+                    // A Gutenberg page has no row to patch: its text is written below
+                    if (WordPressAdapter.bridgeCode(error) !== 'inti_no_rows' || blockIndex === -1) throw error;
+                }
+            }
 
             const post = await this.fetchRawPost(documentId);
 
             // Gutenberg mode: the content lives in post_content, not in ACF
-            const mode = this.wpConfig.mode || 'auto';
-            const usesAcf = Array.isArray(post.acf?.[this.blocksField]);
-            if (blockIndex >= 0 && (mode === 'gutenberg' || (mode === 'auto' && !usesAcf))) {
+            if (blockIndex >= 0 && !this.usesAcf(post)) {
                 return await this.updateGutenbergText(post, documentId, blockIndex, field, value);
             }
 
             const acf = { ...(post.acf || {}) };
 
             if (blockIndex === -1) {
-                // Top-level ACF field of the page
                 setByPath(acf, field, value);
             } else {
                 const blocks = acf[this.blocksField];
-
                 if (!Array.isArray(blocks)) {
                     throw new Error(`Field "${this.blocksField}" is not a Flexible Content array on post ${documentId}`);
                 }
                 if (blockIndex < 0 || blockIndex >= blocks.length) {
                     throw new Error(`Block index ${blockIndex} out of range (0-${blocks.length - 1})`);
                 }
-
-                // Clone the array and the target layout so the original is not mutated
+                // Clone the target layout so the original is not mutated
                 const patched = blocks.map((layout: Record<string, any>, i: number) =>
                     i === blockIndex ? JSON.parse(JSON.stringify(layout)) : layout
                 );
@@ -503,18 +819,17 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
 
             return await this.pushAcf(documentId, acf, value);
         } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            console.error(`[${this.name}Adapter] updateBlockField failed:`, message);
-            return { success: false, documentId, error: message, source: 'wordpress' };
+            return this.failure('updateBlockField', documentId, error);
         }
     }
 
-    /**
-     * Replaces a block's whole data, preserving its acf_fc_layout
-     */
+    /** Replaces a block's whole data, preserving its acf_fc_layout */
     async updateBlock(documentId: string, blockIndex: number, data: Record<string, any>): Promise<WriteResult> {
         try {
             this.assertWriteCredentials();
+
+            const bridged = await this.bridgeRows(documentId, 'replace', { index: blockIndex, data });
+            if (bridged) return { ...bridged, value: data };
 
             const post = await this.fetchRawPost(documentId);
             const acf = { ...(post.acf || {}) };
@@ -531,18 +846,29 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
 
             return await this.pushAcf(documentId, acf, data);
         } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            console.error(`[${this.name}Adapter] updateBlock failed:`, message);
-            return { success: false, documentId, error: message, source: 'wordpress' };
+            return this.failure('updateBlock', documentId, error);
         }
+    }
+
+    /**
+     * Writes a Gutenberg document. Through the plugin it carries the
+     * `modified_gmt` the adapter read, so a concurrent edit is a 409 instead
+     * of being overwritten.
+     */
+    private async writeContent(post: WordPressPost, documentId: string, blocks: GutenbergDocument): Promise<void> {
+        const content = serializeGutenberg(blocks);
+        const expected = post.modified_gmt ? `${post.modified_gmt}Z` : undefined;
+        const bridged = await this.bridge('content', { post_id: Number(documentId), content, expected_modified: expected });
+        if (bridged) return;
+        await this.http.post(`${this.restPath}/${documentId}`, { json: { content }, idempotent: true, resource: 'post' });
     }
 
     /**
      * Text write-back in Gutenberg mode.
      *
      * Only the 'text' field is editable, and only in simple blocks
-     * (one tag, no nested markup) — the rest is rejected with a clear
-     * error so the post_content is not corrupted.
+     * (one tag, no nested markup, no binding) — the rest is rejected with a
+     * clear error so the post_content is not corrupted.
      */
     private async updateGutenbergText(post: WordPressPost, documentId: string, blockIndex: number, field: string, value: any): Promise<WriteResult> {
         if (field !== 'text') {
@@ -565,6 +891,11 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
         if (blockIndex < 0 || blockIndex >= blocks.length) {
             throw new Error(`Block index ${blockIndex} out of range (0-${blocks.length - 1})`);
         }
+        if (isBound(blocks[blockIndex])) {
+            throw new Error(
+                `Block "${blocks[blockIndex].name}" takes its content from a binding: change it where it comes from.`
+            );
+        }
         if (!isTextEditable(blocks[blockIndex])) {
             throw new Error(
                 `Block "${blocks[blockIndex].name}" is too complex for inline editing. ` +
@@ -573,89 +904,18 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
         }
 
         blocks[blockIndex] = patchBlockText(blocks[blockIndex], String(value));
-        const serialized = serializeGutenberg(blocks);
-
-        const response = await fetchWithRetry(`${this.restBase}/${documentId}`, {
-            method: 'POST',
-            headers: this.authHeaders(),
-            body: JSON.stringify({ content: serialized })
-        });
-
-        if (!response.ok) {
-            const body = await response.text().catch(() => '');
-            throw new Error(`WordPress rejected the update: ${response.status} ${response.statusText} ${body.slice(0, 200)}`);
-        }
+        await this.writeContent(post, documentId, blocks);
 
         return { success: true, documentId, value, source: 'wordpress-gutenberg' };
     }
 
-    // ============================================
-    // Plugin Companion (inti-bridge)
-    // ============================================
-
-    /** Cache of the plugin feature-detect ('unknown' until the first attempt) */
-    private bridgeAvailable: boolean | 'unknown' = 'unknown';
-
-    /**
-     * Tries the atomic patch via the inti-bridge companion plugin.
-     *
-     * The plugin runs ACF's `update_sub_field()` in PHP: a single call,
-     * no round-trip of the whole array (removes the race condition of
-     * concurrent edits). Returns null if the plugin is not installed
-     * or is disabled by config → the caller uses the REST fallback.
-     */
-    private async tryBridgePatch(documentId: string, blockIndex: number, field: string, value: any): Promise<WriteResult | null> {
-        const setting = this.wpConfig.useBridgePlugin ?? 'auto';
-        if (setting === false) return null;
-        if (setting === 'auto' && this.bridgeAvailable === false) return null;
-
-        const endpoint = this.wpConfig.endpoint.replace(/\/$/, '');
-
-        try {
-            const response = await fetchWithRetry(`${endpoint}/wp-json/inti/v1/patch`, {
-                method: 'POST',
-                headers: this.authHeaders(),
-                body: JSON.stringify({
-                    post_id: Number(documentId),
-                    blocks_field: this.blocksField,
-                    block_index: blockIndex,
-                    field,
-                    value
-                })
-            });
-
-            if (response.status === 404) {
-                // Plugin not installed: remember it and use the fallback
-                this.bridgeAvailable = false;
-                return null;
-            }
-
-            if (!response.ok) {
-                const body = await response.text().catch(() => '');
-                throw new Error(`inti-bridge rejected the patch: ${response.status} ${body.slice(0, 200)}`);
-            }
-
-            this.bridgeAvailable = true;
-            return { success: true, documentId, value, source: 'wordpress-bridge' };
-        } catch (error) {
-            // Network or plugin error with useBridgePlugin=true: propagate as a failure
-            if (setting === true) {
-                const message = error instanceof Error ? error.message : String(error);
-                return { success: false, documentId, error: message, source: 'wordpress-bridge' };
-            }
-            // In 'auto', any failure → silent fallback to the REST path
-            this.bridgeAvailable = false;
-            return null;
-        }
-    }
-
-    /**
-     * Moves a block (layout) to another position in the Flexible Content array.
-     * Same read-modify-write as updateBlockField.
-     */
+    /** Moves a block (layout) to another position */
     async moveBlock(documentId: string, fromIndex: number, toIndex: number): Promise<WriteResult> {
         try {
             this.assertWriteCredentials();
+
+            const bridged = await this.bridgeRows(documentId, 'move', { from: fromIndex, to: toIndex });
+            if (bridged) return bridged;
 
             const post = await this.fetchRawPost(documentId);
             const acf = { ...(post.acf || {}) };
@@ -675,9 +935,7 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
 
             return await this.pushAcf(documentId, acf, { fromIndex, toIndex });
         } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            console.error(`[${this.name}Adapter] moveBlock failed:`, message);
-            return { success: false, documentId, error: message, source: 'wordpress' };
+            return this.failure('moveBlock', documentId, error);
         }
     }
 
@@ -691,35 +949,12 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
      * Not supported in Gutenberg mode (there is no block template).
      */
     async insertBlock(documentId: string, index: number, nativeType: string, data: Record<string, any> = {}): Promise<WriteResult> {
-        try {
-            this.assertWriteCredentials();
-
-            const post = await this.fetchRawPost(documentId);
-            const acf = { ...(post.acf || {}) };
-            const blocks = acf[this.blocksField];
-
-            if (!Array.isArray(blocks)) {
-                throw new Error(
-                    `Field "${this.blocksField}" is not a Flexible Content array on post ${documentId}. ` +
-                    `Inserting blocks is only supported in ACF mode.`
-                );
-            }
-
-            const clamped = Math.max(0, Math.min(index, blocks.length));
-            const patched = [...blocks];
-            patched.splice(clamped, 0, { acf_fc_layout: nativeType, ...data });
-            acf[this.blocksField] = patched;
-
-            return await this.pushAcf(documentId, acf, { nativeType, index: clamped });
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            console.error(`[${this.name}Adapter] insertBlock failed:`, message);
-            return { success: false, documentId, error: message, source: 'wordpress' };
-        }
+        const result = await this.insertBlocks(documentId, index, [{ nativeType, data }]);
+        return result.success ? { ...result, value: { nativeType, index } } : result;
     }
 
     /**
-     * Inserts several blocks in a single POST. A pattern goes in whole or
+     * Inserts several blocks in a single write. A pattern goes in whole or
      * not at all: without this, a failure halfway leaves the published page
      * with half a pattern.
      */
@@ -734,6 +969,10 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
             if (newBlocks.length === 0) {
                 return { success: true, documentId, source: 'wordpress' };
             }
+            const rows = newBlocks.map((block) => ({ ...(block.data ?? {}), acf_fc_layout: block.nativeType }));
+
+            const bridged = await this.bridgeRows(documentId, 'insert', { index, rows });
+            if (bridged) return { ...bridged, value: { nativeType: newBlocks[0].nativeType, index } };
 
             const post = await this.fetchRawPost(documentId);
             const acf = { ...(post.acf || {}) };
@@ -748,36 +987,30 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
 
             const clamped = Math.max(0, Math.min(index, blocks.length));
             const patched = [...blocks];
-            patched.splice(
-                clamped,
-                0,
-                ...newBlocks.map((block) => ({ acf_fc_layout: block.nativeType, ...(block.data ?? {}) }))
-            );
+            patched.splice(clamped, 0, ...rows);
             acf[this.blocksField] = patched;
 
-            return await this.pushAcf(documentId, acf, {
-                nativeType: newBlocks[0].nativeType,
-                index: clamped
-            });
+            return await this.pushAcf(documentId, acf, { nativeType: newBlocks[0].nativeType, index: clamped });
         } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            console.error(`[${this.name}Adapter] insertBlocks failed:`, message);
-            return { success: false, documentId, error: message, source: 'wordpress' };
+            return this.failure('insertBlocks', documentId, error);
         }
     }
 
     /**
      * Removes the block at the given position.
-     * Works in ACF and in Gutenberg mode (splice of parsed blocks).
+     * Works in ACF and in Gutenberg mode (classic content around it stays).
      */
     async removeBlock(documentId: string, index: number): Promise<WriteResult> {
         try {
             this.assertWriteCredentials();
 
+            const bridged = await this.bridgeRows(documentId, 'remove', { index });
+            if (bridged) return { ...bridged, value: { removed: index } };
+
             const post = await this.fetchRawPost(documentId);
             const blocks = post.acf?.[this.blocksField];
 
-            if (Array.isArray(blocks)) {
+            if (this.usesAcf(post) && Array.isArray(blocks)) {
                 if (index < 0 || index >= blocks.length) {
                     throw new Error(`Block index ${index} out of range (0-${blocks.length - 1})`);
                 }
@@ -792,26 +1025,25 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
                 if (index < 0 || index >= parsed.length) {
                     throw new Error(`Block index ${index} out of range (0-${parsed.length - 1})`);
                 }
-                parsed.splice(index, 1);
+                removeGutenbergBlock(parsed, index);
             });
         } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            console.error(`[${this.name}Adapter] removeBlock failed:`, message);
-            return { success: false, documentId, error: message, source: 'wordpress' };
+            return this.failure('removeBlock', documentId, error);
         }
     }
 
-    /**
-     * Duplicates the block at the given position (it lands right after the original).
-     */
+    /** Duplicates the block at the given position (it lands right after the original) */
     async duplicateBlock(documentId: string, index: number): Promise<WriteResult> {
         try {
             this.assertWriteCredentials();
 
+            const bridged = await this.bridgeRows(documentId, 'duplicate', { index });
+            if (bridged) return { ...bridged, value: { duplicated: index } };
+
             const post = await this.fetchRawPost(documentId);
             const blocks = post.acf?.[this.blocksField];
 
-            if (Array.isArray(blocks)) {
+            if (this.usesAcf(post) && Array.isArray(blocks)) {
                 if (index < 0 || index >= blocks.length) {
                     throw new Error(`Block index ${index} out of range (0-${blocks.length - 1})`);
                 }
@@ -826,12 +1058,11 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
                 if (index < 0 || index >= parsed.length) {
                     throw new Error(`Block index ${index} out of range (0-${parsed.length - 1})`);
                 }
-                parsed.splice(index + 1, 0, { ...parsed[index] });
+                // The copy gets a blank line before it, not the original's classic content
+                parsed.splice(index + 1, 0, { ...parsed[index], leading: undefined });
             });
         } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            console.error(`[${this.name}Adapter] duplicateBlock failed:`, message);
-            return { success: false, documentId, error: message, source: 'wordpress' };
+            return this.failure('duplicateBlock', documentId, error);
         }
     }
 
@@ -839,7 +1070,7 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
     private async spliceGutenberg(
         post: WordPressPost,
         documentId: string,
-        mutate: (blocks: ReturnType<typeof parseGutenberg>) => void
+        mutate: (blocks: GutenbergDocument) => void
     ): Promise<WriteResult> {
         const rawContent = (post.content as any)?.raw;
         if (typeof rawContent !== 'string' || !rawContent.includes('<!-- wp:')) {
@@ -848,17 +1079,7 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
 
         const parsed = parseGutenberg(rawContent);
         mutate(parsed);
-
-        const response = await fetchWithRetry(`${this.restBase}/${documentId}`, {
-            method: 'POST',
-            headers: this.authHeaders(),
-            body: JSON.stringify({ content: serializeGutenberg(parsed) })
-        });
-
-        if (!response.ok) {
-            const body = await response.text().catch(() => '');
-            throw new Error(`WordPress rejected the update: ${response.status} ${response.statusText} ${body.slice(0, 200)}`);
-        }
+        await this.writeContent(post, documentId, parsed);
 
         return { success: true, documentId, source: 'wordpress-gutenberg' };
     }
@@ -873,21 +1094,15 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
 
     /** Returns the post with that slug and status, or null */
     private async findBySlug(slug: string, status: string): Promise<WordPressPost | null> {
-        const params = `slug=${encodeURIComponent(slug)}&status=${status}&acf_format=standard&context=edit`;
-        const response = await fetchWithRetry(`${this.restBase}?${params}`, { headers: this.authHeaders() });
-        if (!response.ok) {
-            throw new Error(`Failed to fetch "${slug}": ${response.status} ${response.statusText}`);
-        }
-        const posts: WordPressPost[] = await response.json();
-        return posts[0] ?? null;
+        const posts = await this.http.get<WordPressPost[]>(this.restPath, {
+            query: { slug, status, acf_format: 'standard', context: 'edit' },
+            resource: 'page'
+        });
+        return (Array.isArray(posts) ? posts[0] : undefined) ?? null;
     }
 
-    private async fetchPostById(id: string | number, query = 'acf_format=standard&context=edit'): Promise<WordPressPost> {
-        const response = await fetchWithRetry(`${this.restBase}/${id}?${query}`, { headers: this.authHeaders() });
-        if (!response.ok) {
-            throw new Error(`Failed to fetch post ${id}: ${response.status} ${response.statusText}`);
-        }
-        return response.json();
+    private fetchPostById(id: string | number): Promise<WordPressPost> {
+        return this.http.get<WordPressPost>(`${this.restPath}/${id}`, { query: { acf_format: 'standard', context: 'edit' }, resource: 'post' });
     }
 
     async fetchDraftBySlug(slug: string): Promise<IntiPage | null> {
@@ -916,23 +1131,17 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
             }
 
             const schema = await this.fetchAcfSchema(documentId);
-            const response = await fetchWithRetry(this.restBase, {
-                method: 'POST',
-                headers: this.authHeaders(),
-                body: JSON.stringify({
+            // Not idempotent: creating twice makes two drafts, so no resend
+            const created = await this.http.post<WordPressPost>(this.restPath, {
+                json: {
                     status: 'draft',
                     slug,
                     title: original.title?.raw ?? original.title?.rendered,
                     content: (original.content as any)?.raw ?? '',
                     acf: normalizeAcfForWrite(original.acf ?? {}, schema)
-                })
+                },
+                resource: 'post'
             });
-            if (!response.ok) {
-                const body = await response.text().catch(() => '');
-                throw new Error(`WordPress rejected the draft: ${response.status} ${body.slice(0, 200)}`);
-            }
-
-            const created: WordPressPost = await response.json();
             return { success: true, documentId: String(created.id), slug: original.slug, source: 'wordpress' };
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
@@ -951,34 +1160,20 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
 
             // No original: a new page, which is published as is
             if (!originalId) {
-                const response = await fetchWithRetry(`${this.restBase}/${draftId}`, {
-                    method: 'POST',
-                    headers: this.authHeaders(),
-                    body: JSON.stringify({ status: 'publish' })
-                });
-                if (!response.ok) {
-                    const body = await response.text().catch(() => '');
-                    throw new Error(`WordPress rejected the publish: ${response.status} ${body.slice(0, 200)}`);
-                }
+                await this.http.post(`${this.restPath}/${draftId}`, { json: { status: 'publish' }, idempotent: true, resource: 'post' });
                 return { success: true, documentId: draftId, slug: draft.slug, source: 'wordpress' };
             }
 
             const schema = await this.fetchAcfSchema(draftId);
-            const response = await fetchWithRetry(`${this.restBase}/${originalId}`, {
-                method: 'POST',
-                headers: this.authHeaders(),
-                body: JSON.stringify({
+            const published = await this.http.post<WordPressPost>(`${this.restPath}/${originalId}`, {
+                json: {
                     title: draft.title?.raw ?? draft.title?.rendered,
                     content: (draft.content as any)?.raw ?? '',
                     acf: normalizeAcfForWrite(draft.acf ?? {}, schema)
-                })
+                },
+                idempotent: true,
+                resource: 'post'
             });
-            if (!response.ok) {
-                const body = await response.text().catch(() => '');
-                throw new Error(`WordPress rejected the publish: ${response.status} ${body.slice(0, 200)}`);
-            }
-
-            const published: WordPressPost = await response.json();
             await this.trashPost(draftId);
             return { success: true, documentId: originalId, slug: published.slug, source: 'wordpress' };
         } catch (error) {
@@ -1006,10 +1201,7 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
 
     /** To the trash, not a permanent delete: it can be recovered from wp-admin */
     private async trashPost(id: string): Promise<void> {
-        const response = await fetchWithRetry(`${this.restBase}/${id}`, { method: 'DELETE', headers: this.authHeaders() });
-        if (!response.ok) {
-            throw new Error(`Failed to trash post ${id}: ${response.status} ${response.statusText}`);
-        }
+        await this.http.delete(`${this.restPath}/${id}`, { idempotent: true, resource: 'post' });
     }
 
     /**
@@ -1017,17 +1209,10 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
      * picker. `collection` is the rest_base ('posts', 'pages', CPTs).
      */
     async searchEntries(collection: string, query: string): Promise<Array<{ id: string; title: string; subtitle?: string }>> {
-        const endpoint = this.wpConfig.endpoint.replace(/\/$/, '');
-        const params = new URLSearchParams({ per_page: '10', search: query });
-        const url = `${endpoint}/wp-json/wp/v2/${collection}?${params}`;
-
-        const response = await fetchWithRetry(url, { headers: this.authHeaders() });
-
-        if (!response.ok) {
-            throw new Error(`Failed to search "${collection}": ${response.status} ${response.statusText}`);
-        }
-
-        const posts: WordPressPost[] = await response.json();
+        const posts = await this.http.get<WordPressPost[]>(`/wp-json/wp/v2/${collection}`, {
+            query: { per_page: 10, search: query, _fields: 'id,title,slug' },
+            resource: collection
+        });
 
         return posts.map(post => ({
             id: String(post.id),
@@ -1040,12 +1225,9 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
     private acfSchema?: Promise<RestSchema | undefined>;
 
     private fetchAcfSchema(documentId: string): Promise<RestSchema | undefined> {
-        this.acfSchema ??= fetch(`${this.restBase}/${documentId}`, { method: 'OPTIONS', headers: this.authHeaders() })
-            .then(async (response) => {
-                if (!response.ok) return undefined;
-                const body = await response.json();
-                return body?.schema?.properties?.acf as RestSchema | undefined;
-            })
+        this.acfSchema ??= this.http
+            .request<{ schema?: { properties?: { acf?: RestSchema } } }>('OPTIONS', `${this.restPath}/${documentId}`, { retry: false })
+            .then((response) => response.data?.schema?.properties?.acf)
             .catch(() => undefined);
         return this.acfSchema;
     }
@@ -1054,16 +1236,12 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
     private async pushAcf(documentId: string, acf: Record<string, any>, value: any): Promise<WriteResult> {
         const schema = await this.fetchAcfSchema(documentId);
 
-        const response = await fetchWithRetry(`${this.restBase}/${documentId}`, {
-            method: 'POST',
-            headers: this.authHeaders(),
-            body: JSON.stringify({ acf: normalizeAcfForWrite(acf, schema) })
+        // The whole final state: sending it twice changes nothing
+        await this.http.post(`${this.restPath}/${documentId}`, {
+            json: { acf: normalizeAcfForWrite(acf, schema) },
+            idempotent: true,
+            resource: 'post'
         });
-
-        if (!response.ok) {
-            const body = await response.text().catch(() => '');
-            throw new Error(`WordPress rejected the update: ${response.status} ${response.statusText} ${body.slice(0, 200)}`);
-        }
 
         return { success: true, documentId, value, source: 'wordpress' };
     }

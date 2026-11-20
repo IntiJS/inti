@@ -31,6 +31,24 @@ const page = await adapter.fetchPageBySlug('home');
 // 'hero_banner' → 'HeroBanner' (customizable with blockTypeMap)
 ```
 
+- A missing page throws `NotFoundError` and a WordPress that cannot answer throws `UnavailableError` (`@intijs/core/errors`): the page template answers 404 or 503 with `pageErrorResponse`.
+- Only the fields a page needs are requested (`_fields`); add a plugin's REST field with `extraFields`, or turn it off with `trimFields: false`.
+- A nested page can be asked for by its path: `fetchPageBySlug('services/design')`.
+- Images in ACF fields keep their keys and gain the image contract: `srcset` from the sizes WordPress generated, `sources` with the AVIF and WebP versions when modern formats are on, `video` when an animated GIF is also stored as a video, and `size` (`filesize`). `<IntiImage src={image} />` uses them as they are.
+- `listPages()` walks every page of the listing, four requests at a time, with no cap.
+
+### Languages, menus, taxonomies and archives
+
+```ts
+await adapter.fetchPageBySlug('about', { locale: 'en' });  // Polylang or WPML (?lang=)
+// page.locale and page.translations come from the plugin's fields: IntiSeo emits hreflang
+
+await adapter.fetchNavigation('primary', { locale: 'en' }); // the menu of a theme location (needs the plugin)
+await adapter.listTerms('categories');
+await adapter.fetchArchive({ taxonomy: 'categories', term: 'news', page: 2, perPage: 10 });
+// { items, total, totalPages, page, term }: totals from X-WP-Total, for pagination
+```
+
 ### Writing (write-back)
 ```ts
 // ONLY on the server (astro:action) — never on the client
@@ -50,7 +68,9 @@ await adapter.updateBlockField('123', -1, 'seo_description', '...');
 await adapter.updateBlockField('123', 0, 'cta.label', 'Buy now');
 ```
 
-ACF REST requires the **full** value of the Flexible Content field, so each write is a *read-modify-write* of the layouts array: the post is read, the field of the target layout is patched and the whole array is sent back. The `acf_fc_layout` values are always preserved.
+With the companion plugin every write is one call that runs on the server (below). Without it, ACF REST requires the **full** value of the Flexible Content field, so each write is a *read-modify-write* of the layouts array: the post is read, the field of the target layout is patched and the whole array is sent back. The `acf_fc_layout` values are always preserved.
+
+Requests go through the HTTP client of `@intijs/core/http`: a time limit, reads retried, `Retry-After` respected, and JSON sent with exactly `Content-Type: application/json`.
 
 ### Block type mapping
 ```ts
@@ -71,17 +91,23 @@ WordPress does not expose the ACF schema over REST, so introspection combines `/
 If your pages do not use ACF Flexible Content, the adapter (in `auto` mode, or with `mode: 'gutenberg'`) parses the blocks in `post_content`:
 
 - **Reading**: each top-level block → one `IntiBlock` (`core/paragraph` → `Paragraph`). It needs credentials (`context=edit`) to get `content.raw`; without them, the rendered content is exposed as a single `RichText` block.
-- **Writing**: only the `text` field and only in simple blocks (one tag, no nested markup). Complex blocks are rejected with a clear error — the `post_content` is never put at risk.
+- **Writing**: only the `text` field and only in simple blocks (one tag, no nested markup). Complex blocks are rejected with a clear error — the `post_content` is never put at risk. Classic HTML between blocks and Block Hooks metadata (`ignoredHookedBlocks`) survive every write byte for byte.
+- **Bindings** (WordPress 6.5+): a block whose content comes from a source (`metadata.bindings`) shows what WordPress renders for it, taken from the plugin's `inti_blocks` field, and is not editable: what is stored is not what shows. Dynamic blocks show their rendered HTML the same way.
+- With the plugin and no credentials, `inti_blocks` still gives one block per Gutenberg block (read only) instead of a single `RichText`.
 
-## Companion plugin (optional, recommended)
+## Companion plugin (recommended)
 
-Copy [`wordpress-plugin/inti-bridge.php`](./wordpress-plugin/inti-bridge.php) to `wp-content/plugins/` and activate it. It provides:
+Copy [`wordpress-plugin/inti-bridge.php`](./wordpress-plugin/inti-bridge.php) to `wp-content/plugins/` and activate it (WordPress 6.5+). It provides:
 
-- `POST /wp-json/inti/v1/patch` — **atomic** patch with ACF's `update_sub_field()`: no round-trip of the whole array, no race conditions between editors.
-- `POST /wp-json/inti/v1/move` — server-side row reordering.
-- An `intiUpdateBlockField` mutation in WPGraphQL (if installed) — WPGraphQL for ACF ships no mutations upstream.
+- **Every write in one PHP call.** `POST /inti/v1/patch` writes one field with `acf_update_value` (groups and repeater items by dot-path); `POST /inti/v1/rows` moves, inserts, removes, duplicates or replaces rows on the raw values, so images and relationships are never sent back as objects; `POST /inti/v1/content` writes a Gutenberg document.
+- **No silent overwrites.** Each write accepts `expected_modified` (the `modified_gmt` the writer read) and answers 409 when the page changed since. The adapter sends it whenever it read the page, and turns a 409 into "The page changed in WordPress since it was read. Reload it and edit again."
+- **Signed purge notices.** With `INTI_PURGE_URL` and `INTI_PURGE_SECRET` in `wp-config.php`, publishing, updating, unpublishing, deleting or renaming a page posts `{ event, id, type, slug }` to the site, signed with `X-Inti-Signature: sha256=<HMAC>`: point it at `purgeRoute` from `@intijs/core/delivery`. A menu change purges everything. Notices are sent once per request, at the end, without blocking wp-admin.
+- **REST fields** on every post type: `inti_blocks` (`parse_blocks()` of the stored content, with `rendered` for bound and dynamic blocks), `inti_locale` and `inti_translations` (Polylang or WPML).
+- **Menus** without credentials: `GET /inti/v1/menus/<location>?lang=` returns the tree with each link's path on the site.
+- **Abilities API** (WordPress 6.9+): `inti/get-page`, `inti/update-block-field` and `inti/purge`, each checking the capability a person would need.
+- An `intiUpdateBlockField` mutation in WPGraphQL (if installed), running the same code as `/patch`.
 
-The adapter detects it on its own (`useBridgePlugin: 'auto'`, the default): if it answers, it uses it; if it is not there (404), it falls back to the standard REST path and remembers that.
+The adapter detects it on its own (`useBridgePlugin: 'auto'`, the default). Only a 404 for its route means "not installed", and the adapter checks again after ten minutes; any other failure is reported as it is, never retried through the racier REST path.
 
 ## Inline editing integration
 

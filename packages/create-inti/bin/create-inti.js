@@ -15,8 +15,8 @@
 
 import { intro, outro, text, select, confirm, isCancel, cancel } from '@clack/prompts';
 import pc from 'picocolors';
-import { existsSync, readdirSync, mkdirSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve, relative, sep } from 'node:path';
+import { copyFileSync, existsSync, readdirSync, mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve, relative } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 import { CMS, CMS_IDS, generateProject, intiPackages, nodeVersionError, validateName } from '../lib/generate.js';
@@ -77,8 +77,11 @@ function targetError(dir) {
 
 /**
  * `file:` specs for the @intijs packages of this CMS, from the tarballs that
- * `npm pack` leaves in `dir` (`intijs-core-0.1.0.tgz`). Relative to the project,
- * so the folder holding both can be moved.
+ * `npm pack` leaves in `dir` (`intijs-core-0.1.0.tgz`).
+ *
+ * The tarballs are copied into the project's `vendor/`: the project then
+ * builds on its own, in a Docker image or on another machine, without the
+ * clone it was generated from.
  */
 function localPackages(dir, cms, targetDir) {
     const source = resolve(dir);
@@ -90,8 +93,14 @@ function localPackages(dir, cms, targetDir) {
         const prefix = `${dep.replace(/^@/, '').replace('/', '-')}-`;
         const tarball = tarballs.find((file) => file.startsWith(prefix) && /^[0-9]/.test(file.slice(prefix.length)));
         if (!tarball) fail(`No tarball of ${dep} in ${source} (expected ${prefix}<version>.tgz, made with "npm pack")`);
-        const path = relative(targetDir, join(source, tarball)).split(sep).join('/');
-        specs[dep] = `file:${path}`;
+        specs[dep] = tarball;
+    }
+
+    // Only once every tarball was found: a missing one must leave nothing behind
+    mkdirSync(join(targetDir, 'vendor'), { recursive: true });
+    for (const [dep, tarball] of Object.entries(specs)) {
+        copyFileSync(join(source, tarball), join(targetDir, 'vendor', tarball));
+        specs[dep] = `file:vendor/${tarball}`;
     }
     return specs;
 }

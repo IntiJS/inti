@@ -1,0 +1,32 @@
+---
+/**
+ * One adaptive zone, rendered per visitor as a server island.
+ *
+ * `BlockRenderer adaptive="island"` puts it where a zone's versions are, with
+ * the default version as the island's fallback. The page stays the same for
+ * everybody, so a CDN can keep it; only this small request is private. A
+ * crawler, which runs no JavaScript, keeps the default version, which is what
+ * it must get anyway.
+ *
+ * It runs in a request of its own, so it registers the blocks itself
+ * (`virtual:inti/blocks`, provided by the integration).
+ */
+import 'virtual:inti/blocks';
+import BlockRenderer from './BlockRenderer.astro';
+import { adaptPage } from '../server/adapt-page.js';
+import type { IntiBlock } from '../types/index.js';
+
+interface Props {
+    /** The versions of one slot */
+    blocks: IntiBlock[];
+    holdout?: number;
+    track?: string;
+}
+
+const { blocks, holdout, track } = Astro.props;
+
+// Sets `Cache-Control: private, no-store` on this island's response, not on the page's
+const { blocks: chosen } = await adaptPage(blocks, Astro, { holdout, track });
+---
+
+<BlockRenderer blocks={chosen} audit={false} />

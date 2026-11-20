@@ -73,11 +73,18 @@ import { WordPressAdapter } from '@intijs/adapter-wordpress';
 import { registerBlocks } from '@intijs/core/registry';
 import BlockRenderer from '@intijs/core/astro/BlockRenderer.astro';
 import VisualBridgeAuto from '@intijs/core/visual-bridge/VisualBridgeAuto.astro';
+import { pageErrorResponse } from '@intijs/core/server';
 
 registerBlocks(import.meta.glob('/src/blocks/*.astro'));   // REQUIRED
 
 const adapter = new WordPressAdapter({ endpoint: import.meta.env.INTI_WP_ENDPOINT });
-const page = await adapter.fetchPageBySlug(Astro.params.slug ?? 'home');
+
+let page;
+try {
+  page = await adapter.fetchPageBySlug(Astro.params.slug ?? 'home');
+} catch (error) {
+  return pageErrorResponse(error);   // 404 only for NotFoundError; 503 + Retry-After for anything else
+}
 ---
 <BlockRenderer blocks={page.blocks} />
 <VisualBridgeAuto />
@@ -93,6 +100,15 @@ INTI_WP_BLOCKS_FIELD=content_blocks
 ```
 
 For Kitsuden: `INTI_ADAPTER=kitsuden`, `INTI_KITSUDEN_ENDPOINT`, `INTI_KITSUDEN_TOKEN` (an agent key, `kitsuden_agent_…`). A Kitsuden site registers `kitsudenMiddleware` from `@intijs/adapter-kitsuden/astro` in `src/middleware.ts`: it is the editor-session plugin, the HTML cache and the 503 page in one. For Strapi: `INTI_STRAPI_ENDPOINT`, `INTI_STRAPI_TOKEN`. For Keystatic: `INTI_ADAPTER=keystatic`; in production also `INTI_KEYSTATIC_REPO` and `INTI_KEYSTATIC_TOKEN`, so each edit is a commit. With no `INTI_ADAPTER`, writes go to the local JSON store.
+
+## Delivery: 404 or 503, caches, CDN, purges
+
+- `fetchPageBySlug` throws `NotFoundError` when the page does not exist and `UnavailableError` (or anything else) when the CMS cannot answer; `pageErrorResponse(error)` turns that into 404 or 503 with `Retry-After`. Never answer 404 for a read that failed: it deindexes a page that exists. Check with `isNotFound` / `isUnavailable` (`@intijs/core/errors`), not `instanceof`.
+- `cachePages(adapter, { cache })` (`@intijs/core/cache`) puts a tagged cache in front of the adapter: stale-while-revalidate, one load per key, `staleIfError`, short-lived 404s. `createValkeyCacheProvider({ client })` shares it between instances.
+- `intiDelivery({ cache })` (`@intijs/core/delivery`) in `src/middleware.ts`: `public, s-maxage` for anonymous visitors, `private, no-store` + `Vary: Cookie` for editors, the HTML cache, a stale copy or 404/503 when rendering throws, and no `data-inti-*` editor attributes for visitors. Only requests with a cookie are asked about a session. A CDN must skip its cache when the editor's session cookie is present.
+- `purgeRoute({ cache, secret })` takes a signed notice (`X-Inti-Signature: sha256=<HMAC of the body>`) with `slug`, `slugs`, `tags` or `all`. Without a secret it answers 503.
+- `<BlockRenderer adaptive="island" />` renders each adaptive zone as a server island, so the page stays cacheable; do not call `adaptPage` on that page.
+- Adapters talk to their CMS with `createHttpClient` (`@intijs/core/http`): time limit, retries on reads only, `Retry-After`, ETags, deduplicated reads, typed errors, `Content-Type: application/json`.
 
 ## The three mistakes that break a setup
 
@@ -283,6 +299,17 @@ Without that, the original is served unoptimized and Inti says so in dev, naming
 | `KitsudenAdapter`, `KitsudenUnavailableError`, `toComposerBlockTypes` | `@intijs/adapter-kitsuden` |
 | `kitsudenMiddleware`, `createPageCache`, `purgeRoute`, `mediaPresetRoute`, `mediaFileRoute`, `imageSrc`, `blockAttributes`, `currentVisitorIp`, `stripSecretsForBuild` | `@intijs/adapter-kitsuden/astro` |
 
+| `NotFoundError`, `UnavailableError`, `RateLimitError`, `ConflictError`, `isNotFound`, `isUnavailable` | `@intijs/core/errors` |
+| `createHttpClient` | `@intijs/core/http` |
+| `createCacheManager`, `cachePages`, `pageTags`, `createValkeyCacheProvider` | `@intijs/core/cache` |
+| `intiDelivery`, `purgeRoute`, `signBody`, `stripEditorMarkup` | `@intijs/core/delivery` |
+| `pageErrorResponse`, `unavailableResponse` | `@intijs/core/server` |
+| `createCatalog`, `cachedCatalogSource`, `catalogPurgeRoute`, `readItem`, `readCollection`, `bindBlocks`, `catalogSitemap` | `@intijs/core/catalog` |
+| `sitemapIndexRoute`, `sitemapFileRoute`, `sitemapSection`, `chunkSitemap`, `localeFromPath`, `localizedPath`, `hreflangLinks` | `@intijs/core/seo` |
+| `adapterConformance` | `@intijs/core/testing` |
+| `assertSafeFieldPath`, `isSafeFieldPath` | `@intijs/core/adapters` |
+| `AdaptiveZone.astro` (used by `BlockRenderer adaptive="island"`) | `@intijs/core/astro/` |
+
 Do **not** write a local `components/BlockRenderer.astro` — import it from `@intijs/core/astro/`. It takes `blocks` (an array), never a single `block`.
 
 Read content with the adapter — there is no generated fetch SDK. `inti sync` generates `inti.types.ts`: one interface per block type, plus `IntiTypedBlock`, a union discriminated by `type`. Cast what the adapter returns and narrow on `type` to get typed `data`:
@@ -311,8 +338,12 @@ interface IntiPage {
   title: string;
   blocks: IntiBlock[];
   seo?: { title?: string; description?: string; image?: string };
+  locale?: string;                                          // BCP 47, for hreflang
+  translations?: { locale: string; slug: string; url?: string }[];
 }
 ```
+
+Images reach blocks as `MediaAsset` (`{ url, alt, width, height, srcset?, sources? }`). `width` and `height` are required for no layout shift; `srcset` / `sources` (AVIF, WebP) are the sizes the CMS already made, and `IntiImage` uses them as they are instead of transforming the image again.
 
 ## Writing an adapter
 
@@ -339,6 +370,8 @@ export class MyAdapter extends IntiAdapter implements WritableAdapter {
 
 Return `{ success: false, error }` rather than throwing — the error text reaches the editor.
 
+Every adapter also implements `fetchPageBySlug(slug)` (abstract in `IntiAdapter`): `NotFoundError` when the page does not exist, `UnavailableError` when the CMS cannot answer. Run `adapterConformance` from `@intijs/core/testing` in the adapter's tests, and call `assertSafeFieldPath(field)` before writing a dot-path: the MCP server calls adapters without the actions' checks.
+
 The editor sends `blockId` (from `data-inti-block-id`, which `BlockRenderer` writes from `IntiBlock.id`) with every block write; `updateBlock`, `moveBlock`, `removeBlock` and `duplicateBlock` receive it in the same trailing `options`, and `beforeWrite` plugins see it as `ctx.blockId`. It is optional: adapters that ignore it keep working by index.
 
 ## Drafts and undo
@@ -364,6 +397,10 @@ const { blocks, decisions } = await adaptPage(page.blocks, Astro, { holdout: 0.1
 ```
 
 Deciders run in order and only pick an existing candidate; if one fails, is slow or has no opinion, the default stays. Filtering never renumbers `meta.index`. Crawlers always get the default. Observed behaviour (`seen.*`, `returning`) requires consent; declared preferences do not.
+
+## Catalogs, sitemaps and languages
+
+Products and other entities that are not pages come from a `CatalogSource` (`@intijs/core/catalog`): `getItem(slug)`, `list(query)`, optionally `listCollections`, `getCollection`, `listSummaries`, `idOf`. `readItem` / `readCollection` throw `NotFoundError` for a 404. A CMS block shows live data with a text field `inti_bind` (`item:odoo/blue-shirt`, `list:odoo?collection=shirts&pageSize=8`, `collection:odoo/shirts`) resolved by `bindBlocks` into `data.bound`; put the returned `tags` in `Astro.locals.intiCacheTags` so a price change purges the page. Sitemaps over 50,000 URLs: `sitemapIndexRoute` + `sitemapFileRoute` with sections (`sitemapSection`, `catalogSitemap`). Languages: `localeFromPath`, and `page.locale` + `page.translations` make `IntiSeo` emit `hreflang` (with `defaultLocale` for `x-default`) and `toSitemapEntries` emit `xhtml:link` alternates.
 
 ## Generative UI
 

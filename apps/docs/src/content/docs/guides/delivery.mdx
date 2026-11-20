@@ -1,0 +1,116 @@
+---
+title: Delivery and caching
+description: 404 or 503, a cache in front of the CMS, CDN headers, purges, and what an editor sees
+---
+
+Every page of an Inti site is read from the CMS on each request. This guide covers what keeps that fast and correct: the status code when a read fails, the cache in front of the CMS, the headers a CDN reads, the purge a CMS sends when something changes, and the HTML an editor gets.
+
+## 404 or 503
+
+An adapter's `fetchPageBySlug(slug)` throws `NotFoundError` when the CMS says the page does not exist, and `UnavailableError` (or any other error) when it cannot answer. The page turns that into a status code:
+
+```astro
+---
+import { pageErrorResponse } from '@intijs/core/server';
+
+let page;
+try {
+    page = (await readDraftPage(slug, Astro)) ?? (await readPage(slug));
+} catch (error) {
+    return pageErrorResponse(error);   // 404 for NotFoundError, 503 + Retry-After for anything else
+}
+---
+```
+
+The difference matters: a 404 removes the page from search engines, a 503 with `Retry-After` asks them to come back. A CMS that timed out must not deindex a page that exists. Check errors with `isNotFound` / `isUnavailable` from `@intijs/core/errors`, never with `instanceof`: two copies of the core have two copies of each class.
+
+## The HTTP client adapters share
+
+`createHttpClient` from `@intijs/core/http` is what adapters use to talk to a CMS:
+
+- a time limit on every request (`timeoutMs`, default 10 s);
+- retries only for reads (GET, HEAD), with backoff and jitter: a write that timed out may have been applied;
+- a 429 or 503 waits for a short `Retry-After` (up to `maxRetryAfter`, default 5 s) and fails at once with `RateLimitError` when it is longer;
+- `If-None-Match` with the last `ETag`, and the stored body on a 304;
+- identical reads in flight share one request;
+- typed errors: `NotFoundError`, `UnavailableError`, `RateLimitError`, `UnauthorizedError`, `ConflictError`, `HttpError`;
+- JSON bodies go with `Content-Type: application/json` exactly.
+
+## A cache of pages
+
+```ts
+// src/lib/cms.ts
+import { createCacheManager, cachePages } from '@intijs/core/cache';
+
+export const cache = createCacheManager({ defaultTtl: 60, swr: 300, staleIfError: 86_400 });
+const pages = cachePages(adapter, { cache });
+
+export const readPage = (slug: string) => pages.fetchPageBySlug(slug);
+```
+
+- Fresh for `ttl`, then served stale for `swr` more while one background request refreshes it.
+- A burst of visitors after a purge reaches the CMS once per page, not once per visitor.
+- With `staleIfError`, a CMS that is down gets the last good copy instead of an error.
+- A missing page is remembered for `notFoundTtl` (30 s): a crawler asking for a thousand missing URLs is not a thousand requests to the CMS.
+- Entries are tagged `pageTags.page(slug)` and `pageTags.all`; the purge route drops exactly what changed.
+
+### Several instances: Valkey
+
+The memory provider is per process. Behind a load balancer, give every instance the same cache with Valkey (or anything that speaks the Redis protocol):
+
+```ts
+import Valkey from 'iovalkey';
+import { createCacheManager, createValkeyCacheProvider } from '@intijs/core/cache';
+
+export const cache = createCacheManager({
+    provider: createValkeyCacheProvider({ client: new Valkey(process.env.VALKEY_URL) })
+});
+```
+
+The client is injected: `iovalkey` and `ioredis` work as they are, and Inti pulls in no driver. One purge then empties the cache of every instance.
+
+## The delivery middleware
+
+```ts
+// src/middleware.ts
+import { intiDelivery } from '@intijs/core/delivery';
+import { cache } from './lib/cms';
+
+export const onRequest = intiDelivery({ cache });
+```
+
+- **Anonymous visitors** get `Cache-Control: public, max-age=0, s-maxage=60, stale-while-revalidate=300, stale-if-error=86400` (change it with `cdn`), so a CDN keeps the page and browsers always ask the CDN. With `cache`, the HTML is also kept on the server for `htmlTtl` seconds and tagged by page.
+- **Editors** get `private, no-store` and `Vary: Cookie`: their HTML carries the editing markup.
+- **`data-inti-*`** attributes are the editor's business: `BlockRenderer` only writes them for an editor, and the middleware removes the ones block components write (`data-inti-field`) from what a visitor receives. Visitor-facing attributes such as `data-inti-why` stay.
+- **Sessions:** only requests with a cookie are asked about a session (a visitor with no cookie cannot be an editor), and the answer is remembered per cookie for `sessionMemoSeconds` (5). The decision is passed to `BlockRenderer` through `Astro.locals.intiEditor`, so the page does not ask again.
+- **When rendering throws**, a stale copy is served if there is one; otherwise `pageErrorResponse`. A 5xx with a stale copy also gets the copy.
+- Tracking parameters (`utm_*`, `gclid`, `fbclid`…) do not split the cache.
+- A page that sets its own `Cache-Control` (personalized with `adaptPage`) is neither stored nor made public.
+
+**Behind a CDN**, configure it to skip its cache when the editor session cookie is present. The CDN does not ask the origin for a page it already has, so it cannot see the `private` an editor would get.
+
+## The purge route
+
+```ts
+// src/pages/api/inti/purge.ts
+import { purgeRoute } from '@intijs/core/delivery';
+import { env } from '@intijs/core/server';
+import { cache } from '../../../lib/cms';
+
+export const prerender = false;
+export const POST = purgeRoute({ cache, secret: () => env('INTI_PURGE_SECRET') });
+```
+
+The CMS (the WordPress plugin, a Kitsuden action, an ERP) posts `{ "slug": "about" }`, `{ "slugs": [...] }`, `{ "tags": [...] }` or `{ "all": true }`, signed with `X-Inti-Signature: sha256=<HMAC-SHA256 of the body>` (`signBody` makes one). A slug drops that page's data and HTML and the home page, which usually lists the others; an event ending in `deleted` drops everything. Without a secret the route answers 503 instead of accepting anything. `parse` reads a CMS's own payload; `onPurge` receives the tags to purge a CDN too.
+
+## Personalized zones without losing the cache
+
+`adaptPage` decides per visitor, so it marks the whole page `private`. With island mode only the zone is private:
+
+```astro
+<BlockRenderer blocks={page.blocks} page={page} adaptive="island" />
+```
+
+Each zone becomes an Astro server island. The page, the same for everybody and cacheable, carries the default version of the zone; the island picks the visitor's version in a request of its own, marked `private, no-store`. A crawler, which runs no JavaScript, keeps the default version, which is what it gets anyway. Editors still get every version inline. Do not call `adaptPage` on such a page.
+
+The island renders in a request of its own, so it registers the blocks through `virtual:inti/blocks`, which the integration provides from the same pattern (`inti({ blocks: '/src/blocks/*.astro' })` is the default). Behind several instances, set `ASTRO_KEY` so they all encrypt island props with the same key.

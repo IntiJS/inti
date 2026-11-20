@@ -1,0 +1,95 @@
+---
+title: Catalogs, products and sitemaps
+description: Entities that are not pages, blocks fed by them, and a sitemap that scales
+---
+
+A page is a list of blocks an editor composes. A product is something else: a fixed schema, thousands of them, found by filtering, and owned by another system (an ERP, a shop). `@intijs/core/catalog` reads them next to the CMS without making them pages.
+
+## Sources
+
+A `CatalogSource` implements `getItem(slug)` and `list(query)`; `listCollections`, `getCollection`, `listSummaries` (for the sitemap) and `idOf` (for purges) are optional. A site may have several:
+
+```ts
+import { createCatalog, cachedCatalogSource } from '@intijs/core/catalog';
+import { cache } from './cms';
+
+export const catalog = createCatalog([
+    cachedCatalogSource(odooSource, { cache, itemTtl: 60, listTtl: 30 })
+]);
+```
+
+`catalog.source('odoo')` throws when the name is not registered: a typo must not read as "no products". The cache keys items by id, keeps missing items too (an ERP must not be reachable once per bad URL), and tags everything so a change notice drops the item and the listings and nothing else.
+
+## Product and category routes
+
+```astro
+---
+// src/pages/products/[slug].astro
+import { readItem, itemCacheTags, catalogItemToProduct } from '@intijs/core/catalog';
+import { pageErrorResponse } from '@intijs/core/server';
+import { catalog } from '../../lib/catalog';
+
+let item;
+try {
+    item = await readItem(catalog.source('odoo'), Astro.params.slug!);
+} catch (error) {
+    return pageErrorResponse(error);   // 404 when it does not exist, 503 when the ERP is down
+}
+Astro.locals.intiCacheTags = itemCacheTags('odoo', item);
+---
+```
+
+`readCollection(source, slug, query)` does the same for a category and returns the collection and a page of its items. `catalogItemToProduct` turns an item into the input of `buildProductSchema`, one offer per variant.
+
+`Astro.locals.intiCacheTags` attaches the item's tag to the cached HTML: when the ERP says the price changed, the purge drops this page too.
+
+## Blocks bound to data
+
+A CMS block can show live catalog data while its own fields stay editable. It has a text field, `inti_bind`, that says what it shows:
+
+| `inti_bind` | `data.bound` |
+|---|---|
+| `item:odoo/blue-shirt` | the item, or `null` |
+| `list:odoo?collection=shirts&pageSize=8&sort=newest&inStock=1` | a `CatalogPage` |
+| `collection:odoo/shirts?pageSize=12` | `{ collection, page }` |
+
+```ts
+const { blocks, tags } = await bindBlocks(page.blocks, catalog);
+Astro.locals.intiCacheTags = tags;
+```
+
+Prices and stock come from the source on every render (through its cache), never from the CMS. A binding that fails leaves `bound: null` and the page renders: a product card is not worth a 503. `pageSize` is capped at 48. Order and `meta.index` are untouched.
+
+## The purge notice
+
+```ts
+// src/pages/api/catalog/purge.ts
+export const POST = catalogPurgeRoute({ cache, sources: ['odoo'], secret: () => env('INTI_CATALOG_SECRET') });
+```
+
+The source posts `{ "source": "odoo", "ids": [42] }` signed like the page purge (`X-Inti-Signature`). With more than `maxIds` ids, or none, it drops the whole source.
+
+## Sitemaps past 50,000 URLs
+
+One sitemap file holds at most 50,000 URLs and 50 MB. Sections are read one file at a time, so a catalog of a million products is never loaded whole:
+
+```ts
+// src/pages/sitemap.xml.ts
+import { sitemapIndexRoute, sitemapSection, toSitemapEntries } from '@intijs/core/seo';
+import { catalogSitemap } from '@intijs/core/catalog';
+
+export const sections = [
+    sitemapSection('pages', async () => toSitemapEntries(await adapter.listPages(), { site })),
+    catalogSitemap(catalog.source('odoo'), { site, pathFor: (item) => `/products/${item.slug}` })
+];
+export const GET = sitemapIndexRoute({ site, sections });
+```
+
+```ts
+// src/pages/sitemap-[section]-[file].xml.ts
+import { sitemapFileRoute } from '@intijs/core/seo';
+import { sections } from './sitemap.xml';
+export const GET = sitemapFileRoute({ site, sections });
+```
+
+The index lists `/sitemap-pages-1.xml`, `/sitemap-odoo-1.xml`, `/sitemap-odoo-2.xml`… `chunkSitemap` splits an array by both limits when you build files yourself.

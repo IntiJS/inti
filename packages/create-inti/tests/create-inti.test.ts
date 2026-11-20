@@ -217,7 +217,7 @@ describe('--packages', () => {
         expect(deps.astro).toBe(VERSIONS.astro);
     });
 
-    test('points every @intijs dependency at its tarball, relative to the project', () => {
+    test('copies every @intijs tarball into vendor/ and depends on it there', () => {
         const cwd = tmp();
         mkdirSync(join(cwd, 'tarballs'));
         for (const file of ['intijs-core-0.1.0.tgz', 'intijs-adapter-strapi-0.1.0.tgz', 'intijs-adapter-wordpress-0.1.0.tgz']) {
@@ -228,8 +228,10 @@ describe('--packages', () => {
         expect(result.status).toBe(0);
 
         const deps = JSON.parse(readFileSync(join(cwd, 'site/package.json'), 'utf8')).dependencies;
-        expect(deps['@intijs/core']).toBe('file:../tarballs/intijs-core-0.1.0.tgz');
-        expect(deps['@intijs/adapter-strapi']).toBe('file:../tarballs/intijs-adapter-strapi-0.1.0.tgz');
+        expect(deps['@intijs/core']).toBe('file:vendor/intijs-core-0.1.0.tgz');
+        expect(deps['@intijs/adapter-strapi']).toBe('file:vendor/intijs-adapter-strapi-0.1.0.tgz');
+        // The project builds without the folder it was generated from (a Docker image, another machine)
+        expect(readFileSync(join(cwd, 'site/Dockerfile'), 'utf8')).toContain('COPY vendor ./vendor');
         expect(deps['@intijs/adapter-wordpress']).toBeUndefined();
         for (const spec of [deps['@intijs/core'], deps['@intijs/adapter-strapi']]) {
             expect(existsSync(resolve(cwd, 'site', spec.slice('file:'.length)))).toBe(true);
@@ -251,5 +253,23 @@ describe('--packages', () => {
     test('without --packages the project depends on the npm range', () => {
         const deps = JSON.parse(generateProject({ name: 'x', cms: 'local' })['package.json']).dependencies;
         expect(deps['@intijs/core']).toBe(VERSIONS.inti);
+    });
+});
+
+describe('delivery', () => {
+    test('the page answers 404 only for a missing page and 503 for any other read failure', () => {
+        const page = generateProject({ name: 'site', cms: 'wordpress' })['src/pages/[...slug].astro'];
+        expect(page).toContain('return pageErrorResponse(error);');
+        expect(page).not.toContain('status: 404');
+    });
+
+    test('the image runs as node, without dev dependencies, and only the local store ships content', () => {
+        const wordpress = generateProject({ name: 'site', cms: 'wordpress' });
+        expect(wordpress.Dockerfile).toContain('USER node');
+        expect(wordpress.Dockerfile).toContain('npm prune --omit=dev');
+        expect(wordpress.Dockerfile).not.toContain('.inti');
+        expect(wordpress.Dockerfile).not.toContain('COPY vendor');
+        expect(wordpress['.dockerignore']).toContain('.env');
+        expect(generateProject({ name: 'site', cms: 'local' }).Dockerfile).toContain('/app/.inti ./.inti');
     });
 });

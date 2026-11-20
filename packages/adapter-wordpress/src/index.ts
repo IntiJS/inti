@@ -1,3 +1,5 @@
+import { NotFoundError } from '@intijs/core/errors';
+import { assertSafeFieldPath } from '@intijs/core/adapters';
 import { IntiAdapter } from '@intijs/core/adapters';
 import { extractWordPressSeo } from './seo.js';
 import { normalizeAcfForWrite } from './acf-write.js';
@@ -114,6 +116,7 @@ function toBase64(input: string): string {
 
 /** Sets a value on an object following a dot-path ('cta.label') */
 function setByPath(target: Record<string, any>, path: string, value: any): void {
+    assertSafeFieldPath(path);
     const parts = path.split('.');
     let cursor = target;
     for (let i = 0; i < parts.length - 1; i++) {
@@ -360,7 +363,7 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
         const post = Array.isArray(data) ? data[0] : data;
 
         if (!post) {
-            throw new Error(`Page not found for slug: ${slug}`);
+            throw new NotFoundError('page', slug, `Page not found for slug: ${slug}`);
         }
 
         return this.parsePage(post);
@@ -460,6 +463,7 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
     async updateBlockField(documentId: string, blockIndex: number, field: string, value: any): Promise<WriteResult> {
         try {
             this.assertWriteCredentials();
+            assertSafeFieldPath(field);
 
             // Atomic patch via the companion plugin (if installed)
             const bridged = await this.tryBridgePatch(documentId, blockIndex, field, value);

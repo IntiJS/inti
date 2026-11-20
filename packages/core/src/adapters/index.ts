@@ -1,4 +1,4 @@
-import type { IntiPage, IntiBlock, IntiNavigation, IntiSchema, IntiConfig } from '../types/index.js';
+import type { IntiPage, IntiBlock, IntiNavigation, IntiSchema, IntiConfig, PageTranslation } from '../types/index.js';
 
 // ============================================
 // Introspection Types (Schema Definition)
@@ -169,7 +169,12 @@ export interface PageSummary {
     /** ISO-8601. Feeds <lastmod>, which crawlers use to reprioritize */
     updatedAt?: string;
     title?: string;
+    /** BCP 47 (`es`, `en-GB`), when the site has several languages */
+    locale?: string;
+    /** The same page in the other languages */
+    translations?: PageTranslation[];
 }
+
 
 /**
  * Listing contract: enumerates the published pages.
@@ -250,6 +255,16 @@ export abstract class IntiAdapter<TRawPage = any, TRawNav = any> {
     }
 
     abstract parsePage(raw: TRawPage): IntiPage;
+
+    /**
+     * The published page with this slug.
+     *
+     * Throws `NotFoundError` (`@intijs/core/errors`) when the CMS says there is no
+     * such page, and `UnavailableError` (or any other error) when it cannot answer.
+     * The page answers 404 for the first and 503 for everything else: a CMS that
+     * timed out must not deindex a page that exists.
+     */
+    abstract fetchPageBySlug(slug: string): Promise<IntiPage>;
     abstract parseNavigation?(raw: TRawNav): IntiNavigation;
 
     /**
@@ -307,6 +322,8 @@ export async function resolveAdapter(adapterName: string): Promise<AdapterPackag
     );
 }
 
+export { isSafeFieldPath, assertSafeFieldPath, FORBIDDEN_PATH_SEGMENTS } from './paths.js';
+
 // Introspection
 export {
     IntrospectionAdapter,
@@ -321,4 +338,4 @@ export type {
     IntrospectionResult
 } from './introspection.js';
 
-export type { IntiPage, IntiBlock, IntiNavigation, IntiSchema, IntiConfig };
+export type { IntiPage, IntiBlock, IntiNavigation, IntiSchema, IntiConfig, PageTranslation };

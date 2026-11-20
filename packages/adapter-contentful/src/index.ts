@@ -1,4 +1,6 @@
 import { IntiAdapter } from '@intijs/core/adapters';
+import { NotFoundError } from '@intijs/core/errors';
+import { createHttpClient, type HttpClient } from '@intijs/core/http';
 import type { IntiPage, IntiBlock, IntiNavigation } from '@intijs/core/types';
 import type { SchemaDefinition, SchemaCollection, SchemaField, FieldType } from '@intijs/core/adapters';
 
@@ -13,11 +15,15 @@ export interface ContentfulConfig {
     previewToken?: string;
     host?: string;
     draftMode?: boolean;
+    /** Content type of a page. Default `page` */
+    pageContentType?: string;
+    fetch?: typeof fetch;
 }
 
 export class ContentfulAdapter extends IntiAdapter<ContentfulEntry> {
     protected contentfulConfig: ContentfulConfig;
     protected baseUrl: string;
+    private http: HttpClient;
 
     constructor(config: ContentfulConfig) {
         super('Contentful', config);
@@ -28,6 +34,22 @@ export class ContentfulAdapter extends IntiAdapter<ContentfulEntry> {
             ...config
         };
         this.baseUrl = `https://${this.contentfulConfig.host}/spaces/${this.contentfulConfig.spaceId}/environments/${this.contentfulConfig.environment}`;
+        this.http = createHttpClient({ baseUrl: this.baseUrl, name: 'contentful', fetch: config.fetch });
+    }
+
+    /** The published entry of the page content type with this `slug`, its links resolved */
+    async fetchPageBySlug(slug: string): Promise<IntiPage> {
+        const token = this.contentfulConfig.draftMode
+            ? (this.contentfulConfig.previewToken ?? this.contentfulConfig.accessToken)
+            : this.contentfulConfig.accessToken;
+        const data = await this.http.get<{ items?: ContentfulEntry[]; includes?: { Entry?: any[]; Asset?: any[] } }>('entries', {
+            query: { content_type: this.contentfulConfig.pageContentType ?? 'page', 'fields.slug': slug, include: 3, limit: 1 },
+            headers: { Authorization: `Bearer ${token}` },
+            resource: 'page'
+        });
+        const entry = data.items?.[0];
+        if (!entry) throw new NotFoundError('page', slug);
+        return this.parsePage(resolveLinks(entry, data.includes ?? {}) as ContentfulEntry);
     }
 
     parsePage(raw: ContentfulEntry): IntiPage {
@@ -301,3 +323,19 @@ interface ContentfulNavigationResponse {
 }
 
 export default ContentfulAdapter;
+
+/**
+ * Contentful sends linked entries and assets once, under `includes`, and leaves
+ * `{ sys: { type: 'Link' } }` where they are used. This puts them back in place.
+ */
+function resolveLinks(value: unknown, includes: { Entry?: any[]; Asset?: any[] }, depth = 0): unknown {
+    if (depth > 8 || value === null || typeof value !== 'object') return value;
+    if (Array.isArray(value)) return value.map((item) => resolveLinks(item, includes, depth + 1));
+    const record = value as Record<string, any>;
+    if (record.sys?.type === 'Link') {
+        const pool = record.sys.linkType === 'Asset' ? includes.Asset : includes.Entry;
+        const found = pool?.find((item) => item.sys?.id === record.sys.id);
+        return found ? resolveLinks(found, includes, depth + 1) : value;
+    }
+    return Object.fromEntries(Object.entries(record).map(([key, item]) => [key, resolveLinks(item, includes, depth + 1)]));
+}

@@ -1,3 +1,5 @@
+import { NotFoundError } from '@intijs/core/errors';
+import { assertSafeFieldPath } from '@intijs/core/adapters';
 import { IntiAdapter } from '@intijs/core/adapters';
 import { extractStrapiSeo } from './seo.js';
 import type { IntiPage, IntiBlock, IntiNavigation } from '@intijs/core/types';
@@ -292,7 +294,7 @@ export class StrapiAdapter extends IntiAdapter<StrapiPageResponse> implements Wr
         const json = await response.json();
         const entry = Array.isArray(json?.data) ? json.data[0] : undefined;
         if (!entry) {
-            throw new Error(`Page not found for slug: ${slug}`);
+            throw new NotFoundError('page', slug, `Page not found for slug: ${slug}`);
         }
 
         return this.parsePage({ data: entry } as StrapiPageResponse);
@@ -339,6 +341,7 @@ export class StrapiAdapter extends IntiAdapter<StrapiPageResponse> implements Wr
     async updateBlockField(documentId: string, blockIndex: number, field: string, value: any): Promise<WriteResult> {
         try {
             this.assertWriteCredentials();
+            assertSafeFieldPath(field);
 
             if (blockIndex === -1) {
                 // Top-level field: direct partial PUT, no round-trip
@@ -606,6 +609,7 @@ export class StrapiAdapter extends IntiAdapter<StrapiPageResponse> implements Wr
     }
 
     private setByPath(target: Record<string, any>, path: string, value: any): void {
+        assertSafeFieldPath(path);
         const parts = path.split('.');
         let cursor = target;
         for (let i = 0; i < parts.length - 1; i++) {

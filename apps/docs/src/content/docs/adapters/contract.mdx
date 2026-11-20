@@ -39,6 +39,34 @@ interface IntiPage {
 }
 ```
 
+### `fetchPageBySlug(slug: string): Promise<IntiPage>`
+
+Reads the published page with that slug. It is what the page template, the MCP server and the page cache call, so every adapter has it.
+
+- When the CMS says there is no such page, throw `NotFoundError` from `@intijs/core/errors`. The site answers 404.
+- When the CMS cannot answer (timeout, 5xx, 429, refused connection), throw `UnavailableError`, or let `createHttpClient` from `@intijs/core/http` throw it. The site answers 503 with `Retry-After`, and search engines come back instead of dropping the page.
+
+Use `createHttpClient` for the requests: timeouts, retries only on reads, `Retry-After`, ETags and typed errors come with it.
+
+### Conformance
+
+`@intijs/core/testing` runs the same checks on every adapter: the shape of a page, `NotFoundError` for a missing page, `UnavailableError` for a CMS that is down, ISO dates in `listPages`, a write that reads back, `{ success: false }` instead of a throw, no dot-path reaching the prototype, and drafts that round-trip.
+
+```ts
+import { describe, test, expect } from 'bun:test';
+import { adapterConformance } from '@intijs/core/testing';
+
+adapterConformance({ describe, test, expect }, {
+    name: 'MyAdapter',
+    create: () => new MyAdapter({ endpoint, fetch: fakeCms }),
+    existingSlug: 'home',
+    writableField: 'heading',
+    unavailable: () => new MyAdapter({ endpoint, fetch: async () => new Response('', { status: 503 }) })
+});
+```
+
+Write paths go through `assertSafeFieldPath` from `@intijs/core/adapters`: the actions check paths, but the MCP server and scripts call adapters directly.
+
 ### `parseNavigation?(raw: TRawNav): IntiNavigation`
 
 Optional: transforms navigation data:

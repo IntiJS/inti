@@ -7,7 +7,7 @@
  * has to be in the served HTML.
  */
 
-import type { IntiPage } from '../types/index.js';
+import type { IntiPage, PageTranslation } from '../types/index.js';
 
 export interface MetaTag {
     /** Tag to emit */
@@ -33,6 +33,13 @@ export interface SeoOptions {
     modifiedAt?: string;
     /** Prevents indexing (drafts, previews) */
     noindex?: boolean;
+    /**
+     * URL of a translation, for `hreflang`. Default: same origin as `url`,
+     * `/<locale>/<slug>` (`/<locale>/` for the home page)
+     */
+    translationUrl?: (translation: PageTranslation) => string;
+    /** Locale `x-default` points to. Without it there is no `x-default` */
+    defaultLocale?: string;
     /** Overrides whatever comes from the CMS */
     title?: string;
     description?: string;
@@ -93,6 +100,10 @@ export function buildMetaTags(page: Partial<IntiPage> | null | undefined, option
         tags.push({ tag: 'link', attrs: { rel: 'canonical', href: canonical } });
     }
 
+    for (const link of hreflangLinks(page, canonical, options)) {
+        tags.push({ tag: 'link', attrs: { rel: 'alternate', hreflang: link.hreflang, href: link.href } });
+    }
+
     const robots = robotsDirective(seo, options.noindex);
     meta({ name: 'robots', content: robots });
 
@@ -109,7 +120,8 @@ export function buildMetaTags(page: Partial<IntiPage> | null | undefined, option
     meta({ property: 'og:description', content: og.description ?? description });
     meta({ property: 'og:url', content: canonical });
     meta({ property: 'og:site_name', content: options.siteName });
-    meta({ property: 'og:locale', content: options.locale ?? seo.locale });
+    meta({ property: 'og:locale', content: options.locale ?? seo.locale ?? ogLocale(page?.locale) });
+    for (const translation of page?.translations ?? []) meta({ property: 'og:locale:alternate', content: ogLocale(translation.locale) });
     meta({ property: 'og:image', content: ogImage });
 
     const modifiedAt = options.modifiedAt ?? seo.modifiedAt;
@@ -131,6 +143,44 @@ export function buildMetaTags(page: Partial<IntiPage> | null | undefined, option
     meta({ name: 'twitter:site', content: tw.site ?? options.twitterSite });
 
     return tags;
+}
+
+/** `es-ES` → `es_ES`, the form Open Graph uses */
+function ogLocale(locale: string | undefined): string | undefined {
+    return locale?.replace('-', '_');
+}
+
+/**
+ * `hreflang` links of a page: itself, each translation, and `x-default`.
+ *
+ * Each version must list all the others and itself, or search engines
+ * ignore the set. Without `page.locale` there is nothing to say.
+ */
+export function hreflangLinks(
+    page: Partial<IntiPage> | null | undefined,
+    url: string | undefined,
+    options: Pick<SeoOptions, 'translationUrl' | 'defaultLocale'> = {}
+): Array<{ hreflang: string; href: string }> {
+    if (!page?.locale || !page.translations?.length || !url) return [];
+    const origin = (() => {
+        try {
+            return new URL(url).origin;
+        } catch {
+            return undefined;
+        }
+    })();
+    const translationUrl =
+        options.translationUrl ??
+        ((t: PageTranslation) => (origin ? `${origin}/${t.locale}${t.slug === 'home' ? '/' : `/${t.slug}`}` : undefined));
+
+    const links = [{ hreflang: page.locale, href: url }];
+    for (const translation of page.translations) {
+        const href = translation.url ?? translationUrl(translation);
+        if (href && translation.locale !== page.locale) links.push({ hreflang: translation.locale, href });
+    }
+    const fallback = links.find((link) => link.hreflang === options.defaultLocale);
+    if (fallback) links.push({ hreflang: 'x-default', href: fallback.href });
+    return links;
 }
 
 /**

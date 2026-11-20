@@ -40,7 +40,7 @@ Netlify works the same way in principle (Node functions, read-only disk) but is 
 
 ## Your own server with Docker
 
-For a VPS or your own infrastructure, with the node adapter in `standalone` mode:
+For a VPS or your own infrastructure, with the node adapter in `standalone` mode. A project made with `create-inti` (or `scaffold-local.mjs`) already has a `Dockerfile` and a `.dockerignore`; while the packages are not on npm, their tarballs are copied into the project's `vendor/` so the image builds without the clone. The template below is the same idea written out by hand:
 
 ```js
 // astro.config.mjs
@@ -138,6 +138,17 @@ if (url) {
 }
 
 export const onRequest = (_ctx, next) => next();
+```
+
+The same server also gives every instance one page cache, so a purge from the CMS empties it everywhere (see [Delivery and caching](/guides/delivery/)):
+
+```ts
+import { createCacheManager, createValkeyCacheProvider } from '@intijs/core/cache';
+
+export const cache = createCacheManager({
+  provider: createValkeyCacheProvider({ client: new Valkey(url) }),
+  staleIfError: 86_400
+});
 ```
 
 ```yaml

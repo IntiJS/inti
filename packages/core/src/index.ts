@@ -168,9 +168,11 @@ export type {
 export {
     CacheManager,
     MemoryCacheProvider,
-    CachedAdapter,
     createCacheManager,
-    getGlobalCache
+    getGlobalCache,
+    cachePages,
+    pageTags,
+    createValkeyCacheProvider
 } from './cache/index.js';
 
 export type {

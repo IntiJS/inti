@@ -82,6 +82,12 @@ describe('block writes carry the rendered block id', () => {
         expect(seen).toEqual(['b1', 'b2', 'b3', 'b4', 'b5']);
     });
 
+    test('the rendered block version reaches the adapter, for a conditional write', async () => {
+        register();
+        await run('updateBlockField', { documentId: 'p', blockIndex: 0, blockId: 'b1', blockVersion: '2026-11-20T10:00:00Z', field: 'title', value: 'x' });
+        expect(received[0].args[4]).toEqual({ blockId: 'b1', blockVersion: '2026-11-20T10:00:00Z' });
+    });
+
     test('without an id the write still goes through, by position', async () => {
         register();
         await run('updateBlockField', { documentId: 'p', blockIndex: 2, field: 'title', value: 'x' });

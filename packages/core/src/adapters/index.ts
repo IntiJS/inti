@@ -59,6 +59,8 @@ export interface WriteResult {
     error?: string;
     /** Source that processed the write (e.g. 'wordpress', 'local') */
     source?: string;
+    /** The block's new version, when the CMS stamps one: the editor sends it with the next write */
+    version?: string;
 }
 
 /**
@@ -73,6 +75,11 @@ export interface WriteResult {
  */
 export interface BlockWriteOptions {
     blockId?: string;
+    /**
+     * The block's version as rendered (`IntiBlock.meta.version`). With it an adapter can make
+     * the write conditional (`If-Match`) and answer "changed since" instead of overwriting.
+     */
+    blockVersion?: string;
 }
 
 /**

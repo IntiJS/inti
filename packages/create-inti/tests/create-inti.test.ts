@@ -62,6 +62,11 @@ describe('generateProject', () => {
             });
 
             test('the production plugin is documented in the middleware, and no permissive one is registered', () => {
+                // Kitsuden's middleware registers its own plugin: editors are Kitsuden users with a role
+                if (cms === 'kitsuden') {
+                    expect(files['src/middleware.ts']).toContain('kitsudenMiddleware');
+                    return;
+                }
                 expect(files['src/middleware.ts']).toContain('registerIntiPlugin');
                 // The whole example is commented out: without a plugin, production stays closed
                 expect(files['src/middleware.ts']).not.toMatch(/^registerIntiPlugin/m);
@@ -306,5 +311,27 @@ describe('odoo store', () => {
         expect(files['src/pages/api/odoo/purge.ts']).toContain("token: () => env('INTI_ODOO_PURGE_TOKEN')");
         expect(files['src/pages/sitemap.xml.ts']).toContain('sitemapIndexRoute');
         expect(files['.env.example']).toContain('INTI_ODOO_API_KEY_NEXT');
+    });
+});
+
+describe('kitsuden site', () => {
+    const files = generateProject({ name: 'site', cms: 'kitsuden' });
+
+    test('delivers through the Kitsuden middleware with one cache for pages and HTML', () => {
+        expect(files['src/middleware.ts']).toContain('kitsudenMiddleware({ api: endpoint ??');
+        expect(files['src/lib/cms.ts']).toContain('createCacheManager');
+        expect(files['src/lib/cms.ts']).toContain("siteKey: env('INTI_KITSUDEN_SITE_KEY')");
+        expect(files['src/lib/cms.ts']).toContain('getRenderedPage');
+    });
+
+    test('has the purge route and the media routes, and documents their variables', () => {
+        expect(files['src/pages/api/kitsuden/purge.ts']).toContain("purgeRoute(cache, () => env('INTI_KITSUDEN_PURGE_SECRET'))");
+        expect(files['src/pages/img/t/[id]/[file].ts']).toContain('mediaTransformRoute');
+        expect(files['src/pages/img/[id]/[preset].ts']).toContain('mediaPresetRoute');
+        expect(files['.env.example']).toContain('INTI_KITSUDEN_PURGE_SECRET=');
+    });
+
+    test('editors read fresh pages with every block', () => {
+        expect(files['src/pages/[...slug].astro']).toContain('readPage(slug, { editor: Boolean(Astro.locals.intiEditor) })');
     });
 });

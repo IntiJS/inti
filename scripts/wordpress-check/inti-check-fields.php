@@ -68,6 +68,28 @@ add_action('acf/init', function () {
                     ],
                 ],
             ],
+            // A page-level group: the "nested meta" a dot-path writes into
+            [
+                'key' => 'field_inti_settings',
+                'label' => 'Settings',
+                'name' => 'page_settings',
+                'type' => 'group',
+                'sub_fields' => [
+                    ['key' => 'field_settings_tagline', 'label' => 'Tagline', 'name' => 'tagline', 'type' => 'text'],
+                    ['key' => 'field_settings_theme', 'label' => 'Theme', 'name' => 'theme', 'type' => 'text'],
+                ],
+            ],
         ],
     ]);
+});
+
+// A meta a block binding reads (core/post-meta source), and a classic menu location
+add_action('init', function () {
+    register_post_meta('page', 'inti_price', [
+        'type' => 'string',
+        'single' => true,
+        'show_in_rest' => true,
+        'default' => '',
+    ]);
+    register_nav_menus(['primary' => 'Primary']);
 });

@@ -30,6 +30,33 @@ export interface KitsudenBlockRow {
     updatedAt?: string;
 }
 
+/** `GET /render/:slug`: published, visible blocks only, with presets for their media */
+export interface KitsudenRenderResponse {
+    page: {
+        id: string;
+        title?: string;
+        slug?: string;
+        description?: string | null;
+        metaTitle?: string | null;
+        metaDescription?: string | null;
+        layout?: string | null;
+        cssClass?: string | null;
+        customCss?: string | null;
+        publishedAt?: string | null;
+    };
+    blocks: Array<Pick<KitsudenBlockRow, 'id' | 'type' | 'content' | 'columnSpan' | 'cssClass' | 'backgroundColor' | 'textColor' | 'padding'> & {
+        mediaUrls?: Record<string, string>;
+    }>;
+}
+
+/** `POST /api/search` */
+export interface KitsudenSearchResponse {
+    results: Array<{ id: string; title?: string; content?: string; type: string; datasetId?: string; score?: number; highlights?: unknown; createdAt?: string }>;
+    total: number;
+    query: string;
+    type: string;
+}
+
 export interface KitsudenPageResponse {
     id: string;
     title: string;
@@ -199,6 +226,11 @@ export interface KitsudenConfig {
      * retried: a page being rendered should not wait on a quota.
      */
     retry?: { retries?: number; maxWaitMs?: number };
+    /**
+     * Anonymous answers kept to revalidate with their ETag instead of downloading them again.
+     * Default 500 (it was a fixed 100: a site with more pages than that revalidated nothing).
+     */
+    revalidationEntries?: number;
     /** `fetch` to use (tests, proxies, a Worker binding). Default: the global one */
     fetch?: typeof fetch;
 }

@@ -278,6 +278,7 @@ export class InlineEditor {
         const documentId = wrapper.dataset.intiDocumentId;
         const blockIndex = parseInt(wrapper.dataset.intiBlockIndex ?? '', 10);
         const blockId = wrapper.dataset.intiBlockId || undefined;
+        const blockVersion = wrapper.dataset.intiBlockVersion || undefined;
         const field = el.dataset.intiField;
 
         if (!documentId || Number.isNaN(blockIndex) || !field) {
@@ -292,7 +293,7 @@ export class InlineEditor {
             const response = await fetch(this.config.actionPath, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ documentId, blockIndex, blockId, field, value })
+                body: JSON.stringify({ documentId, blockIndex, blockId, blockVersion, field, value })
             });
 
             if (!response.ok) {
@@ -300,6 +301,7 @@ export class InlineEditor {
                 throw new Error(`${response.status} ${body.slice(0, 150)}`);
             }
 
+            await this.rememberVersion(wrapper, response);
             result.success = true;
             this.history.record({ documentId, blockIndex, blockId, field, previous: original, value, target: el });
             this.flash(el, 'rgba(34, 197, 94, 0.7)');
@@ -318,8 +320,23 @@ export class InlineEditor {
     // Undo / redo
     // ============================================
 
+    /**
+     * The block's new version, from the action's answer: the next write to this block is
+     * conditional on it. Without it, a second edit of the same block would read as a conflict.
+     */
+    private async rememberVersion(wrapper: HTMLElement, response: Response): Promise<void> {
+        try {
+            const body = await response.clone().json();
+            const version = body?.data?.version ?? body?.version;
+            if (typeof version === 'string' && version) wrapper.dataset.intiBlockVersion = version;
+        } catch {
+            // an answer without JSON carries no version
+        }
+    }
+
     /** Writes a previous value again: a normal write, with its permissions */
     private writeHistory = async (edit: EditRecord<HTMLElement>, value: string): Promise<void> => {
+        const wrapper = edit.target.closest<HTMLElement>('[data-inti-block]');
         const response = await fetch(this.config.actionPath, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -327,6 +344,7 @@ export class InlineEditor {
                 documentId: edit.documentId,
                 blockIndex: edit.blockIndex,
                 blockId: edit.blockId,
+                blockVersion: wrapper?.dataset.intiBlockVersion || undefined,
                 field: edit.field,
                 value
             })
@@ -336,6 +354,7 @@ export class InlineEditor {
             const body = await response.text().catch(() => '');
             throw new Error(`${response.status} ${body.slice(0, 150)}`);
         }
+        if (wrapper) await this.rememberVersion(wrapper, response);
 
         edit.target.textContent = value;
         this.flash(edit.target, 'rgba(34, 197, 94, 0.7)');

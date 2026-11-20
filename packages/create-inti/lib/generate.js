@@ -170,6 +170,44 @@ const ACTIONS = `import { intiActions } from '@intijs/core/actions';
 export const server = { inti: intiActions };
 `;
 
+/**
+ * Kitsuden's middleware does more than say who edits: it registers the
+ * Kitsuden editor plugin, keeps the HTML cache, sends CDN headers and answers
+ * 503 with a stale copy when Kitsuden is down.
+ */
+const KITSUDEN_MIDDLEWARE = `import { kitsudenMiddleware } from '@intijs/adapter-kitsuden/astro';
+import { cache, endpoint } from './lib/cms';
+
+// Editors are Kitsuden users with the admin or editor role, recognised by
+// their Kitsuden session. Anonymous visitors get the cached HTML.
+export const onRequest = kitsudenMiddleware({ api: endpoint ?? '', cache });
+`;
+
+const KITSUDEN_ROUTES = {
+    'src/pages/api/kitsuden/purge.ts': `import { purgeRoute } from '@intijs/adapter-kitsuden/astro';
+import { env } from '@intijs/core/server';
+import { cache } from '../../../lib/cms';
+
+export const prerender = false;
+// Point a Kitsuden action's outbound webhook on page:updated and page:deleted here
+export const POST = purgeRoute(cache, () => env('INTI_KITSUDEN_PURGE_SECRET'));
+`,
+    'src/pages/img/[id]/[preset].ts': `import { mediaPresetRoute } from '@intijs/adapter-kitsuden/astro';
+import { endpoint } from '../../../lib/cms';
+
+export const prerender = false;
+// Media from the site's own origin: the CMS address never reaches the HTML
+export const GET = mediaPresetRoute(() => endpoint ?? '');
+`,
+    'src/pages/img/t/[id]/[file].ts': `import { mediaTransformRoute } from '@intijs/adapter-kitsuden/astro';
+import { endpoint } from '../../../../lib/cms';
+
+export const prerender = false;
+// AVIF, WebP and every width of kitsudenImage(), cached for a year: Kitsuden never changes them
+export const GET = mediaTransformRoute(() => endpoint ?? '');
+`
+};
+
 const MIDDLEWARE = `import { defineMiddleware } from 'astro:middleware';
 
 /**
@@ -208,7 +246,7 @@ function cmsModule(cms) {
  */
 const adapter = new LocalAdapter();
 
-export function readPage(slug: string) {
+export function readPage(slug: string, _options: { editor?: boolean } = {}) {
     return adapter.fetchPageBySlug(slug);
 }
 `;
@@ -227,27 +265,44 @@ const adapter = new WordPressAdapter({
     postType: env('INTI_WP_POST_TYPE')
 });
 
-export function readPage(slug: string) {
+export function readPage(slug: string, _options: { editor?: boolean } = {}) {
     if (!endpoint) throw new Error('INTI_WP_ENDPOINT is missing from .env (copy .env.example)');
     return adapter.fetchPageBySlug(slug);
 }
 `;
         case 'kitsuden':
             return `import { KitsudenAdapter } from '@intijs/adapter-kitsuden';
+import { currentVisitorIp } from '@intijs/adapter-kitsuden/astro';
+import { cachePages, createCacheManager } from '@intijs/core/cache';
 import { env } from '@intijs/core/server';
 
 // env() also reads the server's variables at startup. import.meta.env only
 // sees the ones present at build time, so a Docker image or a platform that
 // injects them at runtime would answer 404 on every page.
-const endpoint = env('INTI_KITSUDEN_ENDPOINT');
+export const endpoint = env('INTI_KITSUDEN_ENDPOINT');
 
-// Reading published pages needs no key: the key is only used by
-// writes, on the server.
-const adapter = new KitsudenAdapter({ endpoint: endpoint ?? '' });
+// Reading published pages needs no key: the key is only used by writes, on
+// the server. With the site key Kitsuden counts each visitor apart instead of
+// putting every read of this server in one rate-limit bucket.
+const adapter = new KitsudenAdapter({
+    endpoint: endpoint ?? '',
+    siteKey: env('INTI_KITSUDEN_SITE_KEY'),
+    clientIp: currentVisitorIp
+});
 
-export function readPage(slug: string) {
+// One cache for the pages and their HTML: kept 60 s, refreshed in the
+// background, and served stale for a day if Kitsuden is down. The purge route
+// empties it when Kitsuden says a page changed. With several instances, give
+// it a Valkey provider (createValkeyCacheProvider).
+export const cache = createCacheManager({ defaultTtl: 60, swr: 300, staleIfError: 86400 });
+
+// Visitors read the rendered page (published, visible blocks only), cached
+const rendered = cachePages({ name: 'kitsuden-render', fetchPageBySlug: (slug) => adapter.getRenderedPage(slug) }, { cache });
+
+/** Editors read every block, hidden ones included, fresh: they are about to change it */
+export function readPage(slug: string, { editor = false }: { editor?: boolean } = {}) {
     if (!endpoint) throw new Error('INTI_KITSUDEN_ENDPOINT is missing from .env (copy .env.example)');
-    return adapter.getPage(slug);
+    return editor ? adapter.getPage(slug) : rendered.fetchPageBySlug(slug);
 }
 `;
         case 'strapi':
@@ -266,7 +321,7 @@ const adapter = new StrapiAdapter({
     blocksField: env('INTI_STRAPI_BLOCKS_FIELD')
 });
 
-export function readPage(slug: string) {
+export function readPage(slug: string, _options: { editor?: boolean } = {}) {
     if (!endpoint) throw new Error('INTI_STRAPI_ENDPOINT is missing from .env (copy .env.example)');
     return adapter.fetchPageBySlug(slug);
 }
@@ -286,7 +341,7 @@ const adapter = new KeystaticAdapter({
     blocksField: env('INTI_KEYSTATIC_BLOCKS_FIELD')
 });
 
-export function readPage(slug: string) {
+export function readPage(slug: string, _options: { editor?: boolean } = {}) {
     return adapter.fetchPageBySlug(slug);
 }
 `;
@@ -313,7 +368,7 @@ let page;
 try {
     // The draft only exists for someone with an editor session; for any
     // other visitor this is null and the published version is read
-    page = (await readDraftPage(slug, Astro)) ?? (await readPage(slug));
+    page = (await readDraftPage(slug, Astro)) ?? (await readPage(slug, { editor: Boolean(Astro.locals.intiEditor) }));
 } catch (error) {
     // 404 only when the CMS says the page does not exist. A timeout or a 500
     // is a 503 with Retry-After, so a search engine comes back instead of
@@ -487,6 +542,11 @@ INTI_ADAPTER=kitsuden
 INTI_KITSUDEN_ENDPOINT=https://cms.yoursite.com
 # AGENT key (kitsuden_agent_…). Only for writing.
 INTI_KITSUDEN_TOKEN=
+# Kitsuden's SITE_API_KEY: reads are counted per visitor, not per server
+INTI_KITSUDEN_SITE_KEY=
+# Secret of the Kitsuden action whose outbound webhook (page:updated, page:deleted)
+# posts to /api/kitsuden/purge
+INTI_KITSUDEN_PURGE_SECRET=
 `;
         case 'strapi':
             return `${common}
@@ -646,12 +706,18 @@ export function generateProject({ name, cms, packages }) {
         'README.md': readme(name, cms),
         'src/actions/index.ts': ACTIONS,
         'src/middleware.ts':
-            cms === 'odoo' ? MIDDLEWARE.replace("export const onRequest = defineMiddleware((_context, next) => next());", STORE_MIDDLEWARE_DELIVERY.trim()) : MIDDLEWARE,
+            cms === 'odoo'
+                ? MIDDLEWARE.replace("export const onRequest = defineMiddleware((_context, next) => next());", STORE_MIDDLEWARE_DELIVERY.trim())
+                : cms === 'kitsuden'
+                  ? KITSUDEN_MIDDLEWARE
+                  : MIDDLEWARE,
         'src/lib/cms.ts': cmsModule(cms),
         'src/pages/[...slug].astro': PAGE,
         'src/layouts/Layout.astro': LAYOUT,
         [`src/blocks/${CMS[cms].block.file}`]: blockComponent(cms)
     };
+
+    if (cms === 'kitsuden') Object.assign(files, KITSUDEN_ROUTES);
 
     if (cms === 'keystatic') {
         files['content/pages/home.yaml'] = KEYSTATIC_HOME;

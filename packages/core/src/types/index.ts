@@ -35,7 +35,28 @@ export interface IntiBlock {
         slot?: string;
         /** Who it is aimed at: `device:mobile;pref.diet:vegan` */
         audience?: string;
+        /**
+         * The block's version as the CMS stamps it (Kitsuden's `updatedAt`). The editor sends
+         * it back with a write, and an adapter that can (`If-Match`) refuses to overwrite a
+         * block that changed since the page loaded.
+         */
+        version?: string;
+        /**
+         * Presentation the CMS stores next to the data (classes, colours, spacing, column
+         * span). `BlockRenderer` passes it to the component as `intiBlock.style`.
+         */
+        style?: BlockStyle;
     };
+}
+
+/** Per-block presentation a CMS stores: only declared values, never free CSS */
+export interface BlockStyle {
+    className?: string;
+    backgroundColor?: string;
+    textColor?: string;
+    padding?: string;
+    /** 1 to 12 */
+    columnSpan?: number;
 }
 
 /**

@@ -99,7 +99,9 @@ INTI_WP_APP_PASSWORD=xxxx xxxx xxxx xxxx
 INTI_WP_BLOCKS_FIELD=content_blocks
 ```
 
-For Kitsuden: `INTI_ADAPTER=kitsuden`, `INTI_KITSUDEN_ENDPOINT`, `INTI_KITSUDEN_TOKEN` (an agent key, `kitsuden_agent_…`). A Kitsuden site registers `kitsudenMiddleware` from `@intijs/adapter-kitsuden/astro` in `src/middleware.ts`: it is the editor-session plugin, the HTML cache and the 503 page in one. For Strapi: `INTI_STRAPI_ENDPOINT`, `INTI_STRAPI_TOKEN`. For Keystatic: `INTI_ADAPTER=keystatic`; in production also `INTI_KEYSTATIC_REPO` and `INTI_KEYSTATIC_TOKEN`, so each edit is a commit. With no `INTI_ADAPTER`, writes go to the local JSON store.
+With the companion plugin (`packages/adapter-wordpress/wordpress-plugin/inti-bridge.php`) every WordPress write runs in one PHP call with a version check (409 when the page changed), and `INTI_PURGE_URL` + `INTI_PURGE_SECRET` in `wp-config.php` make WordPress post a signed purge notice to `purgeRoute` whenever a published page changes. `WordPressAdapter` also has `fetchNavigation(location)`, `listTerms(taxonomy)`, `fetchTerm` and `fetchArchive({ taxonomy, term, page })`, and `fetchPageBySlug(slug, { locale })` for Polylang or WPML.
+
+For Kitsuden: `INTI_ADAPTER=kitsuden`, `INTI_KITSUDEN_ENDPOINT`, `INTI_KITSUDEN_TOKEN` (an agent key, `kitsuden_agent_…`). A Kitsuden site registers `kitsudenMiddleware({ api, cache })` from `@intijs/adapter-kitsuden/astro` in `src/middleware.ts`, with a core cache (`createCacheManager`): it is the editor-session plugin and `intiDelivery` in one. Visitors read `adapter.getRenderedPage(slug)`, editors `adapter.getPage(slug)`; writes are conditional on the block's version (`If-Match`). For Strapi: `INTI_STRAPI_ENDPOINT`, `INTI_STRAPI_TOKEN`. For Keystatic: `INTI_ADAPTER=keystatic`; in production also `INTI_KEYSTATIC_REPO` and `INTI_KEYSTATIC_TOKEN`, so each edit is a commit. With no `INTI_ADAPTER`, writes go to the local JSON store.
 
 ## Delivery: 404 or 503, caches, CDN, purges
 
@@ -288,7 +290,7 @@ Without that, the original is served unoptimized and Inti says so in dev, naming
 | `buildMetaTags`, `buildStructuredData`, `buildSitemapXml`, `faqFromBlock` | `@intijs/core/seo` |
 | `IntiSeo.astro`, `IntiStructuredData.astro` | `@intijs/core/astro/` |
 | `resolveWriteAdapter` | `@intijs/core/server` |
-| `WordPressAdapter`, `wooProductsAsData` | `@intijs/adapter-wordpress` |
+| `WordPressAdapter`, `wooProductsAsData`, `wordpressImage`, `augmentMedia` | `@intijs/adapter-wordpress` |
 | `KeystaticAdapter`, `githubStorage`, `localStorage` | `@intijs/adapter-keystatic` |
 | `D1ContentAdapter`, `createR2MediaStore`, `createWorkersAiProvider`, `createCloudflareImageService` | `@intijs/cloudflare` |
 | `IntiRoom`, `IntiLimiter`, `connectToRoom`, `createDurableLimiter` | `@intijs/cloudflare/durable` |
@@ -297,8 +299,8 @@ Without that, the original is served unoptimized and Inti says so in dev, naming
 | `createInfographicRoute` | `@intijs/infographic/route` |
 | `StrapiAdapter` | `@intijs/adapter-strapi` |
 | `createOdooClient`, `odooCatalogSource`, `odooImageRoute`, `odooPurgeRoute`, `createOdooOrder`, `envKeyStore`, `rotateOdooKey`, `rotateIfExpiring` | `@intijs/adapter-odoo` |
-| `KitsudenAdapter`, `KitsudenUnavailableError`, `toComposerBlockTypes` | `@intijs/adapter-kitsuden` |
-| `kitsudenMiddleware`, `createPageCache`, `purgeRoute`, `mediaPresetRoute`, `mediaFileRoute`, `imageSrc`, `blockAttributes`, `currentVisitorIp`, `stripSecretsForBuild` | `@intijs/adapter-kitsuden/astro` |
+| `KitsudenAdapter`, `KitsudenUnavailableError`, `toComposerBlockTypes`, `kitsudenCatalogSource` | `@intijs/adapter-kitsuden` |
+| `kitsudenMiddleware`, `purgeRoute`, `mediaPresetRoute`, `mediaFileRoute`, `mediaTransformRoute`, `kitsudenImage`, `imageSrc`, `blockAttributes`, `currentVisitorIp`, `stripSecretsForBuild` | `@intijs/adapter-kitsuden/astro` |
 
 | `NotFoundError`, `UnavailableError`, `RateLimitError`, `ConflictError`, `isNotFound`, `isUnavailable` | `@intijs/core/errors` |
 | `createHttpClient` | `@intijs/core/http` |

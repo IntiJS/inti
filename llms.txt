@@ -31,6 +31,7 @@ Setup requires four things, and skipping any of them breaks it silently:
 - [Delivery and caching](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/delivery.mdx): 404 vs 503, the page cache, CDN headers, signed purges, personalized zones as server islands
 - [Catalogs and sitemaps](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/catalog.mdx): Products from an ERP, blocks bound to live data, sitemaps past 50,000 URLs
 - [Languages](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/languages.mdx): Locale from the URL, hreflang in the head and the sitemap
+- [Odoo catalog](https://github.com/intijs/inti/blob/main/packages/adapter-odoo/README.md): A store with products, stock, taxes and orders from Odoo
 - [Securing writes](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/securing-writes.md): Who can edit in production
 - [Contributing](https://github.com/intijs/inti/blob/main/CONTRIBUTING.md): Development setup, code style, CLA
 - [Security](https://github.com/intijs/inti/blob/main/SECURITY.md): How to report a vulnerability

@@ -35,7 +35,8 @@
     "build:adapter-contentful": "npm run build -w @intijs/adapter-contentful",
     "build:adapter-sanity": "npm run build -w @intijs/adapter-sanity",
     "build:adapter-keystatic": "npm run build -w @intijs/adapter-keystatic",
-    "build:adapters": "npm run build:adapter-wordpress && npm run build:adapter-strapi && npm run build:adapter-contentful && npm run build:adapter-sanity && npm run build:adapter-kitsuden && npm run build:adapter-keystatic",
+    "build:adapter-odoo": "npm run build -w @intijs/adapter-odoo",
+    "build:adapters": "npm run build:adapter-wordpress && npm run build:adapter-strapi && npm run build:adapter-contentful && npm run build:adapter-sanity && npm run build:adapter-kitsuden && npm run build:adapter-keystatic && npm run build:adapter-odoo",
     "build:apps": "npm run build:docs && npm run build -w @intijs/demo-site",
     "build:all": "npm run build && npm run build:apps",
     "sync": "npm run sync -w @intijs/cli",
@@ -47,7 +48,8 @@
     "test:cloudflare": "node scripts/cloudflare-check.mjs",
     "test:infographic-worker": "node scripts/infographic-worker-check.mjs",
     "test:vercel": "node scripts/vercel-check.mjs 7",
-    "clean": "rm -rf node_modules packages/*/node_modules apps/*/node_modules"
+    "clean": "rm -rf node_modules packages/*/node_modules apps/*/node_modules",
+    "test:odoo": "node scripts/odoo-check.mjs 19 && node scripts/odoo-check.mjs 20"
   },
   "engines": {
     "node": ">=18.0.0",

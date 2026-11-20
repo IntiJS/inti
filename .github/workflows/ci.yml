@@ -193,6 +193,25 @@ jobs:
       - name: Check against a real WordPress
         run: node scripts/wordpress-check.mjs
 
+  # The Odoo catalog against a real Odoo, on each supported major
+  odoo:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        odoo-version: ['19', '20']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Check against a real Odoo ${{ matrix.odoo-version }}
+        run: node scripts/odoo-check.mjs ${{ matrix.odoo-version }}
+
   # The adapter against a real Kitsuden. Its image is not public: it is built
   # from the Kitsuden repository with KITSUDEN_REPO_TOKEN (read access). Without
   # the secret (a fork) the job says so and passes, instead of failing for

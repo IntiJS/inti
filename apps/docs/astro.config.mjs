@@ -68,6 +68,7 @@ export default defineConfig({
             { label: 'Creating an Adapter', link: '/adapters/creating/' },
             { label: 'Kitsuden', link: '/adapters/kitsuden/' },
             { label: 'Keystatic', link: '/adapters/keystatic/' },
+            { label: 'Odoo (catalog)', link: '/adapters/odoo/' },
             { label: 'Introspection', link: '/adapters/introspection/' },
           ],
         },

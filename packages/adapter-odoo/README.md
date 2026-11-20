@@ -1,0 +1,83 @@
+# @intijs/adapter-odoo
+
+An **Odoo catalog** for Astro sites built with [Inti](https://github.com/intijs/inti): products, variants, categories, free stock, prices with or without taxes, images through the site, purge notices and simple orders. Pages stay in the site's CMS (or Inti's local store); Odoo stays the owner of the products.
+
+It is a `CatalogSource` for `@intijs/core/catalog`, not a page adapter. Inti is in beta.
+
+> **Not on npm yet.** Install from git as described under [Installation](https://github.com/intijs/inti#-installation), or generate a store with `node inti/scripts/scaffold-local.mjs my-shop --cms odoo`.
+
+## Connecting
+
+```ts
+import { createOdooClient, envKeyStore, odooCatalogSource } from '@intijs/adapter-odoo';
+import { createCacheManager } from '@intijs/core/cache';
+import { cachedCatalogSource, createCatalog } from '@intijs/core/catalog';
+import { env } from '@intijs/core/server';
+
+const odoo = createOdooClient({
+  url: env('INTI_ODOO_URL')!,
+  database: env('INTI_ODOO_DATABASE'),
+  apiKey: envKeyStore(env)       // INTI_ODOO_API_KEY, and INTI_ODOO_API_KEY_NEXT during a rotation
+});
+
+export const cache = createCacheManager({ staleIfError: 86_400 });
+export const products = cachedCatalogSource(odooCatalogSource({ client: odoo }), { cache });
+export const catalog = createCatalog([products]);
+```
+
+- **JSON-2 first.** Odoo 19+ is read through `POST /json/2/<model>/<method>` with the key as `bearer` and the database in `X-Odoo-Database`. An older Odoo answers 404 there, and the client switches to JSON-RPC (`execute_kw`), which needs `login` (the key's user). `protocol: 'json2' | 'jsonrpc'` pins one.
+- **Detected, not assumed.** `fields_get` tells which modules are installed: `stock` (free stock), `website_sale` (`is_published`, public categories), the storable flag (`is_storable` in 18+, `detailed_type` before) and the tax "price included" flag.
+- Requests go through `@intijs/core/http`: a time limit, typed errors, and Odoo's own message in the error.
+
+## Products
+
+| Concern | What it does |
+|---|---|
+| Identity | The template's internal reference (`default_code`): `/products/blue-shirt--SH-001`. Never a variant id. A template without a reference is `tmpl-<id>`; a variant's reference finds its product too. |
+| Variants | Every variant with its attribute values as options (`{ Size: 'M' }`), its price (`lst_price`, extras included) and its stock |
+| Stock | `free_qty` ("free to use": on hand minus reserved). Products whose stock is not tracked are always available. `inStock: true` filters on it |
+| Prices | With taxes (`taxes: 'included'`, the default) or without, from the product's sale taxes: percent, fixed and division, whether the price is stored tax-included or not |
+| What is shown | `sale_ok`, and `is_published` when the website module is installed |
+| Listing | Search (name, reference), category (`child_of`), price range, in stock, attribute values, sort, pages, total |
+| Categories | Public categories with the website module, product categories otherwise; slugs like `shirts-12` |
+| Sitemap | `listSummaries`, for `catalogSitemap`: a file per 50,000 products |
+
+## Images
+
+```ts
+// src/pages/media/odoo/[model]/[id]/[size].ts
+import { odooImageRoute } from '@intijs/adapter-odoo';
+export const GET = odooImageRoute({ client: odoo });
+```
+
+Odoo's `/web/image` works with a browser session, not with an API key. The proxy reads the image field with the key and serves the bytes from the site's origin, only for published products (and categories), only real raster images (no SVG), `immutable` for a year when the URL carries `?v=<write_date>` (the URLs in `item.images` do).
+
+## Purge notices
+
+```ts
+// src/pages/api/odoo/purge.ts
+import { odooPurgeRoute } from '@intijs/adapter-odoo';
+export const POST = odooPurgeRoute({ cache, token: () => env('INTI_ODOO_PURGE_TOKEN') });
+```
+
+In Odoo, an automation rule on Product ("On update", action "Send Webhook Notification" to `https://your-site/api/odoo/purge?token=…`) with the field `default_code` in its payload drops that product and the listings. Odoo cannot sign the body, so the token in the URL authenticates it, compared in constant time. A notice without a reference (a stock move) drops the whole catalog.
+
+## Orders
+
+```ts
+import { createOdooOrder } from '@intijs/adapter-odoo';
+const order = await createOdooOrder(odoo, { customer: { email, name }, lines: [{ reference: 'SH-001-M', quantity: 2 }] });
+// { id, name: 'S00042', total, currency }
+```
+
+Only references and quantities travel: Odoo prices the order with its own price lists and taxes. The customer is found by email or created; only products the shop sells (and publishes) can be ordered. The result is a quotation; `{ confirm: true }` confirms it. From an Astro action it is public: put a rate limit and a bot check in front of it.
+
+## API keys expire
+
+Odoo 19 keys have an expiration date, capped by the user's groups (90 days for most). `envKeyStore` reads `INTI_ODOO_API_KEY` and, when Odoo refuses it, switches to `INTI_ODOO_API_KEY_NEXT`. `rotateOdooKey(client, store)` asks Odoo for a new key with the current one (`res.users.apikeys.generate`), saves it, and only then revokes the old one; `rotateIfExpiring` does it when the key expires within 14 days (`INTI_ODOO_API_KEY_EXPIRES`). Odoo allows programmatic keys for administrators or when `base.enable_programmatic_api_keys` is set.
+
+## Checked against a real Odoo
+
+`node scripts/odoo-check.mjs 19` and `node scripts/odoo-check.mjs 20` start a throwaway Odoo in Docker with `sale_management`, `stock` and `website_sale`, and check reading, filters, taxes, free stock, variants, images, purges, orders, the JSON-RPC fallback and a key rotation.
+
+MIT

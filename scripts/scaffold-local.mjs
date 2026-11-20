@@ -24,7 +24,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TARBALLS = join(ROOT, '.inti', 'tarballs');
 const win = process.platform === 'win32';
 
-const PACKAGES = ['core', 'adapter-wordpress', 'adapter-kitsuden', 'adapter-strapi', 'adapter-keystatic'];
+const PACKAGES = ['core', 'adapter-wordpress', 'adapter-kitsuden', 'adapter-strapi', 'adapter-keystatic', 'adapter-odoo'];
 
 const args = process.argv.slice(2);
 if (args.includes('--packages') || args.some((arg) => arg.startsWith('--packages='))) {

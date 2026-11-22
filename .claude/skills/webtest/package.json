@@ -1,0 +1,12 @@
+{
+  "name": "inti-webtest-skill",
+  "private": true,
+  "type": "module",
+  "description": "Playwright for the webtest skill. Not part of the workspace.",
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  },
+  "dependencies": {
+    "inti-monorepo": "file:../../.."
+  }
+}

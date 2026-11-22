@@ -374,7 +374,7 @@ Writes go to your live CMS unless the agent works on a draft with `inti_create_d
 - [`AGENTS.md`](AGENTS.md): the canonical setup, import paths, naming and constraints; if any other document contradicts it, it is the one that is right. `CLAUDE.md` loads it for Claude Code.
 - [`llms.txt`](llms.txt): a short index of the docs for language models.
 - [`.claude/settings.json`](.claude/settings.json): shared Claude Code permissions (build and test allowed; `.env` files, `git push` and `npm publish` denied).
-- [`.claude/skills/`](.claude/skills): step-by-step skills any agent can follow: [`new-adapter`](.claude/skills/new-adapter/SKILL.md), [`fix-package`](.claude/skills/fix-package/SKILL.md) and [`release-check`](.claude/skills/release-check/SKILL.md).
+- [`.claude/skills/`](.claude/skills): step-by-step skills any agent can follow: [`new-adapter`](.claude/skills/new-adapter/SKILL.md), [`fix-package`](.claude/skills/fix-package/SKILL.md), [`release-check`](.claude/skills/release-check/SKILL.md), and [`webtest`](.claude/skills/webtest/SKILL.md).
 
 ## 📦 Packages
 

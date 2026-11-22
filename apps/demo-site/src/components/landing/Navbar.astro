@@ -50,7 +50,15 @@ const home = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/`;
 </header>
 
 <script>
+  const nav = document.querySelector<HTMLElement>('.nav');
   const menuBtn = document.getElementById('mobile-menu-btn');
+
+  // A band behind the pills once the page has scrolled, so the text below stays out of the way
+  function markScrolled() {
+    nav?.classList.toggle('is-scrolled', window.scrollY > 8);
+  }
+  markScrolled();
+  window.addEventListener('scroll', markScrolled, { passive: true });
   const mobileMenu = document.getElementById('mobile-menu');
   const links = mobileMenu?.querySelectorAll('a');
 

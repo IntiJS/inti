@@ -517,5 +517,6 @@ Use npm workspace syntax (`npm run build -w @intijs/core`), not pnpm's `--filter
 - `.claude/skills/`: step-by-step skills, usable by any agent that reads Markdown:
   - `new-adapter`: add a CMS adapter like the existing ones, from package to passing tests and docs;
   - `fix-package`: change a package safely (failing test first, rules that must hold, docs, checks);
-  - `release-check`: the checks CI runs, plus versions, license boundary, docs and secrets.
+  - `release-check`: the checks CI runs, plus versions, license boundary, docs and secrets;
+  - `webtest`: drive a running site in a real browser with Playwright (Node): see the editor and the rendered page, capture the console.
 - `CONTRIBUTING.md`: setup, the end-to-end checks and what each one needs.

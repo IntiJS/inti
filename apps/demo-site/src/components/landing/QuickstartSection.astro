@@ -90,7 +90,8 @@ const steps = [
         </div>
         <button type="button" class="copy-btn btn" data-copy-from="agent-prompt">Copy prompt</button>
       </div>
-      <pre id="agent-prompt" tabindex="0">{agentPrompt}</pre>
+      <pre id="agent-prompt" class="is-folded" tabindex="0">{agentPrompt}</pre>
+      <button type="button" id="prompt-toggle" class="btn btn--paper btn--small prompt-toggle" aria-controls="agent-prompt" aria-expanded="false" hidden>Show the whole prompt</button>
     </div>
 
     <!-- What the scaffolder prints (its real prompts) -->
@@ -114,6 +115,18 @@ const steps = [
 </section>
 
 <script>
+  // The prompt starts folded to a few lines; Copy always copies all of it
+  const promptEl = document.getElementById('agent-prompt');
+  const promptToggle = document.getElementById('prompt-toggle');
+  if (promptEl && promptToggle) {
+    promptToggle.hidden = false;
+    promptToggle.addEventListener('click', () => {
+      const open = promptEl.classList.toggle('is-folded') === false;
+      promptToggle.setAttribute('aria-expanded', String(open));
+      promptToggle.textContent = open ? 'Fold the prompt' : 'Show the whole prompt';
+    });
+  }
+
   // Copy buttons: `data-copy` holds the text, `data-copy-from` the id of the element to copy
   document.querySelectorAll<HTMLButtonElement>('.copy-btn').forEach((button) => {
     const label = button.textContent?.trim() || 'Copy';
@@ -122,7 +135,7 @@ const steps = [
       const text = from ? document.getElementById(from)?.textContent ?? '' : button.dataset.copy ?? '';
       try {
         await navigator.clipboard.writeText(text);
-        button.textContent = 'Copied';
+        button.textContent = 'Copied ✓';
         setTimeout(() => { button.textContent = label; }, 2000);
       } catch (e) {
         console.warn('Clipboard write failed', e);

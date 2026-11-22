@@ -21,7 +21,7 @@
           <span class="win-dots" aria-hidden="true"><i></i><i></i><i></i></span>
           <span class="mono">@intijs/genui</span>
         </span>
-        <span class="sim">Simulated: canned examples, no model is called</span>
+        <span class="sim sim--quiet">Simulated: no model is called</span>
       </div>
 
       <div class="ai-grid">
@@ -31,7 +31,7 @@
             <textarea id="ai-prompt-input" rows="3" placeholder="Describe the section you want to build...">A section with the opening hours of the bakery.</textarea>
 
             <div class="ai-presets" role="group" aria-labelledby="ai-presets-label">
-              <span class="ai-small" id="ai-presets-label" style="flex-basis: 100%; margin: 0">The three examples this simulation knows:</span>
+              <span class="ai-small" id="ai-presets-label" style="flex-basis: 100%; margin: 0">The three blocks this simulation knows. Anything else gets no proposal:</span>
               <button type="button" class="preset-prompt-btn" data-example="hours" data-prompt="A section with the opening hours of the bakery.">Opening hours</button>
               <button type="button" class="preset-prompt-btn" data-example="grid" data-prompt="Three highlights from the menu, side by side.">Three highlights</button>
               <button type="button" class="preset-prompt-btn" data-example="cta" data-prompt="A call to action to order a cake.">Call to action</button>
@@ -50,7 +50,7 @@
           <div>
             <div class="ai-out-head">
               <span>Proposal preview, sample content</span>
-              <span id="ai-status-pill" class="ai-pill" role="status">Simulated proposal: nothing is saved</span>
+              <span id="ai-status-pill" class="ai-pill" role="status">Proposal: nothing is saved yet</span>
             </div>
 
             <!-- The example block. Filled in by the script below -->
@@ -102,12 +102,12 @@
 <script>
   // Composer simulation. No request is made: the three examples are written here.
   const promptInput = document.getElementById('ai-prompt-input') as HTMLTextAreaElement | null;
-  const btnRun = document.getElementById('btn-run-genui');
+  const btnRun = document.getElementById('btn-run-genui') as HTMLButtonElement | null;
   const canvas = document.getElementById('ai-generated-canvas');
   const statusPill = document.getElementById('ai-status-pill');
   const blockBadge = document.getElementById('ai-block-type-badge');
-  const btnAccept = document.getElementById('btn-accept-ai');
-  const btnDiscard = document.getElementById('btn-discard-ai');
+  const btnAccept = document.getElementById('btn-accept-ai') as HTMLButtonElement | null;
+  const btnDiscard = document.getElementById('btn-discard-ai') as HTMLButtonElement | null;
   const presetBtns = document.querySelectorAll<HTMLElement>('.preset-prompt-btn');
 
   const EXAMPLES: Record<string, { type: string; html: string }> = {
@@ -148,11 +148,20 @@
     },
   };
 
-  function pickExample(prompt: string): string {
+  // The simulation's whole vocabulary is these three blocks. A prompt that fits none of
+  // them gets no proposal, as in the real package: the model only composes with what you declared.
+  const KEYWORDS: Record<string, string[]> = {
+    hours: ['hour', 'open', 'schedule', 'time', 'horario', 'abierto'],
+    grid: ['three', 'highlight', 'menu', 'feature', 'grid', 'side by side', 'destacad'],
+    cta: ['action', 'order', 'cake', 'button', 'buy', 'cta', 'pedido', 'tarta'],
+  };
+
+  function pickExample(prompt: string): string | null {
     const lower = prompt.toLowerCase();
-    if (lower.includes('three') || lower.includes('highlight') || lower.includes('menu')) return 'grid';
-    if (lower.includes('action') || lower.includes('order') || lower.includes('cake')) return 'cta';
-    return 'hours';
+    for (const [example, words] of Object.entries(KEYWORDS)) {
+      if (words.some((word) => lower.includes(word))) return example;
+    }
+    return null;
   }
 
   function setStatus(text: string, tone: string) {
@@ -161,30 +170,68 @@
     statusPill.dataset.tone = tone;
   }
 
+  // Accept and Discard only make sense while there is a proposal on screen
+  function setDecision(enabled: boolean) {
+    if (btnAccept) btnAccept.disabled = !enabled;
+    if (btnDiscard) btnDiscard.disabled = !enabled;
+  }
+
   function show(example: string) {
     const chosen = EXAMPLES[example] ?? EXAMPLES.hours;
     if (canvas) canvas.innerHTML = chosen.html;
     if (blockBadge) blockBadge.textContent = chosen.type;
-    setStatus('Simulated proposal: nothing is saved', 'idle');
+    setStatus('Proposal: nothing is saved yet', 'idle');
+    setDecision(true);
+  }
+
+  function showNoMatch() {
+    if (canvas) {
+      canvas.innerHTML = `
+        <div class="sample">
+          <span class="sample-tag">No proposal</span>
+          <h4>No declared block fits that</h4>
+          <p>This simulation knows three blocks: OpeningHours, FeatureGrid and CallToAction. The real composer works the same way: it does not invent a block your developers did not declare.</p>
+        </div>`;
+    }
+    if (blockBadge) blockBadge.textContent = 'none';
+    setStatus('No matching block: nothing to accept', 'no');
+    setDecision(false);
+  }
+
+  function syncRun() {
+    if (btnRun) btnRun.disabled = !(promptInput?.value ?? '').trim();
   }
 
   presetBtns.forEach((btn) => {
     btn.addEventListener('click', () => {
       if (promptInput && btn.dataset.prompt) promptInput.value = btn.dataset.prompt;
+      syncRun();
       show(btn.dataset.example ?? 'hours');
     });
   });
 
-  btnRun?.addEventListener('click', () => show(pickExample(promptInput?.value ?? '')));
+  promptInput?.addEventListener('input', syncRun);
+
+  btnRun?.addEventListener('click', () => {
+    const prompt = (promptInput?.value ?? '').trim();
+    if (!prompt) return;
+    const example = pickExample(prompt);
+    if (example) show(example);
+    else showNoMatch();
+  });
 
   btnAccept?.addEventListener('click', () => {
-    setStatus('Simulated: a real project would now save these blocks to your CMS', 'ok');
+    setStatus('Accepted: a real project would now save these blocks to your CMS', 'ok');
+    setDecision(false);
   });
 
   btnDiscard?.addEventListener('click', () => {
     if (canvas) canvas.innerHTML = '<p>Proposal discarded. Nothing was saved.</p>';
-    setStatus('Simulated: proposal discarded', 'no');
+    if (blockBadge) blockBadge.textContent = 'none';
+    setStatus('Discarded: nothing was saved', 'no');
+    setDecision(false);
   });
 
+  syncRun();
   show('hours');
 </script>

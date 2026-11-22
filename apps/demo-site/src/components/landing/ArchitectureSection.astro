@@ -33,7 +33,7 @@ const steps = [
       <span class="h-display drift-l">Clean, secure architecture.</span>
       <span class="h-serif drift-r">Your credentials never touch the browser.</span>
     </h2>
-    <p class="lede">Visitors get nothing from the editor, and CMS credentials stay on your server.</p>
+    <p class="lede">Visitors get nothing from the editor (CI checks it on Astro 5, 6 and 7), tokens and passwords never leave the server, and in production a write nobody allowed is answered 403 before it reaches your CMS.</p>
 
     <ol class="route">
       <li class="route-line" data-scroll aria-hidden="true"></li>
@@ -49,19 +49,5 @@ const steps = [
       }
     </ol>
 
-    <ul class="rules">
-      <li>
-        <strong>Nothing from the editor for visitors</strong>
-        In production a visitor gets the page with nothing from the editor. CI checks it for Astro 5, 6 and 7.
-      </li>
-      <li>
-        <strong>Isolated secrets</strong>
-        API tokens and application passwords never leave the server.
-      </li>
-      <li>
-        <strong>Fail-closed in production</strong>
-        A write that is not allowed is answered 403 before anything reaches your CMS.
-      </li>
-    </ul>
   </div>
 </section>

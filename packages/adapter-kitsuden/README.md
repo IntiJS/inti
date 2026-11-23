@@ -33,13 +33,16 @@ Reading published pages needs no key. Block types keep their Kitsuden name: `her
 
 ### In an Astro site
 
-`@intijs/adapter-kitsuden/astro` has what every Kitsuden site used to copy: `kitsudenMiddleware` (editor sessions, visitor IP, private editor responses, HTML cache, 503 when Kitsuden is down), `createPageCache` + `purgeRoute` (emptied by a Kitsuden webhook), `mediaPresetRoute` / `mediaFileRoute` / `imageSrc` (media from the site's origin, Range for video), the `data-inti-*` markup helpers, `stripSecretsForBuild` and `kitsudenActions`. `adapter.composerBlockTypes()` builds the editor palette from `/block-types`.
+`@intijs/adapter-kitsuden/astro` has what every Kitsuden site used to copy: `kitsudenMiddleware` (editor sessions looked up only with a Kitsuden cookie and remembered for a few seconds, visitor IP, and delivery through the core's `intiDelivery`: HTML cache, CDN headers, editor markup only for editors, 503 when Kitsuden is down), `purgeRoute` (a signed Kitsuden webhook empties the core cache), `mediaPresetRoute` / `mediaFileRoute` / `imageSrc` (media from the site's origin, Range for video), `kitsudenImage` + `mediaTransformRoute` (AVIF, WebP and `srcset` from `/transform`, cached as immutable), the `data-inti-*` markup helpers, `stripSecretsForBuild` and `kitsudenActions`.
+
+The adapter also has `getRenderedPage(slug)` (`/render/:slug`, visible blocks with their styles), `fetchNavigation()` (`mainNav` from the settings), `search()` (`/api/search`), conditional writes (`If-Match` with the block's version, no read first, a 409 when it changed) and `kitsudenCatalogSource` (a dataset as a catalog).
 
 ```ts
 // src/middleware.ts
-import { kitsudenMiddleware, createPageCache } from '@intijs/adapter-kitsuden/astro';
+import { createCacheManager } from '@intijs/core/cache';
+import { kitsudenMiddleware } from '@intijs/adapter-kitsuden/astro';
 
-export const cache = createPageCache({ ttlSeconds: 60 });
+export const cache = createCacheManager({ defaultTtl: 60, staleIfError: 86_400 });
 export const onRequest = kitsudenMiddleware({ api: process.env.KITSUDEN_API_URL!, cache });
 ```
 

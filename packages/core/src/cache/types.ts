@@ -14,6 +14,11 @@ export interface CacheConfig {
     defaultTtl?: number;
     /** Stale-while-revalidate window in seconds (default: 60) */
     swr?: number;
+    /**
+     * Seconds past the SWR window a stale entry is still served when the
+     * source fails (default: 0). It keeps a site up while its CMS is down.
+     */
+    staleIfError?: number;
     /** Max entries in memory cache (default: 1000) */
     maxEntries?: number;
     /** Cache provider */
@@ -31,6 +36,8 @@ export interface CacheEntry<T = any> {
     createdAt: number;
     ttl: number;
     swr: number;
+    /** Seconds past `ttl + swr` the entry is kept for when the source fails */
+    staleIfError?: number;
     tags: string[];
     etag?: string;
 }
@@ -56,6 +63,7 @@ export interface CacheProvider {
 export interface CacheSetOptions {
     ttl?: number;
     swr?: number;
+    staleIfError?: number;
     tags?: string[];
 }
 

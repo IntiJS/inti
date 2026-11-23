@@ -37,8 +37,10 @@ describe('generateProject', () => {
             test('the complete setup from AGENTS.md: no step is missing', () => {
                 expect(files['astro.config.mjs']).toContain("output: 'server'");
                 expect(files['astro.config.mjs']).toContain("adapter: node({ mode: 'standalone' })");
-                expect(files['astro.config.mjs']).toContain('integrations: [inti()]');
-                expect(files['src/actions/index.ts']).toContain('export const server = { inti: intiActions }');
+                // A store adds Svelte for its islands, and an order action next to the editing ones
+                expect(files['astro.config.mjs']).toMatch(/integrations: \[inti\(\)(, svelte\(\))?\]/);
+                expect(files['src/actions/index.ts']).toContain('export const server = {');
+                expect(files['src/actions/index.ts']).toMatch(/inti: intiActions/);
                 expect(files['src/pages/[...slug].astro']).toContain("registerBlocks(import.meta.glob('/src/blocks/*.astro'))");
                 expect(files['src/pages/[...slug].astro']).toContain('<BlockRenderer blocks={page.blocks} page={page} />');
                 expect(files['src/pages/[...slug].astro']).toContain('<VisualBridgeAuto />');
@@ -60,6 +62,11 @@ describe('generateProject', () => {
             });
 
             test('the production plugin is documented in the middleware, and no permissive one is registered', () => {
+                // Kitsuden's middleware registers its own plugin: editors are Kitsuden users with a role
+                if (cms === 'kitsuden') {
+                    expect(files['src/middleware.ts']).toContain('kitsudenMiddleware');
+                    return;
+                }
                 expect(files['src/middleware.ts']).toContain('registerIntiPlugin');
                 // The whole example is commented out: without a plugin, production stays closed
                 expect(files['src/middleware.ts']).not.toMatch(/^registerIntiPlugin/m);
@@ -217,7 +224,7 @@ describe('--packages', () => {
         expect(deps.astro).toBe(VERSIONS.astro);
     });
 
-    test('points every @intijs dependency at its tarball, relative to the project', () => {
+    test('copies every @intijs tarball into vendor/ and depends on it there', () => {
         const cwd = tmp();
         mkdirSync(join(cwd, 'tarballs'));
         for (const file of ['intijs-core-0.1.0.tgz', 'intijs-adapter-strapi-0.1.0.tgz', 'intijs-adapter-wordpress-0.1.0.tgz']) {
@@ -228,8 +235,10 @@ describe('--packages', () => {
         expect(result.status).toBe(0);
 
         const deps = JSON.parse(readFileSync(join(cwd, 'site/package.json'), 'utf8')).dependencies;
-        expect(deps['@intijs/core']).toBe('file:../tarballs/intijs-core-0.1.0.tgz');
-        expect(deps['@intijs/adapter-strapi']).toBe('file:../tarballs/intijs-adapter-strapi-0.1.0.tgz');
+        expect(deps['@intijs/core']).toBe('file:vendor/intijs-core-0.1.0.tgz');
+        expect(deps['@intijs/adapter-strapi']).toBe('file:vendor/intijs-adapter-strapi-0.1.0.tgz');
+        // The project builds without the folder it was generated from (a Docker image, another machine)
+        expect(readFileSync(join(cwd, 'site/Dockerfile'), 'utf8')).toContain('COPY vendor ./vendor');
         expect(deps['@intijs/adapter-wordpress']).toBeUndefined();
         for (const spec of [deps['@intijs/core'], deps['@intijs/adapter-strapi']]) {
             expect(existsSync(resolve(cwd, 'site', spec.slice('file:'.length)))).toBe(true);
@@ -251,5 +260,78 @@ describe('--packages', () => {
     test('without --packages the project depends on the npm range', () => {
         const deps = JSON.parse(generateProject({ name: 'x', cms: 'local' })['package.json']).dependencies;
         expect(deps['@intijs/core']).toBe(VERSIONS.inti);
+    });
+});
+
+describe('delivery', () => {
+    test('the page answers 404 only for a missing page and 503 for any other read failure', () => {
+        const page = generateProject({ name: 'site', cms: 'wordpress' })['src/pages/[...slug].astro'];
+        expect(page).toContain('return pageErrorResponse(error);');
+        expect(page).not.toContain('status: 404');
+    });
+
+    test('the image runs as node, without dev dependencies, and only the local store ships content', () => {
+        const wordpress = generateProject({ name: 'site', cms: 'wordpress' });
+        expect(wordpress.Dockerfile).toContain('USER node');
+        expect(wordpress.Dockerfile).toContain('npm prune --omit=dev');
+        expect(wordpress.Dockerfile).not.toContain('.inti');
+        expect(wordpress.Dockerfile).not.toContain('COPY vendor');
+        expect(wordpress['.dockerignore']).toContain('.env');
+        expect(generateProject({ name: 'site', cms: 'local' }).Dockerfile).toContain('/app/.inti ./.inti');
+    });
+});
+
+describe('odoo store', () => {
+    const files = generateProject({ name: 'shop', cms: 'odoo' });
+
+    test('pages from the local store, products from Odoo, islands from tallao', () => {
+        expect(files['src/lib/cms.ts']).toContain('LocalAdapter');
+        expect(files['src/lib/catalog.ts']).toContain('odooCatalogSource');
+        expect(files['src/lib/catalog.ts']).toContain('envKeyStore(env)');
+        const pkg = JSON.parse(files['package.json']);
+        expect(pkg.dependencies.tallao).toBeDefined();
+        expect(pkg.dependencies['@astrojs/svelte']).toBeDefined();
+        expect(files['src/components/BuyBox.svelte']).toContain("from 'tallao'");
+    });
+
+    test('a product page answers 404 or 503 by what happened, and tags its HTML with the product', () => {
+        const page = files['src/pages/products/[slug].astro'];
+        expect(page).toContain('return pageErrorResponse(error);');
+        expect(page).toContain("Astro.locals.intiCacheTags = itemCacheTags('odoo', item)");
+        expect(page).toContain('client:visible');
+    });
+
+    test('the order travels as references and quantities only: Odoo prices it', () => {
+        expect(files['src/actions/index.ts']).toContain('createOdooOrder(odoo, input)');
+        expect(files['src/actions/index.ts']).not.toMatch(/price\w*\s*:/);
+    });
+
+    test('the image proxy, the purge route and the sitemap index are there', () => {
+        expect(files['src/pages/media/odoo/[model]/[id]/[size].ts']).toContain('odooImageRoute');
+        expect(files['src/pages/api/odoo/purge.ts']).toContain("token: () => env('INTI_ODOO_PURGE_TOKEN')");
+        expect(files['src/pages/sitemap.xml.ts']).toContain('sitemapIndexRoute');
+        expect(files['.env.example']).toContain('INTI_ODOO_API_KEY_NEXT');
+    });
+});
+
+describe('kitsuden site', () => {
+    const files = generateProject({ name: 'site', cms: 'kitsuden' });
+
+    test('delivers through the Kitsuden middleware with one cache for pages and HTML', () => {
+        expect(files['src/middleware.ts']).toContain('kitsudenMiddleware({ api: endpoint ??');
+        expect(files['src/lib/cms.ts']).toContain('createCacheManager');
+        expect(files['src/lib/cms.ts']).toContain("siteKey: env('INTI_KITSUDEN_SITE_KEY')");
+        expect(files['src/lib/cms.ts']).toContain('getRenderedPage');
+    });
+
+    test('has the purge route and the media routes, and documents their variables', () => {
+        expect(files['src/pages/api/kitsuden/purge.ts']).toContain("purgeRoute(cache, () => env('INTI_KITSUDEN_PURGE_SECRET'))");
+        expect(files['src/pages/img/t/[id]/[file].ts']).toContain('mediaTransformRoute');
+        expect(files['src/pages/img/[id]/[preset].ts']).toContain('mediaPresetRoute');
+        expect(files['.env.example']).toContain('INTI_KITSUDEN_PURGE_SECRET=');
+    });
+
+    test('editors read fresh pages with every block', () => {
+        expect(files['src/pages/[...slug].astro']).toContain('readPage(slug, { editor: Boolean(Astro.locals.intiEditor) })');
     });
 });

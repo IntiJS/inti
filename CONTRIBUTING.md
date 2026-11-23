@@ -21,6 +21,9 @@ The monorepo uses npm workspaces. All packages live in `packages/` and apps in `
 - **Build everything**: `npm run build`, in dependency order
 - **Run tests**: `npm test`
 - **Dev server**: `npm run dev` (starts the demo site)
+- **Look at it in a browser**: the `webtest` skill (`.claude/skills/webtest/SKILL.md`) runs Playwright
+  scripts against the demo site. Setup: `npm install --prefix .claude/skills/webtest` and
+  `npx --prefix .claude/skills/webtest playwright install chromium`.
 
 These run a real project end to end, and they are slower:
 

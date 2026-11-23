@@ -11,6 +11,8 @@
  * The prompt interface lives in bin/create-inti.js.
  */
 
+import { STORE_ACTIONS, STORE_ASTRO_CONFIG, STORE_DEPENDENCIES, STORE_ENV, STORE_MIDDLEWARE_DELIVERY, storeFiles } from './store.js';
+
 /** Dependency versions for the generated project */
 export const VERSIONS = {
     // Pinned to 7.3: Astro 7.4 requires Node 22.23.4, and a `^` would make the same command
@@ -67,8 +69,17 @@ export const CMS = {
         hint: 'Files in your repo, locally or via GitHub',
         package: '@intijs/adapter-keystatic',
         block: { file: 'hero.astro', type: 'hero', native: 'hero', heading: 'heading', text: 'subheading' }
+    },
+    odoo: {
+        label: 'Odoo (store)',
+        hint: 'Pages in the local store, products, stock and orders from Odoo',
+        package: '@intijs/adapter-odoo',
+        block: { file: 'Hero.astro', type: 'Hero', native: 'Hero', heading: 'heading', text: 'subheading' }
     }
 };
+
+/** A store keeps its pages in the local store: Odoo is the catalog, not the pages */
+const pagesFromLocalStore = (cms) => cms === 'local' || cms === 'odoo';
 
 export const CMS_IDS = Object.keys(CMS);
 
@@ -102,6 +113,7 @@ function packageJson(name, cms, packages = {}) {
         astro: VERSIONS.astro
     };
     for (const dep of intiPackages(cms)) dependencies[dep] = packages[dep] ?? VERSIONS.inti;
+    if (cms === 'odoo') for (const [dep, version] of Object.entries(STORE_DEPENDENCIES)) dependencies[dep] = packages[dep] ?? version;
 
     const sorted = Object.fromEntries(Object.entries(dependencies).sort(([a], [b]) => a.localeCompare(b)));
 
@@ -158,6 +170,44 @@ const ACTIONS = `import { intiActions } from '@intijs/core/actions';
 export const server = { inti: intiActions };
 `;
 
+/**
+ * Kitsuden's middleware does more than say who edits: it registers the
+ * Kitsuden editor plugin, keeps the HTML cache, sends CDN headers and answers
+ * 503 with a stale copy when Kitsuden is down.
+ */
+const KITSUDEN_MIDDLEWARE = `import { kitsudenMiddleware } from '@intijs/adapter-kitsuden/astro';
+import { cache, endpoint } from './lib/cms';
+
+// Editors are Kitsuden users with the admin or editor role, recognised by
+// their Kitsuden session. Anonymous visitors get the cached HTML.
+export const onRequest = kitsudenMiddleware({ api: endpoint ?? '', cache });
+`;
+
+const KITSUDEN_ROUTES = {
+    'src/pages/api/kitsuden/purge.ts': `import { purgeRoute } from '@intijs/adapter-kitsuden/astro';
+import { env } from '@intijs/core/server';
+import { cache } from '../../../lib/cms';
+
+export const prerender = false;
+// Point a Kitsuden action's outbound webhook on page:updated and page:deleted here
+export const POST = purgeRoute(cache, () => env('INTI_KITSUDEN_PURGE_SECRET'));
+`,
+    'src/pages/img/[id]/[preset].ts': `import { mediaPresetRoute } from '@intijs/adapter-kitsuden/astro';
+import { endpoint } from '../../../lib/cms';
+
+export const prerender = false;
+// Media from the site's own origin: the CMS address never reaches the HTML
+export const GET = mediaPresetRoute(() => endpoint ?? '');
+`,
+    'src/pages/img/t/[id]/[file].ts': `import { mediaTransformRoute } from '@intijs/adapter-kitsuden/astro';
+import { endpoint } from '../../../../lib/cms';
+
+export const prerender = false;
+// AVIF, WebP and every width of kitsudenImage(), cached for a year: Kitsuden never changes them
+export const GET = mediaTransformRoute(() => endpoint ?? '');
+`
+};
+
 const MIDDLEWARE = `import { defineMiddleware } from 'astro:middleware';
 
 /**
@@ -185,6 +235,7 @@ export const onRequest = defineMiddleware((_context, next) => next());
 
 function cmsModule(cms) {
     switch (cms) {
+        case 'odoo':
         case 'local':
             return `import { LocalAdapter } from '@intijs/core/adapters/local';
 
@@ -195,7 +246,7 @@ function cmsModule(cms) {
  */
 const adapter = new LocalAdapter();
 
-export function readPage(slug: string) {
+export function readPage(slug: string, _options: { editor?: boolean } = {}) {
     return adapter.fetchPageBySlug(slug);
 }
 `;
@@ -214,27 +265,44 @@ const adapter = new WordPressAdapter({
     postType: env('INTI_WP_POST_TYPE')
 });
 
-export function readPage(slug: string) {
+export function readPage(slug: string, _options: { editor?: boolean } = {}) {
     if (!endpoint) throw new Error('INTI_WP_ENDPOINT is missing from .env (copy .env.example)');
     return adapter.fetchPageBySlug(slug);
 }
 `;
         case 'kitsuden':
             return `import { KitsudenAdapter } from '@intijs/adapter-kitsuden';
+import { currentVisitorIp } from '@intijs/adapter-kitsuden/astro';
+import { cachePages, createCacheManager } from '@intijs/core/cache';
 import { env } from '@intijs/core/server';
 
 // env() also reads the server's variables at startup. import.meta.env only
 // sees the ones present at build time, so a Docker image or a platform that
 // injects them at runtime would answer 404 on every page.
-const endpoint = env('INTI_KITSUDEN_ENDPOINT');
+export const endpoint = env('INTI_KITSUDEN_ENDPOINT');
 
-// Reading published pages needs no key: the key is only used by
-// writes, on the server.
-const adapter = new KitsudenAdapter({ endpoint: endpoint ?? '' });
+// Reading published pages needs no key: the key is only used by writes, on
+// the server. With the site key Kitsuden counts each visitor apart instead of
+// putting every read of this server in one rate-limit bucket.
+const adapter = new KitsudenAdapter({
+    endpoint: endpoint ?? '',
+    siteKey: env('INTI_KITSUDEN_SITE_KEY'),
+    clientIp: currentVisitorIp
+});
 
-export function readPage(slug: string) {
+// One cache for the pages and their HTML: kept 60 s, refreshed in the
+// background, and served stale for a day if Kitsuden is down. The purge route
+// empties it when Kitsuden says a page changed. With several instances, give
+// it a Valkey provider (createValkeyCacheProvider).
+export const cache = createCacheManager({ defaultTtl: 60, swr: 300, staleIfError: 86400 });
+
+// Visitors read the rendered page (published, visible blocks only), cached
+const rendered = cachePages({ name: 'kitsuden-render', fetchPageBySlug: (slug) => adapter.getRenderedPage(slug) }, { cache });
+
+/** Editors read every block, hidden ones included, fresh: they are about to change it */
+export function readPage(slug: string, { editor = false }: { editor?: boolean } = {}) {
     if (!endpoint) throw new Error('INTI_KITSUDEN_ENDPOINT is missing from .env (copy .env.example)');
-    return adapter.getPage(slug);
+    return editor ? adapter.getPage(slug) : rendered.fetchPageBySlug(slug);
 }
 `;
         case 'strapi':
@@ -253,7 +321,7 @@ const adapter = new StrapiAdapter({
     blocksField: env('INTI_STRAPI_BLOCKS_FIELD')
 });
 
-export function readPage(slug: string) {
+export function readPage(slug: string, _options: { editor?: boolean } = {}) {
     if (!endpoint) throw new Error('INTI_STRAPI_ENDPOINT is missing from .env (copy .env.example)');
     return adapter.fetchPageBySlug(slug);
 }
@@ -273,7 +341,7 @@ const adapter = new KeystaticAdapter({
     blocksField: env('INTI_KEYSTATIC_BLOCKS_FIELD')
 });
 
-export function readPage(slug: string) {
+export function readPage(slug: string, _options: { editor?: boolean } = {}) {
     return adapter.fetchPageBySlug(slug);
 }
 `;
@@ -287,7 +355,7 @@ import Layout from '../layouts/Layout.astro';
 import { registerBlocks } from '@intijs/core/registry';
 import BlockRenderer from '@intijs/core/astro/BlockRenderer.astro';
 import VisualBridgeAuto from '@intijs/core/visual-bridge/VisualBridgeAuto.astro';
-import { readDraftPage } from '@intijs/core/server';
+import { pageErrorResponse, readDraftPage } from '@intijs/core/server';
 import { readPage } from '../lib/cms';
 
 // Each file in src/blocks is a block type: the file name
@@ -300,10 +368,12 @@ let page;
 try {
     // The draft only exists for someone with an editor session; for any
     // other visitor this is null and the published version is read
-    page = (await readDraftPage(slug, Astro)) ?? (await readPage(slug));
+    page = (await readDraftPage(slug, Astro)) ?? (await readPage(slug, { editor: Boolean(Astro.locals.intiEditor) }));
 } catch (error) {
-    const detail = import.meta.env.DEV && error instanceof Error ? \`: \${error.message}\` : '';
-    return new Response(\`Page not found\${detail}\`, { status: 404 });
+    // 404 only when the CMS says the page does not exist. A timeout or a 500
+    // is a 503 with Retry-After, so a search engine comes back instead of
+    // dropping a page that exists.
+    return pageErrorResponse(error);
 }
 ---
 
@@ -353,7 +423,7 @@ function blockComponent(cms) {
     return `---
 /**
  * "${b.type}" block. The file name is the block type${
-        cms === 'local' ? '' : `: in ${CMS[cms].label} it maps to "${b.native}"`
+        pagesFromLocalStore(cms) ? '' : `: in ${CMS[cms].label} it maps to "${b.native}"`
     }.
  * The CMS fields arrive as props. data-inti-field marks which field is
  * edited by double-clicking that element.
@@ -450,6 +520,11 @@ function envExample(cms) {
 # Without INTI_ADAPTER, Inti writes to the local store.
 # INTI_LOCAL_STORE=.inti/content.json
 `;
+        case 'odoo':
+            return `${common}
+# The pages live in the local store (.inti/content.json); mount a volume on it in production
+# INTI_LOCAL_STORE=.inti/content.json
+${STORE_ENV}`;
         case 'wordpress':
             return `${common}
 INTI_ADAPTER=wordpress
@@ -467,6 +542,11 @@ INTI_ADAPTER=kitsuden
 INTI_KITSUDEN_ENDPOINT=https://cms.yoursite.com
 # AGENT key (kitsuden_agent_…). Only for writing.
 INTI_KITSUDEN_TOKEN=
+# Kitsuden's SITE_API_KEY: reads are counted per visitor, not per server
+INTI_KITSUDEN_SITE_KEY=
+# Secret of the Kitsuden action whose outbound webhook (page:updated, page:deleted)
+# posts to /api/kitsuden/purge
+INTI_KITSUDEN_PURGE_SECRET=
 `;
         case 'strapi':
             return `${common}
@@ -493,6 +573,57 @@ INTI_ADAPTER=keystatic
             throw new Error(`Unknown CMS: ${cms}`);
     }
 }
+
+/**
+ * The production image: the standalone server Astro builds, run as the
+ * unprivileged `node` user. Dependencies are installed with the lockfile and
+ * dev dependencies are dropped after the build.
+ *
+ * - `vendor`: the project depends on tarballs copied into `vendor/` (the
+ *   packages are not on npm yet), which have to be in the image before
+ *   installing.
+ * - `localStore`: the local JSON store ships in the image.
+ */
+function dockerfile({ vendor, localStore }) {
+    return [
+        '# syntax=docker/dockerfile:1',
+        'FROM node:22-slim AS build',
+        'WORKDIR /app',
+        'COPY package.json package-lock.json* ./',
+        ...(vendor ? ['COPY vendor ./vendor'] : []),
+        'RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi',
+        'COPY . .',
+        'RUN npm run build && npm prune --omit=dev',
+        '',
+        'FROM node:22-slim',
+        'WORKDIR /app',
+        'ENV NODE_ENV=production HOST=0.0.0.0 PORT=4321',
+        'COPY --from=build --chown=node:node /app/package.json ./',
+        'COPY --from=build --chown=node:node /app/node_modules ./node_modules',
+        'COPY --from=build --chown=node:node /app/dist ./dist',
+        ...(localStore
+            ? [
+                  '# The local store is a file: mount a volume on /app/.inti to keep the edits',
+                  'COPY --from=build --chown=node:node /app/.inti ./.inti'
+              ]
+            : []),
+        'USER node',
+        'EXPOSE 4321',
+        '# "The server answers", not "the CMS answers": a CMS outage is a 503, not a reason to restart',
+        `HEALTHCHECK --interval=30s --timeout=5s CMD node -e "fetch('http://127.0.0.1:4321/').then(() => process.exit(0), () => process.exit(1))"`,
+        'CMD ["node", "./dist/server/entry.mjs"]',
+        ''
+    ].join('\n');
+}
+
+const DOCKERIGNORE = `node_modules
+dist
+.astro
+.env
+.env.*
+!.env.example
+.git
+`;
 
 const GITIGNORE = `node_modules/
 dist/
@@ -542,6 +673,13 @@ In production Inti rejects edits until you decide who may make them. See \`src/m
 npm run build
 npm start
 \`\`\`
+
+Or as a container (the variables of \`.env\` are passed at run time, never baked into the image):
+
+\`\`\`bash
+docker build -t ${name} .
+docker run -p 4321:4321 --env-file .env ${name}
+\`\`\`
 `;
 }
 
@@ -556,27 +694,41 @@ export function generateProject({ name, cms, packages }) {
 
     const files = {
         'package.json': packageJson(name, cms, packages),
-        'astro.config.mjs': ASTRO_CONFIG,
+        'astro.config.mjs': cms === 'odoo' ? STORE_ASTRO_CONFIG : ASTRO_CONFIG,
         'tsconfig.json': TSCONFIG,
         '.gitignore': GITIGNORE,
+        Dockerfile: dockerfile({
+            vendor: Object.values(packages ?? {}).some((spec) => String(spec).startsWith('file:vendor/')),
+            localStore: pagesFromLocalStore(cms)
+        }),
+        '.dockerignore': DOCKERIGNORE,
         '.env.example': envExample(cms),
         'README.md': readme(name, cms),
         'src/actions/index.ts': ACTIONS,
-        'src/middleware.ts': MIDDLEWARE,
+        'src/middleware.ts':
+            cms === 'odoo'
+                ? MIDDLEWARE.replace("export const onRequest = defineMiddleware((_context, next) => next());", STORE_MIDDLEWARE_DELIVERY.trim())
+                : cms === 'kitsuden'
+                  ? KITSUDEN_MIDDLEWARE
+                  : MIDDLEWARE,
         'src/lib/cms.ts': cmsModule(cms),
         'src/pages/[...slug].astro': PAGE,
         'src/layouts/Layout.astro': LAYOUT,
         [`src/blocks/${CMS[cms].block.file}`]: blockComponent(cms)
     };
 
+    if (cms === 'kitsuden') Object.assign(files, KITSUDEN_ROUTES);
+
     if (cms === 'keystatic') {
         files['content/pages/home.yaml'] = KEYSTATIC_HOME;
     }
 
-    if (cms === 'local') {
+    if (pagesFromLocalStore(cms)) {
         files['src/blocks/Text.astro'] = TEXT_BLOCK;
         files['.inti/content.json'] = localContent();
     }
+
+    if (cms === 'odoo') Object.assign(files, storeFiles());
 
     return files;
 }

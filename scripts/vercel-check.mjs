@@ -103,9 +103,10 @@ export const server = { inti: intiActions };
 `,
 
     // The Kitsuden middleware: it registers the editor plugin, so writes are guarded
-    'src/middleware.ts': () => `import { kitsudenMiddleware, createPageCache } from '@intijs/adapter-kitsuden/astro';
+    'src/middleware.ts': () => `import { createCacheManager } from '@intijs/core/cache';
+import { kitsudenMiddleware } from '@intijs/adapter-kitsuden/astro';
 
-export const cache = createPageCache({ ttlSeconds: 30 });
+export const cache = createCacheManager({ defaultTtl: 30, staleIfError: 86400 });
 export const onRequest = kitsudenMiddleware({ api: process.env.KITSUDEN_API_URL ?? 'https://cms.invalid', cache });
 `,
 

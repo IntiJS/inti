@@ -1,0 +1,29 @@
+# Throwaway Odoo for scripts/odoo-check.mjs: its own project, network, volumes and port.
+# ODOO_VERSION picks the image (19, 20). Test-only passwords, listening on 127.0.0.1 only.
+name: inti-odoo-check
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: inti-check-only
+      POSTGRES_DB: postgres
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U odoo']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  odoo:
+    image: odoo:${ODOO_VERSION:-19}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:43590:8069'
+    environment:
+      HOST: db
+      USER: odoo
+      PASSWORD: inti-check-only
+    command: ['--', '--database=inti', '--db-filter=^inti$$', '--without-demo=True']

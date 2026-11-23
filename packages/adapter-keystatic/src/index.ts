@@ -19,6 +19,7 @@
  * Rewriting a YAML file keeps its data, but not its comments or style.
  */
 
+import { NotFoundError } from '@intijs/core/errors';
 import yaml from 'js-yaml';
 import { IntiAdapter } from '@intijs/core/adapters';
 import type {
@@ -239,7 +240,7 @@ export class KeystaticAdapter
     async fetchPageBySlug(slug: string): Promise<IntiPage> {
         const { path } = this.locate(slug);
         const entry = await this.readEntry(path);
-        if (!entry) throw new Error(`Page not found for slug: ${slug}`);
+        if (!entry) throw new NotFoundError('page', slug, `Page not found for slug: ${slug}`);
         return this.parsePage({ ...entry, slug });
     }
 

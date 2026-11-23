@@ -154,6 +154,52 @@ const { heading, cta, image, intiBlock } = Astro.props;
 </section>
 `,
 
+    // Delivery: CDN headers, the HTML cache, no editor markup for visitors,
+    // and 404/503 decided by the error the page throws.
+    'src/middleware.ts': () => `import { createCacheManager } from '@intijs/core/cache';
+import { intiDelivery } from '@intijs/core/delivery';
+
+export const cache = createCacheManager();
+export const onRequest = intiDelivery({ cache });
+`,
+
+    'src/pages/api/inti/purge.ts': () => `import { purgeRoute } from '@intijs/core/delivery';
+import { cache } from '../../../middleware';
+
+export const prerender = false;
+export const POST = purgeRoute({ cache, secret: 'compat-secret' });
+`,
+
+    'src/pages/fail/[kind].astro': () => `---
+import { NotFoundError, UnavailableError } from '@intijs/core/errors';
+import { pageErrorResponse } from '@intijs/core/server';
+
+try {
+    if (Astro.params.kind === 'missing') throw new NotFoundError('page', 'missing');
+    throw new UnavailableError('CMS down', { retryAfter: 90 });
+} catch (error) {
+    return pageErrorResponse(error);
+}
+---
+`,
+
+    // Adaptive zone as a server island: the page is the same for everybody
+    // and cacheable; only the island is private.
+    'src/pages/zone.astro': () => `---
+import { registerBlocks } from '@intijs/core/registry';
+import BlockRenderer from '@intijs/core/astro/BlockRenderer.astro';
+
+registerBlocks(import.meta.glob('/src/blocks/*.astro'));
+
+const blocks = [
+    { type: 'HeroBanner', data: { heading: 'DEFAULT VERSION', inti_slot: 'hero' }, meta: { index: 0 } },
+    { type: 'HeroBanner', data: { heading: 'MOBILE VERSION', inti_slot: 'hero', inti_audience: 'device:mobile' }, meta: { index: 1 } },
+    { type: 'HeroBanner', data: { heading: 'Always here' }, meta: { index: 2 } }
+];
+---
+<html lang="en"><body><BlockRenderer blocks={blocks} adaptive="island" audit={false} /></body></html>
+`,
+
     // The same route that AGENTS.md and the quick start document. It used to
     // be index.astro, and the documented dynamic route —which does not
     // compile without output: 'server'— was never tested.
@@ -418,6 +464,54 @@ async function checkProduction(cwd) {
             failures.push('a block without a component shows in production');
         }
         if (!html.includes('srcset=')) failures.push('<IntiImage> does not emit srcset');
+
+        if (html.includes('data-inti-field')) failures.push('the visitor receives the editor attributes (data-inti-field)');
+        if (!/s-maxage=\d+/.test(res.headers.get('cache-control') ?? '')) {
+            failures.push(`an anonymous page is not CDN-cacheable: Cache-Control "${res.headers.get('cache-control')}"`);
+        }
+        const again = await fetch(base + '/?utm_source=compat');
+        if (again.headers.get('x-inti-cache') !== 'HIT') failures.push('the HTML cache does not serve the second visit (tracking parameters must not split it)');
+        await again.text();
+
+        const missing = await fetch(base + '/fail/missing');
+        if (missing.status !== 404) failures.push(`a missing page answers ${missing.status}, not 404`);
+        const down = await fetch(base + '/fail/down');
+        if (down.status !== 503 || down.headers.get('retry-after') !== '90') {
+            failures.push(`a CMS that is down answers ${down.status} (Retry-After ${down.headers.get('retry-after')}), not 503 with Retry-After 90`);
+        }
+
+        const zone = await fetch(base + '/zone');
+        const zoneHtml = await zone.text();
+        if (!/s-maxage=\d+/.test(zone.headers.get('cache-control') ?? '')) {
+            failures.push(`a page with an adaptive zone in island mode is not cacheable: "${zone.headers.get('cache-control')}"`);
+        }
+        if (!zoneHtml.includes('DEFAULT VERSION') || zoneHtml.includes('MOBILE VERSION') || !zoneHtml.includes('Always here')) {
+            failures.push('the cacheable page must carry the default version of the zone, and only that one');
+        }
+        // The request the island's own script makes: GET with the props in the
+        // query when they fit in a URL, POST with them in the body otherwise
+        // GET: Astro also preloads the URL in a <link>. POST: only the script has it
+        const preload = zoneHtml.match(/<link rel="preload" as="fetch" href="(\/_server-islands\/[^"]+)"/)?.[1];
+        const islandCall = preload
+            ? [preload, preload]
+            : zoneHtml.match(/fetch\(['"`](\/_server-islands\/[^'"`]+)['"`](?:, \{\s*method: 'POST')?/);
+        const islandData = zoneHtml.match(/let data = (\{[\s\S]*?\});\s*const headers/)?.[1];
+        if (!islandCall) {
+            const at = zoneHtml.indexOf('_server-islands');
+            failures.push(`the adaptive zone is not rendered as a server island: ${at < 0 ? zoneHtml.slice(0, 600) : zoneHtml.slice(Math.max(0, at - 400), at + 900)}`);
+        } else {
+            const mobile = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148';
+            const post = islandCall[0].includes('POST') && islandData;
+            const island = await fetch(base + islandCall[1].replace(/&amp;/g, '&'), {
+                method: post ? 'POST' : 'GET',
+                headers: { 'user-agent': mobile, ...(post ? { 'content-type': 'application/json' } : {}) },
+                // The script's object literal has a trailing comma, which JSON does not accept
+                body: post ? JSON.stringify(Function(`return (${islandData})`)()) : undefined
+            });
+            const islandHtml = await island.text();
+            if (!islandHtml.includes('MOBILE VERSION')) failures.push(`the island does not pick the visitor's version (${island.status}): ${islandHtml.slice(0, 200)}`);
+            if (!/private/.test(island.headers.get('cache-control') ?? '')) failures.push('the island response is not private');
+        }
 
         const search = await fetch(base + '/api/inti/search?collection=pages&q=a');
         if (search.status !== 401) failures.push(`/api/inti/search responds ${search.status} to an anonymous user, not 401`);

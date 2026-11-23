@@ -4,7 +4,8 @@ import FallbackBlock from "./FallbackBlock.astro";
 import { auditPage, formatAudit } from "../seo/audit.js";
 import type { AuditOptions } from "../seo/audit.js";
 import { isBlockVisible, hiddenBlocks, hiddenReason } from "../blocks/visibility.js";
-import { hasAdaptiveBlocks } from "../adapt/index.js";
+import { hasAdaptiveBlocks, slotOf, zonesOf } from "../adapt/index.js";
+import AdaptiveZone from "./AdaptiveZone.astro";
 import { resolveEditorSession } from "../server/editor-session.js";
 import type { IntiBlock, IntiPage } from "../types/index.js";
 
@@ -23,25 +24,36 @@ interface Props {
     audit?: boolean | AuditOptions;
     /** Full page, if you want the audit to cover the SEO */
     page?: Partial<IntiPage>;
+    /**
+     * `island`: each adaptive zone is a server island chosen per visitor,
+     * and the page itself stays cacheable (call no `adaptPage` then).
+     * Default: the blocks are rendered as received (after `adaptPage`).
+     */
+    adaptive?: "island";
+    /** Fraction kept on the default version in island mode, to measure */
+    holdout?: number;
 }
 
-const { blocks, editable: editableProp = import.meta.env.DEV, audit = import.meta.env.DEV, page } = Astro.props;
+const { blocks, editable: editableProp = import.meta.env.DEV, audit = import.meta.env.DEV, page, adaptive, holdout } = Astro.props;
 
 /**
  * Outside dev, `editable` embeds the data of every block —including
  * hidden and scheduled ones— in HTML that anyone could receive. It is
  * honored only if whoever requests the page has an editor session.
  */
-const editable =
-    editableProp &&
-    (import.meta.env.DEV ||
-        (
-            await resolveEditorSession({
-                request: Astro.request,
-                cookies: Astro.cookies,
-                prerendered: Astro.isPrerendered,
-            })
-        ).allowed);
+const fromMiddleware = (Astro.locals as Record<string, unknown> | undefined)?.intiEditor;
+const isEditor =
+    import.meta.env.DEV ||
+    (typeof fromMiddleware === "boolean"
+        ? fromMiddleware
+        : (
+              await resolveEditorSession({
+                  request: Astro.request,
+                  cookies: Astro.cookies,
+                  prerendered: Astro.isPrerendered,
+              })
+          ).allowed);
+const editable = editableProp && isEditor;
 
 // The audit runs on the server: it adds nothing to the HTML or the client
 if (audit) {
@@ -59,6 +71,30 @@ if (audit) {
     }
 }
 
+/**
+ * The attributes the editor finds blocks by. Only an editor gets them: for a
+ * visitor they are weight, and they describe the CMS's structure (document
+ * ids, positions) to anyone who reads the source.
+ */
+const editorAttributes = (
+    { type, id, meta, hidden }: { type: string; id?: string; meta?: IntiBlock["meta"]; hidden: boolean },
+    index: number,
+): Record<string, string | number | undefined> =>
+    isEditor
+        ? {
+              "data-inti-block": type,
+              "data-inti-block-id": id,
+              "data-inti-block-version": meta?.version,
+              "data-inti-document-id": meta?.documentId,
+              "data-inti-content-type": meta?.contentType,
+              "data-inti-locale": meta?.locale,
+              "data-inti-block-label": meta?.label,
+              "data-inti-block-index": meta?.index ?? index,
+              "data-inti-block-total": meta?.total ?? totalBlocks,
+              "data-inti-block-hidden": hidden ? "true" : undefined,
+          }
+        : {};
+
 /** JSON safe to embed in <script> (prevents premature closing of the tag) */
 const toSafeJson = (data: unknown) => JSON.stringify(data).replace(/</g, "\\u003c");
 
@@ -74,6 +110,13 @@ const toSafeJson = (data: unknown) => JSON.stringify(data).replace(/</g, "\\u003
 const hiddenList = hiddenBlocks(blocks);
 const blocksToRender = editable ? blocks : blocks.filter((block) => isBlockVisible(block));
 const totalBlocks = blocks.length;
+
+/**
+ * Island mode for a visitor: the zones are chosen per request in their own
+ * private island, and this HTML is the same for everybody. An editor still
+ * gets every version inline, to fix them.
+ */
+const zones = adaptive === "island" && !isEditor && hasAdaptiveBlocks(blocksToRender) ? zonesOf(blocksToRender) : null;
 
 if (editable && hiddenList.length > 0) {
     const details = hiddenList
@@ -142,24 +185,25 @@ const renderableBlocks = await Promise.all(
 
 {
     renderableBlocks.map(({ type, id, data, meta, hidden, Component, clientDirective }, index) => {
+        // An adaptive zone in island mode: the default version now, the visitor's one after
+        const slot = zones ? slotOf(blocksToRender[index]) : undefined;
+        if (zones && slot) {
+            const zone = zones.get(slot)!;
+            if (zone.candidates[0] !== blocksToRender[index]) return null;
+            return (
+                <AdaptiveZone server:defer blocks={zone.candidates} holdout={holdout}>
+                    <Astro.self slot="fallback" blocks={[zone.fallback]} audit={false} />
+                </AdaptiveZone>
+            );
+        }
+
         // 1. Graceful degradation (Fallback)
         if (!Component) {
             return <FallbackBlock type={type} id={id} data={data} />;
         }
 
         return (
-            <div
-                class="inti-block-wrapper"
-                data-inti-block={type}
-                data-inti-block-id={id}
-                data-inti-document-id={meta?.documentId}
-                data-inti-content-type={meta?.contentType}
-                data-inti-locale={meta?.locale}
-                data-inti-block-label={meta?.label}
-                data-inti-block-index={meta?.index ?? index}
-                data-inti-block-total={meta?.total ?? totalBlocks}
-                data-inti-block-hidden={hidden ? "true" : undefined}
-            >
+            <div class="inti-block-wrapper" {...editorAttributes({ type, id, meta, hidden }, index)}>
                 {/*
                   Besides the data, the block receives its position. It is the
                   only thing BlockRenderer knows and the component does not: it
@@ -167,7 +211,7 @@ const renderableBlocks = await Promise.all(
                   lazily, which is what decides the LCP.
                 */}
                 {/* @ts-expect-error - Dynamic Prop Spread for Astro Components */}
-                <Component {...data} intiBlock={{ index, isFirst: index === 0, total: renderableBlocks.length }} />
+                <Component {...data} intiBlock={{ index, isFirst: index === 0, total: renderableBlocks.length, style: meta?.style }} />
                 {editable && (
                     <script type="application/json" data-inti-block-json set:html={toSafeJson(data)} />
                 )}

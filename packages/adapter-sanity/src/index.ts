@@ -1,4 +1,6 @@
 import { IntiAdapter } from '@intijs/core/adapters';
+import { NotFoundError } from '@intijs/core/errors';
+import { createHttpClient, type HttpClient } from '@intijs/core/http';
 import type { IntiPage, IntiBlock, IntiNavigation } from '@intijs/core/types';
 import type { SchemaDefinition, SchemaCollection, SchemaField, FieldType } from '@intijs/core/adapters';
 
@@ -14,11 +16,15 @@ export interface SanityConfig {
     token?: string;
     perspective?: 'raw' | 'published' | 'previewDrafts';
     draftMode?: boolean;
+    /** Document type of a page. Default `page` */
+    pageType?: string;
+    fetch?: typeof fetch;
 }
 
 export class SanityAdapter extends IntiAdapter<SanityDocument> {
     protected sanityConfig: SanityConfig;
     protected baseUrl: string;
+    private http: HttpClient;
 
     constructor(config: SanityConfig) {
         super('Sanity', config);
@@ -35,6 +41,25 @@ export class SanityAdapter extends IntiAdapter<SanityDocument> {
             : 'api.sanity.io';
         
         this.baseUrl = `https://${this.sanityConfig.projectId}.${host}/${this.sanityConfig.apiVersion}/data/query/${this.sanityConfig.dataset}`;
+        this.http = createHttpClient({ name: 'sanity', fetch: config.fetch });
+    }
+
+    /** The page document with this `slug.current`, through a GROQ query */
+    async fetchPageBySlug(slug: string): Promise<IntiPage> {
+        const headers: Record<string, string> = {};
+        if (this.sanityConfig.token) headers.Authorization = `Bearer ${this.sanityConfig.token}`;
+        const data = await this.http.get<SanityDocument>(this.baseUrl, {
+            query: {
+                query: '*[_type == $type && slug.current == $slug][0]',
+                $type: JSON.stringify(this.sanityConfig.pageType ?? 'page'),
+                $slug: JSON.stringify(slug),
+                perspective: this.sanityConfig.draftMode ? 'previewDrafts' : this.sanityConfig.perspective
+            },
+            headers,
+            resource: 'page'
+        });
+        if (!data?.result) throw new NotFoundError('page', slug);
+        return this.parsePage(data);
     }
 
     parsePage(raw: SanityDocument): IntiPage {

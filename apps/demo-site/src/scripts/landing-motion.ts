@@ -21,6 +21,35 @@ export function initLandingMotion() {
 
   if (reduce.matches) return;
 
+  // Reveal: windows, cards and steps rise once as they enter the viewport.
+  // Siblings get a small stagger so a row of cards comes in one after another.
+  const revealTargets = document.querySelectorAll<HTMLElement>(
+    '.win, .fact, .route-step, .feat-list > *, .adapter, .faq-list details, .step, .mcp, .why-table',
+  );
+  const revealSet = new Set<Element>(revealTargets);
+  revealTargets.forEach((el) => {
+    el.dataset.reveal = '';
+    const siblings = Array.from(el.parentElement?.children ?? []).filter((child) => revealSet.has(child));
+    const index = siblings.indexOf(el);
+    if (index > 0) el.style.setProperty('--reveal-delay', `${Math.min(index, 5) * 0.08}s`);
+  });
+  const revealObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        entry.target.classList.add('is-in');
+        revealObserver.unobserve(entry.target);
+      }
+    },
+    { rootMargin: '0px 0px -8% 0px' },
+  );
+  // Anything already on screen (or above it, after a reload mid-page) shows at once
+  revealTargets.forEach((el) => {
+    if (el.getBoundingClientRect().top < window.innerHeight) el.classList.add('is-in');
+    else revealObserver.observe(el);
+  });
+  document.documentElement.classList.add('lp-reveal');
+
   const visible = new Set<HTMLElement>();
   let frame = 0;
 

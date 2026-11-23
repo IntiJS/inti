@@ -2236,3 +2236,193 @@ body.lp {
     display: none;
   }
 }
+
+/* ───────── Demo and composer states ───────── */
+
+/* A button with nothing to do says so instead of looking clickable */
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 0 0 var(--ink);
+}
+
+.demo-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+/* Status line under the sample block: a failed save or an empty field */
+.demo-note[data-tone='no'] {
+  padding: 0.5rem 0.75rem;
+  border: var(--edge);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.lp .demo-edit[aria-invalid='true'] {
+  outline: 3px solid var(--red);
+  outline-offset: 2px;
+}
+
+/* The block shakes once when a simulated save fails and the text reverts */
+@keyframes demo-fail {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+.demo-block.is-failed {
+  animation: demo-fail 0.4s ease;
+}
+
+/* The last few changes, newest first */
+.demo-history-label {
+  margin-top: 1rem;
+}
+.demo-history {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+.demo-history li {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid #6B6258;
+  border-radius: 8px;
+  color: var(--paper-soft);
+}
+.demo-history li:first-child {
+  color: var(--sun);
+}
+
+/* ───────── Navigation over content ───────── */
+
+/* Once the page scrolls, a soft blurred band keeps text from showing between the pills */
+.nav::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 -18px;
+  z-index: -1;
+  background: color-mix(in srgb, var(--paper) 55%, transparent);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  -webkit-mask-image: linear-gradient(#000 60%, transparent);
+  mask-image: linear-gradient(#000 60%, transparent);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.nav.is-scrolled::before {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-block.is-failed { animation: none; }
+  .nav::before { transition: none; }
+}
+
+/* ───────── Quieter "simulated" labels ───────── */
+
+/* One per demo, small and without the pill border */
+.sim--quiet {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  opacity: 0.85;
+}
+.sim--quiet::before {
+  width: 0.55em;
+  height: 0.55em;
+  box-shadow: none;
+}
+
+/* On narrow screens the demo banner stacks: text first, then its two buttons */
+@media (max-width: 640px) {
+  .demo-banner {
+    flex-wrap: wrap;
+  }
+  .demo-banner > span:first-child {
+    flex-basis: 100%;
+  }
+  .demo-banner-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* ───────── FAQ in two columns on wide screens ───────── */
+
+@media (min-width: 960px) {
+  .faq-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: clamp(2rem, 4vw, 4rem);
+    align-items: start;
+  }
+  .faq-list summary {
+    font-size: clamp(1.5rem, 2.1vw, 2rem);
+  }
+}
+
+/* ───────── Entrance and reveal ───────── */
+
+@keyframes lp-rise {
+  from { opacity: 0; transform: translateY(0.6em); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes lp-sun-in {
+  from { opacity: 0; transform: scale(0.4) rotate(-40deg); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* The hero comes in line by line on load */
+  .hero-kicker,
+  .hero-edit,
+  .hero-serif,
+  .hero-hint,
+  .hero-low {
+    animation: lp-rise 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .hero-edit { animation-delay: 0.08s; }
+  .hero-serif { animation-delay: 0.2s; }
+  .hero-hint { animation-delay: 0.32s; }
+  .hero-low { animation-delay: 0.42s; }
+  .hero-sun {
+    animation: lp-sun-in 1.1s cubic-bezier(0.2, 0.9, 0.25, 1.15) 0.35s both;
+  }
+
+  /* Windows, cards and steps rise as they enter the viewport. Only when the
+     script is running (it adds .lp-reveal), so nothing stays hidden without it. */
+  .lp-reveal [data-reveal] {
+    opacity: 0;
+    transform: translateY(32px);
+    transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+    transition-delay: var(--reveal-delay, 0s);
+  }
+  .lp-reveal [data-reveal].is-in {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The agent prompt shows its first lines until it is opened. Without the
+   script the toggle stays hidden, so the fold only applies when it can be undone. */
+.prompt-toggle {
+  margin: 0 1rem 1rem;
+}
+.prompt:has(.prompt-toggle:not([hidden])) pre.is-folded {
+  max-height: 11.5em;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(#000 55%, transparent);
+  mask-image: linear-gradient(#000 55%, transparent);
+}

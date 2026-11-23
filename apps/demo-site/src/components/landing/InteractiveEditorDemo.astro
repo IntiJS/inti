@@ -4,7 +4,7 @@
 // anywhere: the panel on the right shows the input the real action receives.
 ---
 
-<section id="interactive-demo" class="field field--orange">
+<section class="field field--orange" aria-labelledby="demo-title">
   <div class="dome" data-scroll></div>
 
   <!-- The three gestures, as type that moves with the scroll -->
@@ -14,12 +14,12 @@
   </div>
 
   <div class="wrap">
-    <div class="demo-head">
-      <h2 class="h-pair" data-scroll>
+    <!-- The anchor sits on the demo, not on the giant type above it -->
+    <div class="demo-head" id="interactive-demo">
+      <h2 class="h-pair" id="demo-title" data-scroll>
         <span class="h-display drift-l">What editing on the page looks like.</span>
         <span class="h-serif drift-r">Change the text and see what would be saved.</span>
       </h2>
-      <p><span class="sim">Simulated: nothing is sent</span></p>
       <p class="lede">
         This is a simulation that runs only in your browser, with sample content. In a real project the editor calls an <code class="kbd-code">astro:actions</code> endpoint on your server, and the adapter writes the change to your CMS.
       </p>
@@ -40,10 +40,11 @@
         <span class="win-field">
           <label for="cms-select">Adapter:</label>
           <select id="cms-select" class="sel">
-            <option value="wordpress">WordPress (ACF Flexible Content)</option>
-            <option value="kitsuden">Kitsuden (Page Builder)</option>
-            <option value="strapi">Strapi (dynamic zone)</option>
-            <option value="keystatic">Keystatic (files)</option>
+            <option value="wordpress">WordPress (ACF + Gutenberg)</option>
+            <option value="kitsuden">Kitsuden</option>
+            <option value="strapi">Strapi (Dynamic Zones)</option>
+            <option value="keystatic">Keystatic (Git-backed)</option>
+            <option value="local">Local Store (JSON)</option>
           </select>
         </span>
       </div>
@@ -52,8 +53,11 @@
         <!-- The rendered page -->
         <div class="demo-canvas">
           <div id="editor-banner" class="demo-banner">
-            <span><strong>Simulated editor:</strong> click an outlined text and type. The real editor opens a field with a double-click.</span>
-            <button type="button" id="undo-btn" class="btn btn--small">Undo</button>
+            <span><strong>Try it:</strong> double-click an outlined text, type, press Enter. A single click also works here.</span>
+            <span class="demo-banner-actions">
+              <button type="button" id="fail-btn" class="btn btn--paper btn--small" disabled>Simulate a failed save</button>
+              <button type="button" id="undo-btn" class="btn btn--small" disabled>Undo</button>
+            </span>
           </div>
 
           <div id="interactive-block" class="demo-block" data-variant="warm">
@@ -86,13 +90,13 @@
             </div>
           </div>
 
-          <p class="demo-note">In the real editor the text changes on screen at once and reverts if the save fails.</p>
+          <p id="demo-status" class="demo-note" role="status">In the real editor the text changes on screen at once and reverts if the save fails.</p>
         </div>
 
         <!-- What the editor would send -->
         <div class="demo-inspector">
           <div>
-            <h3>What the editor would send <span>Simulated, not sent</span></h3>
+            <h3>What the editor would send <span>Not sent</span></h3>
 
             <dl class="demo-kv">
               <div><dt>Action:</dt><dd id="inspector-action">inti.updateBlockField</dd></div>
@@ -102,6 +106,9 @@
 
             <p class="demo-json-label">Input of the action (example ids):</p>
             <pre id="json-payload-display" class="demo-json" aria-live="polite"></pre>
+
+            <p class="demo-json-label demo-history-label">Last changes:</p>
+            <ol id="demo-history" class="demo-history"></ol>
           </div>
 
           <div class="demo-secure">
@@ -129,9 +136,22 @@
   const editorBanner = document.getElementById('editor-banner');
   const btnVisitor = document.getElementById('btn-mode-visitor');
   const btnEditor = document.getElementById('btn-mode-editor');
-  const undoBtn = document.getElementById('undo-btn');
+  const undoBtn = document.getElementById('undo-btn') as HTMLButtonElement | null;
+  const failBtn = document.getElementById('fail-btn') as HTMLButtonElement | null;
+  const statusEl = document.getElementById('demo-status');
+  const historyList = document.getElementById('demo-history');
 
-  type State = { heading: string; subheading: string; cta: string; variant: string };
+  type TextField = 'heading' | 'subheading' | 'cta.label';
+  type Field = TextField | 'variant';
+  type State = Record<Field, string>;
+  // Each saved state remembers which field produced it, so undo can show that field
+  type Entry = { state: State; field: Field };
+
+  const TEXT_FIELDS: [TextField, HTMLElement | null][] = [
+    ['heading', headingEl],
+    ['subheading', subheadingEl],
+    ['cta.label', ctaEl],
+  ];
 
   // Example document ids, in the shape each adapter uses
   const CMS: Record<string, { adapter: string; documentId: string }> = {
@@ -139,24 +159,66 @@
     kitsuden: { adapter: '@intijs/adapter-kitsuden', documentId: '11111111-2222-3333-4444-555555555555' },
     strapi: { adapter: '@intijs/adapter-strapi', documentId: 'abc123' },
     keystatic: { adapter: '@intijs/adapter-keystatic', documentId: 'home' },
+    local: { adapter: 'LocalAdapter (@intijs/core)', documentId: 'home' },
   };
 
+  const DEFAULT_STATUS = statusEl?.textContent ?? '';
   let editing = true;
-  let last = { field: 'heading', value: headingEl?.textContent?.trim() ?? '' };
-  const history: State[] = [];
+  let last: { field: Field; value: string } = { field: 'heading', value: headingEl?.textContent?.trim() ?? '' };
+  const history: Entry[] = [];
+  const changes: string[] = [];
 
   function readState(): State {
     return {
-      heading: headingEl?.textContent ?? '',
-      subheading: subheadingEl?.textContent ?? '',
-      cta: ctaEl?.textContent ?? '',
+      heading: (headingEl?.textContent ?? '').trim(),
+      subheading: (subheadingEl?.textContent ?? '').trim(),
+      'cta.label': (ctaEl?.textContent ?? '').trim(),
       variant: variantSelect?.value ?? 'warm',
     };
   }
 
-  function saveState() {
-    history.push(readState());
-    if (history.length > 20) history.shift();
+  function current(): State {
+    return history[history.length - 1]?.state ?? readState();
+  }
+
+  function applyState(state: State) {
+    for (const [field, el] of TEXT_FIELDS) {
+      if (el) {
+        el.textContent = state[field];
+        el.removeAttribute('aria-invalid');
+      }
+    }
+    if (variantSelect) variantSelect.value = state.variant;
+    paintBlock();
+  }
+
+  function setStatus(text: string, tone: 'idle' | 'ok' | 'no' = 'idle') {
+    if (!statusEl) return;
+    statusEl.textContent = text;
+    statusEl.dataset.tone = tone;
+  }
+
+  function syncButtons() {
+    const canRevert = history.length > 1;
+    if (undoBtn) undoBtn.disabled = !canRevert;
+    if (failBtn) failBtn.disabled = !canRevert;
+  }
+
+  function logChange(text: string) {
+    changes.unshift(text);
+    changes.length = Math.min(changes.length, 4);
+    renderLog();
+  }
+
+  function renderLog() {
+    if (!historyList) return;
+    historyList.replaceChildren(
+      ...(changes.length ? changes : ['No changes yet']).map((text) => {
+        const li = document.createElement('li');
+        li.textContent = text;
+        return li;
+      }),
+    );
   }
 
   function paintBlock() {
@@ -166,7 +228,7 @@
   }
 
   // The input of `inti.updateBlockField`, as the real action declares it
-  function showInput(field: string, value: string) {
+  function showInput(field: Field, value: string) {
     last = { field, value };
     const cms = CMS[cmsSelect?.value ?? 'wordpress'] ?? CMS.wordpress;
     if (inspectorAction) inspectorAction.textContent = 'inti.updateBlockField';
@@ -176,33 +238,93 @@
     }
   }
 
-  saveState();
-  paintBlock();
-  showInput(last.field, last.value);
-
-  let debounceTimer: ReturnType<typeof setTimeout> | undefined;
-  function handleInput(field: string, element: HTMLElement | null) {
-    if (!element) return;
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-      saveState();
-      showInput(field, (element.textContent ?? '').trim());
-    }, 200);
+  function commit(field: Field) {
+    const state = readState();
+    if (state[field] === current()[field]) return;
+    history.push({ state, field });
+    if (history.length > 20) history.shift();
+    showInput(field, state[field]);
+    logChange(`${field} → "${state[field]}"`);
+    setStatus(DEFAULT_STATUS);
+    syncButtons();
   }
 
-  headingEl?.addEventListener('input', () => handleInput('heading', headingEl));
-  subheadingEl?.addEventListener('input', () => handleInput('subheading', subheadingEl));
-  ctaEl?.addEventListener('input', () => handleInput('cta.label', ctaEl));
+  // Puts back the state before the last change. `reason` says why: undo, or a failed save
+  function revert(reason: 'undo' | 'fail') {
+    if (history.length < 2) return;
+    const undone = history.pop()!;
+    applyState(current());
+    showInput(undone.field, current()[undone.field]);
+    if (reason === 'fail') {
+      logChange(`${undone.field}: save failed, reverted`);
+      setStatus(`Failed save: the CMS answered with an error, so the ${undone.field} went back to what was saved.`, 'no');
+      blockEl?.classList.remove('is-failed');
+      void blockEl?.offsetWidth; // restart the animation
+      blockEl?.classList.add('is-failed');
+    } else {
+      logChange(`${undone.field}: undone`);
+      setStatus(DEFAULT_STATUS);
+    }
+    syncButtons();
+  }
 
-  // The sample fields are single lines: Enter leaves the field instead of adding a line break
-  for (const el of [headingEl, subheadingEl, ctaEl]) {
-    el?.addEventListener('keydown', (event) => {
+  history.push({ state: readState(), field: 'heading' });
+  paintBlock();
+  showInput(last.field, last.value);
+  renderLog();
+  syncButtons();
+
+  let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+  for (const [field, el] of TEXT_FIELDS) {
+    if (!el) continue;
+
+    // An empty field is never sent: the real action needs a value
+    el.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      if (!(el.textContent ?? '').trim()) {
+        el.setAttribute('aria-invalid', 'true');
+        setStatus(`The ${field} cannot be empty: the editor would not send this. Type some text, or press Esc to restore it.`, 'no');
+        return;
+      }
+      el.removeAttribute('aria-invalid');
+      debounceTimer = setTimeout(() => commit(field), 200);
+    });
+
+    // Leaving an empty field puts the saved text back
+    el.addEventListener('blur', () => {
+      if ((el.textContent ?? '').trim()) return;
+      el.textContent = current()[field];
+      el.removeAttribute('aria-invalid');
+      setStatus(`Empty ${field} restored: nothing was sent.`, 'no');
+    });
+
+    // As in the real editor, a double-click opens the whole field for typing
+    el.addEventListener('dblclick', () => {
+      if (!editing) return;
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    });
+
+    // The sample fields are single lines: Enter saves and leaves, Esc cancels
+    el.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
         event.preventDefault();
         el.blur();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        clearTimeout(debounceTimer);
+        el.textContent = current()[field];
+        el.removeAttribute('aria-invalid');
+        setStatus(DEFAULT_STATUS);
+        el.blur();
       }
     });
-    el?.addEventListener('paste', (event) => {
+
+    el.addEventListener('paste', (event) => {
       event.preventDefault();
       const text = event.clipboardData?.getData('text/plain').replace(/\s+/g, ' ') ?? '';
       const selection = window.getSelection();
@@ -216,25 +338,14 @@
   }
 
   variantSelect?.addEventListener('change', () => {
-    saveState();
     paintBlock();
-    showInput('variant', variantSelect.value);
+    commit('variant');
   });
 
   cmsSelect?.addEventListener('change', () => showInput(last.field, last.value));
 
-  undoBtn?.addEventListener('click', () => {
-    if (history.length < 2) return;
-    history.pop();
-    const prev = history[history.length - 1];
-    if (!prev || !headingEl || !subheadingEl || !ctaEl || !variantSelect) return;
-    headingEl.textContent = prev.heading;
-    subheadingEl.textContent = prev.subheading;
-    ctaEl.textContent = prev.cta;
-    variantSelect.value = prev.variant;
-    paintBlock();
-    showInput('heading', prev.heading.trim());
-  });
+  undoBtn?.addEventListener('click', () => revert('undo'));
+  failBtn?.addEventListener('click', () => revert('fail'));
 
   // Visitor / editor view
   function setEditing(next: boolean) {
@@ -244,7 +355,7 @@
     if (blockToolbar) blockToolbar.hidden = !next;
     if (editorBanner) editorBanner.hidden = !next;
     document.querySelectorAll<HTMLElement>('.field-label').forEach((el) => { el.hidden = !next; });
-    for (const el of [headingEl, subheadingEl, ctaEl]) {
+    for (const [, el] of TEXT_FIELDS) {
       el?.setAttribute('contenteditable', String(next));
       if (next) el?.setAttribute('role', 'textbox');
       else el?.removeAttribute('role');

@@ -430,10 +430,34 @@ export interface AdaptResult {
 const fieldOf = (block: IntiBlock, name: 'audience' | 'slot'): unknown =>
     (block.meta as any)?.[name] ?? block.data?.[`inti_${name}`];
 
-const slotOf = (block: IntiBlock): string | undefined => {
+export const slotOf = (block: IntiBlock): string | undefined => {
     const slot = fieldOf(block, 'slot');
     return typeof slot === 'string' && slot.trim() ? slot.trim() : undefined;
 };
+
+/** A zone of a page: the versions of one slot and the one everybody gets by default */
+export interface AdaptiveZoneInfo {
+    slot: string;
+    candidates: IntiBlock[];
+    fallback: IntiBlock;
+}
+
+/** The zones of a page, by slot, in the order they first appear */
+export function zonesOf(blocks: IntiBlock[]): Map<string, AdaptiveZoneInfo> {
+    const zones = new Map<string, AdaptiveZoneInfo>();
+    for (const block of blocks) {
+        const slot = slotOf(block);
+        if (!slot) continue;
+        const zone = zones.get(slot) ?? { slot, candidates: [], fallback: block };
+        zone.candidates.push(block);
+        zones.set(slot, zone);
+    }
+    for (const zone of zones.values()) {
+        // The default content is the version with no audience, or the first one
+        zone.fallback = zone.candidates.find((block) => Object.keys(parseAudience(fieldOf(block, 'audience'))).length === 0) ?? zone.candidates[0];
+    }
+    return zones;
+}
 
 /** A page with nothing adaptive is served at no cost at all */
 export function hasAdaptiveBlocks(blocks: IntiBlock[]): boolean {

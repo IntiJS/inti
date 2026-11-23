@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### New: `@intijs/adapter-odoo`, an Odoo catalog for stores
+
+- **JSON-2 with a JSON-RPC fallback.** Odoo 19+ is read through `/json/2/<model>/<method>`; an older Odoo is detected by its 404 and read through `execute_kw` with the key's login.
+- **Keys that expire, rotated.** `envKeyStore` switches to `INTI_ODOO_API_KEY_NEXT` when the current key is refused; `rotateOdooKey` / `rotateIfExpiring` generate the next key with Odoo's own API, store it, then revoke the old one.
+- **Detected with `fields_get`**: stock, website, the storable flag (18+ or 17) and the tax "price included" flag.
+- **`odooCatalogSource`**: products, variants with their options, categories, free stock (`free_qty`), prices with or without taxes, published products only, identity by internal reference (never the variant id), listing with search, category, price range, stock and attribute filters, and the sitemap.
+- **`odooImageRoute`**: images from the site's origin for published products only, no SVG, `immutable` with a versioned URL; binary fields are read as Odoo 19 sends them (base64) and as Odoo 20 does (`{ content, size }`).
+- **`odooPurgeRoute`**: Odoo's webhook payload, authenticated by a token in the URL, drops the product and the listings.
+- **`createOdooOrder`**: a quotation from the cart, with only references and quantities; Odoo prices it.
+- **`create-inti --cms odoo`**: a store with pages in the local store, product and category routes, the image proxy, the purge route, a sitemap index and tallao islands (gallery, variant picker, cart with the order form).
+- **`npm run test:odoo`** checks all of it against Odoo 19 and 20 in Docker, and CI runs both.
+
+### Kitsuden: cached pages that cost nothing, writes that cannot overwrite
+
+- **`kitsudenMiddleware` delivers through the core's `intiDelivery`**, with the core's cache (memory or Valkey) instead of its own: CDN headers, the editor's markup only for editors, tracking parameters out of the cache key. `createPageCache` and `isCacheable` are gone; `purgeRoute(cache, secret)` takes the core cache.
+- **The session is asked about after the cache.** Only a request with a Kitsuden session cookie is looked up, and the answer is remembered per cookie for a few seconds: every cached page used to cost an auth round-trip.
+- **Conditional writes without a read.** Blocks carry `meta.version`; the editor sends it with the block id, and the adapter sends one `PATCH /blocks/:id` with `If-Match`. A block that changed since the page loaded is a 409 and nothing is written; the editor takes the new version from each answer.
+- **`getRenderedPage(slug)`** (`/render/:slug`) for visitors, **block styles** (`meta.style`, passed as `intiBlock.style`), **`fetchNavigation()`** from the settings' `mainNav`, **`search()`** over `/api/search`.
+- **`kitsudenImage` + `mediaTransformRoute`**: AVIF, WebP and `srcset` from `/api/media/transform`, served from the site's origin as `immutable`.
+- **`kitsudenCatalogSource`**: a dataset served as a catalog, purged by `entry:*` webhooks.
+- **`revalidationEntries`** (default 500): the ETag store was a fixed 100.
+- **`create-inti --cms kitsuden`** generates the middleware, one cache for pages and HTML, the purge route, the media routes and the site key.
+- **CI checks a real Kitsuden** when `KITSUDEN_REPO_TOKEN` is set (the image is built from its repository); the contract copy is synced with Kitsuden's canonical file.
+
+### WordPress: writes that cannot overwrite, notices that purge, and the rest of a site
+
+- **Every write through the companion plugin, in one PHP call.** Moving, inserting, removing, duplicating and replacing rows now run on the server (`POST /inti/v1/rows`) instead of a read-modify-write of the whole array, and Gutenberg documents go through `POST /inti/v1/content`. Each write carries the `modified_gmt` the adapter read; the plugin answers 409 when the page changed since, and the editor says so instead of overwriting someone's work.
+- **The plugin is no longer switched off by one failure.** Only a 404 for its route means it is missing, and the adapter checks again after ten minutes. Any other failure is reported, never retried through the REST path behind the user's back.
+- **Signed purge notices** on publish, update, unpublish, delete and slug change (`INTI_PURGE_URL`, `INTI_PURGE_SECRET`), for `purgeRoute` of `@intijs/core/delivery`.
+- **`inti_blocks`**: the blocks as `parse_blocks()` reads them, with the rendered HTML of bound (`metadata.bindings`) and dynamic blocks. A bound block shows its real value and is not editable.
+- **Gutenberg writes kept classic content.** Serializing joined blocks with blank lines and dropped any HTML between them; the document now round-trips byte for byte, and Block Hooks metadata survives.
+- **Only the fields a page needs** (`_fields`), **every page of a listing** in parallel with no 5,000 cap, and the shared HTTP client with exactly `Content-Type: application/json`.
+- **Images** gain `srcset`, AVIF and WebP `sources`, `video` for animated GIFs stored as video, and `size`.
+- **Languages, menus, taxonomies and archives**: `page.locale` / `page.translations` from Polylang or WPML, `fetchNavigation(location)`, `listTerms`, `fetchTerm`, `fetchArchive`.
+- **Abilities API**: `inti/get-page`, `inti/update-block-field`, `inti/purge`.
+- `npm run test:wordpress` runs on **WordPress 7.1.5** and checks all of the above against the real thing, plus nested page-level groups and that writes keep the page's author.
+
+### Delivery: the right status code, caches that hold, editors apart
+
+- **404 only when the page does not exist.** Adapters throw `NotFoundError` for a missing page and `UnavailableError` when the CMS cannot answer (`@intijs/core/errors`); `pageErrorResponse` answers 404 for the first and 503 with `Retry-After` for everything else. The generated page used to answer 404 to any failure, which told search engines to drop pages that exist whenever the CMS timed out.
+- **`fetchPageBySlug` is part of the base contract.** Contentful and Sanity gained it (they had no way to read a page), and Kitsuden has it as an alias of `getPage`, so the MCP server reads pages on every adapter.
+- **`createHttpClient` (`@intijs/core/http`)**, shared by adapters: a time limit per request, retries only on reads, `Retry-After` on 429/503, `If-None-Match`/304, one request for identical reads in flight, typed errors, `Content-Type: application/json` exactly.
+- **`CachedAdapter` is gone**: it called `adapter.fetchPage()`, which no adapter has. `cachePages(adapter, { cache })` replaces it with tags, stale-while-revalidate, one load per key during a burst, `staleIfError` and short-lived 404s. `createValkeyCacheProvider` shares the cache between instances.
+- **`intiDelivery` and `purgeRoute` (`@intijs/core/delivery`)**: `s-maxage` for anonymous visitors, `private, no-store` for editors, an HTML cache tagged by page, a stale copy when rendering fails, tracking parameters that do not split the cache, and a purge route that takes an HMAC-signed notice. Only requests with a cookie are asked about a session, and the answer is remembered for a few seconds.
+- **`data-inti-*` only for editors.** `BlockRenderer` writes its block attributes only for an editor, and the middleware removes `data-inti-field` from what a visitor receives.
+- **Personalized zones no longer make the page uncacheable**: `<BlockRenderer adaptive="island" />` renders each zone as a server island; the page carries the default version for everybody. The integration provides `virtual:inti/blocks`, so islands and the AI preview find the blocks in a fresh process.
+- **Images**: `MediaAsset` carries the `srcset`, `sources` (AVIF, WebP) and `video` (an animated GIF stored as a video) the CMS made, and `IntiImage` uses them as they are: a `<picture>` when there are formats, a muted looping `<video>` for the video.
+- **Catalogs** (`@intijs/core/catalog`): several sources per site, a cache keyed by id, a signed purge notice, product and category routes (`readItem`, `readCollection`) and blocks bound to live data with `inti_bind`.
+- **Sitemaps past 50,000 URLs**: `sitemapIndexRoute` / `sitemapFileRoute` serve an index and one file per 50,000 URLs (or 50 MB), reading a catalog a file at a time.
+- **Languages**: `page.locale` and `page.translations` give `hreflang` links in `IntiSeo` and `xhtml:link` alternates in the sitemap; `localeFromPath` reads the language from the URL.
+- **`adapterConformance` (`@intijs/core/testing`)**: the checks every adapter passes. It found that `LocalAdapter`, `WordPressAdapter` and `StrapiAdapter` let `updateBlockField(id, 0, '__proto__.x', …)` write to `Object.prototype`, reachable through the MCP server, which calls adapters directly. All three now refuse it (`assertSafeFieldPath`).
+- **`create-inti` makes a `Dockerfile`** (non-root, no dev dependencies, a health check that does not restart the container when the CMS is down) and a `.dockerignore`; with local tarballs it copies them into `vendor/`, so the project builds on its own.
+
 ### Vercel, checked like Astro's majors
 
 - **`scripts/vercel-check.mjs <5|6|7>`**, in CI for Astro 5, 6 and 7: the site is built with `@astrojs/vercel` and the function Vercel would upload is run on its own, outside the project, so a file it needs and did not ship fails as in production. It checks pages with no editor markup for visitors, anonymous writes refused, `/api/inti/search` closed, the Kitsuden middleware and page cache, and an infographic rendered to PNG with the network cut.

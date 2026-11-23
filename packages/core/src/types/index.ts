@@ -35,7 +35,28 @@ export interface IntiBlock {
         slot?: string;
         /** Who it is aimed at: `device:mobile;pref.diet:vegan` */
         audience?: string;
+        /**
+         * The block's version as the CMS stamps it (Kitsuden's `updatedAt`). The editor sends
+         * it back with a write, and an adapter that can (`If-Match`) refuses to overwrite a
+         * block that changed since the page loaded.
+         */
+        version?: string;
+        /**
+         * Presentation the CMS stores next to the data (classes, colours, spacing, column
+         * span). `BlockRenderer` passes it to the component as `intiBlock.style`.
+         */
+        style?: BlockStyle;
     };
+}
+
+/** Per-block presentation a CMS stores: only declared values, never free CSS */
+export interface BlockStyle {
+    className?: string;
+    backgroundColor?: string;
+    textColor?: string;
+    padding?: string;
+    /** 1 to 12 */
+    columnSpan?: number;
 }
 
 /**
@@ -93,6 +114,14 @@ export interface PageSeo {
     source?: string;
 }
 
+/** One language version of a page */
+export interface PageTranslation {
+    locale: string;
+    slug: string;
+    /** Absolute URL, when the CMS knows it; otherwise it is built from the slug */
+    url?: string;
+}
+
 export interface IntiPage {
     /** Unique page ID in the CMS */
     id: string;
@@ -104,6 +133,10 @@ export interface IntiPage {
     blocks: IntiBlock[];
     /** SEO metadata normalized from the CMS */
     seo?: PageSeo;
+    /** BCP 47 language of this page (`es`, `en-GB`), when the site has several */
+    locale?: string;
+    /** The same page in the other languages, for `hreflang` and the language switcher */
+    translations?: PageTranslation[];
     /** Optional metadata for Visual Bridge */
     meta?: {
         contentType?: string;

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, test, expect, beforeEach } from 'bun:test';
 import { ImageService, configureImageService, getImageService } from '../src/image/service.js';
 import type { MediaAsset, ImageTransformOptions, ResponsiveImageOptions } from '../src/types/media.js';
 
@@ -184,5 +184,22 @@ describe('Image Service', () => {
             const errorMessage = 'ImageService not configured';
             expect(errorMessage).toBe('ImageService not configured');
         });
+    });
+});
+
+import { srcsetAttribute } from '../src/types/media.js';
+
+describe('srcsetAttribute', () => {
+    test('sorts by width, drops repeats and bad candidates, escapes spaces and commas', () => {
+        expect(
+            srcsetAttribute([
+                { url: 'https://cms.test/a 1,2.jpg', width: 800 },
+                { url: 'https://cms.test/a-400.jpg', width: 400 },
+                { url: 'https://cms.test/dup.jpg', width: 400 },
+                { url: '', width: 100 },
+                { url: 'https://cms.test/bad.jpg', width: Number.NaN }
+            ])
+        ).toBe('https://cms.test/dup.jpg 400w, https://cms.test/a%201%2C2.jpg 800w');
+        expect(srcsetAttribute([])).toBe(undefined);
     });
 });

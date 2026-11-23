@@ -3,6 +3,8 @@
   "kitsuden": "0.9.0-beta",
   "contracts": {
     "page-builder": 1,
+    "page-builder-publish": 1,
+    "page-builder-patch": 1,
     "games": 2,
     "games-editorial": 2,
     "admin-registry": 1
@@ -20,6 +22,8 @@
         "version": "0.9.0-beta",
         "contracts": {
           "page-builder": 1,
+          "page-builder-publish": 1,
+          "page-builder-patch": 1,
           "games": 2,
           "games-editorial": 2,
           "admin-registry": 1
@@ -397,29 +401,17 @@
               },
               "mediaType": {
                 "type": "enum",
-                "options": [
-                  "image",
-                  "video"
-                ],
+                "options": ["image", "video"],
                 "default": "image"
               },
               "alignment": {
                 "type": "enum",
-                "options": [
-                  "left",
-                  "center",
-                  "right"
-                ],
+                "options": ["left", "center", "right"],
                 "default": "center"
               },
               "minHeight": {
                 "type": "enum",
-                "options": [
-                  "sm",
-                  "md",
-                  "lg",
-                  "xl"
-                ],
+                "options": ["sm", "md", "lg", "xl"],
                 "default": "md"
               },
               "focalPoint": {
@@ -451,11 +443,7 @@
                   },
                   "variant": {
                     "type": "enum",
-                    "options": [
-                      "primary",
-                      "secondary",
-                      "outline"
-                    ]
+                    "options": ["primary", "secondary", "outline"]
                   }
                 }
               },
@@ -470,7 +458,8 @@
                   }
                 }
               }
-            }
+            },
+            "described": true
           },
           {
             "type": "text",
@@ -485,34 +474,21 @@
               },
               "format": {
                 "type": "enum",
-                "options": [
-                  "html",
-                  "markdown",
-                  "plain"
-                ],
+                "options": ["html", "markdown", "plain"],
                 "default": "html"
               },
               "alignment": {
                 "type": "enum",
-                "options": [
-                  "left",
-                  "center",
-                  "right",
-                  "justify"
-                ],
+                "options": ["left", "center", "right", "justify"],
                 "default": "left"
               },
               "textSize": {
                 "type": "enum",
-                "options": [
-                  "sm",
-                  "md",
-                  "lg",
-                  "xl"
-                ],
+                "options": ["sm", "md", "lg", "xl"],
                 "default": "md"
               }
-            }
+            },
+            "described": true
           },
           {
             "type": "image",
@@ -533,12 +509,7 @@
               },
               "alignment": {
                 "type": "enum",
-                "options": [
-                  "left",
-                  "center",
-                  "right",
-                  "full"
-                ],
+                "options": ["left", "center", "right", "full"],
                 "default": "center"
               },
               "linkUrl": {
@@ -548,7 +519,8 @@
                 "type": "boolean",
                 "default": false
               }
-            }
+            },
+            "described": true
           },
           {
             "type": "video",
@@ -567,11 +539,7 @@
               },
               "provider": {
                 "type": "enum",
-                "options": [
-                  "youtube",
-                  "vimeo",
-                  "self"
-                ],
+                "options": ["youtube", "vimeo", "self"],
                 "default": "self"
               },
               "autoplay": {
@@ -590,7 +558,8 @@
                 "type": "boolean",
                 "default": true
               }
-            }
+            },
+            "described": true
           },
           {
             "type": "grid",
@@ -607,11 +576,7 @@
               },
               "gap": {
                 "type": "enum",
-                "options": [
-                  "sm",
-                  "md",
-                  "lg"
-                ],
+                "options": ["sm", "md", "lg"],
                 "default": "md"
               },
               "items": {
@@ -633,7 +598,8 @@
                   }
                 }
               }
-            }
+            },
+            "described": true
           },
           {
             "type": "cards",
@@ -674,24 +640,16 @@
               },
               "columns": {
                 "type": "enum",
-                "options": [
-                  1,
-                  2,
-                  3,
-                  4
-                ],
+                "options": [1, 2, 3, 4],
                 "default": 3
               },
               "variant": {
                 "type": "enum",
-                "options": [
-                  "default",
-                  "horizontal",
-                  "compact"
-                ],
+                "options": ["default", "horizontal", "compact"],
                 "default": "default"
               }
-            }
+            },
+            "described": true
           },
           {
             "type": "quote",
@@ -715,14 +673,11 @@
               },
               "style": {
                 "type": "enum",
-                "options": [
-                  "default",
-                  "large",
-                  "minimal"
-                ],
+                "options": ["default", "large", "minimal"],
                 "default": "default"
               }
-            }
+            },
+            "described": true
           },
           {
             "type": "cta",
@@ -748,23 +703,16 @@
               },
               "buttonVariant": {
                 "type": "enum",
-                "options": [
-                  "primary",
-                  "secondary",
-                  "outline"
-                ],
+                "options": ["primary", "secondary", "outline"],
                 "default": "primary"
               },
               "alignment": {
                 "type": "enum",
-                "options": [
-                  "left",
-                  "center",
-                  "right"
-                ],
+                "options": ["left", "center", "right"],
                 "default": "center"
               }
-            }
+            },
+            "described": true
           },
           {
             "type": "embed",
@@ -781,7 +729,8 @@
               "caption": {
                 "type": "string"
               }
-            }
+            },
+            "described": true
           },
           {
             "type": "divider",
@@ -792,26 +741,20 @@
             "schema": {
               "style": {
                 "type": "enum",
-                "options": [
-                  "solid",
-                  "dashed",
-                  "dotted"
-                ],
+                "options": ["solid", "dashed", "dotted"],
                 "default": "solid"
               },
               "width": {
                 "type": "enum",
-                "options": [
-                  "full",
-                  "partial"
-                ],
+                "options": ["full", "partial"],
                 "default": "full"
               },
               "color": {
                 "type": "string",
                 "description": "CSS color value"
               }
-            }
+            },
+            "described": true
           },
           {
             "type": "spacer",
@@ -822,16 +765,11 @@
             "schema": {
               "height": {
                 "type": "enum",
-                "options": [
-                  "sm",
-                  "md",
-                  "lg",
-                  "xl",
-                  "2xl"
-                ],
+                "options": ["sm", "md", "lg", "xl", "2xl"],
                 "default": "md"
               }
-            }
+            },
+            "described": true
           },
           {
             "type": "custom",
@@ -849,7 +787,215 @@
                 "type": "object",
                 "description": "Component props"
               }
-            }
+            },
+            "described": true
+          },
+          {
+            "type": "richtext",
+            "name": "Richtext",
+            "category": "content",
+            "icon": "puzzle-piece",
+            "description": "Richtext block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "image-gallery",
+            "name": "Image Gallery",
+            "category": "media",
+            "icon": "puzzle-piece",
+            "description": "Image Gallery block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "game-map",
+            "name": "Game Map",
+            "category": "interactive",
+            "icon": "puzzle-piece",
+            "description": "Game Map block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "tier-list",
+            "name": "Tier List",
+            "category": "interactive",
+            "icon": "puzzle-piece",
+            "description": "Tier List block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "character-builder",
+            "name": "Character Builder",
+            "category": "interactive",
+            "icon": "puzzle-piece",
+            "description": "Character Builder block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "comments",
+            "name": "Comments",
+            "category": "interactive",
+            "icon": "puzzle-piece",
+            "description": "Comments block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "streamer-widget",
+            "name": "Streamer Widget",
+            "category": "interactive",
+            "icon": "puzzle-piece",
+            "description": "Streamer Widget block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "callout",
+            "name": "Callout",
+            "category": "content",
+            "icon": "puzzle-piece",
+            "description": "Callout block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "facebook-group",
+            "name": "Facebook Group",
+            "category": "marketing",
+            "icon": "puzzle-piece",
+            "description": "Facebook Group block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "dynamic-carousel",
+            "name": "Dynamic Carousel",
+            "category": "layout",
+            "icon": "puzzle-piece",
+            "description": "Dynamic Carousel block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "smart-filter",
+            "name": "Smart Filter",
+            "category": "layout",
+            "icon": "puzzle-piece",
+            "description": "Smart Filter block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "comparison-slider",
+            "name": "Comparison Slider",
+            "category": "media",
+            "icon": "puzzle-piece",
+            "description": "Comparison Slider block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "smart-grid",
+            "name": "Smart Grid",
+            "category": "layout",
+            "icon": "puzzle-piece",
+            "description": "Smart Grid block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "habitat-map",
+            "name": "Habitat Map",
+            "category": "interactive",
+            "icon": "puzzle-piece",
+            "description": "Habitat Map block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "stat-compare",
+            "name": "Stat Compare",
+            "category": "interactive",
+            "icon": "puzzle-piece",
+            "description": "Stat Compare block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "dex",
+            "name": "Dex",
+            "category": "interactive",
+            "icon": "puzzle-piece",
+            "description": "Dex block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "affinity",
+            "name": "Affinity",
+            "category": "interactive",
+            "icon": "puzzle-piece",
+            "description": "Affinity block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "event-search",
+            "name": "Event Search",
+            "category": "interactive",
+            "icon": "puzzle-piece",
+            "description": "Event Search block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "race-planner",
+            "name": "Race Planner",
+            "category": "interactive",
+            "icon": "puzzle-piece",
+            "description": "Race Planner block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "card-browser",
+            "name": "Card Browser",
+            "category": "interactive",
+            "icon": "puzzle-piece",
+            "description": "Card Browser block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "deck-builder",
+            "name": "Deck Builder",
+            "category": "interactive",
+            "icon": "puzzle-piece",
+            "description": "Deck Builder block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "deck-showcase",
+            "name": "Deck Showcase",
+            "category": "interactive",
+            "icon": "puzzle-piece",
+            "description": "Deck Showcase block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
+          },
+          {
+            "type": "deck",
+            "name": "Deck",
+            "category": "interactive",
+            "icon": "puzzle-piece",
+            "description": "Deck block. Its fields are defined by the component that renders it.",
+            "schema": {},
+            "described": false
           }
         ]
       }
@@ -879,22 +1025,12 @@
       "method": "PUT",
       "path": "/api/games/0a6e1c2e-0000-4000-8000-000000000001/blocks/order",
       "request": {
-        "ids": [
-          "cd-tier-2",
-          "cd-table-1",
-          "cd-dex-3",
-          "cd-map-4"
-        ]
+        "ids": ["cd-tier-2", "cd-table-1", "cd-dex-3", "cd-map-4"]
       },
       "status": 200,
       "body": {
         "id": "0a6e1c2e-0000-4000-8000-000000000001",
-        "ids": [
-          "cd-tier-2",
-          "cd-table-1",
-          "cd-dex-3",
-          "cd-map-4"
-        ]
+        "ids": ["cd-tier-2", "cd-table-1", "cd-dex-3", "cd-map-4"]
       }
     },
     {
@@ -911,7 +1047,7 @@
       },
       "status": 201,
       "body": {
-        "id": "c731547d-1e83-44f8-9139-905f30145288",
+        "id": "c889a784-12bc-4d11-8d68-ac7d7189c766",
         "pageId": "0b6e1c2e-0000-4000-8000-000000000002",
         "type": "text",
         "name": null,
@@ -927,8 +1063,8 @@
         "isVisible": true,
         "visibleFrom": null,
         "visibleUntil": null,
-        "createdAt": "2026-11-06T21:43:20.722Z",
-        "updatedAt": "2026-11-06T21:43:20.722Z"
+        "createdAt": "2026-11-16T15:53:33.088Z",
+        "updatedAt": "2026-11-16T15:53:33.088Z"
       }
     },
     {
@@ -961,7 +1097,7 @@
         "visibleFrom": null,
         "visibleUntil": null,
         "createdAt": "2026-10-01T10:00:00.000Z",
-        "updatedAt": "2026-11-06T21:43:20.744Z"
+        "updatedAt": "2026-11-16T15:53:33.108Z"
       }
     },
     {
@@ -995,7 +1131,7 @@
       "path": "/api/page-builder/blocks/0c6e1c2e-0000-4000-8000-000000000004/duplicate",
       "status": 201,
       "body": {
-        "id": "864567b3-7873-45bb-9c58-9d19d5a598c9",
+        "id": "df9cbe03-453d-4d12-99ec-c5568fc6bcb8",
         "pageId": "0b6e1c2e-0000-4000-8000-000000000002",
         "type": "text",
         "name": "text (Copy)",
@@ -1011,8 +1147,8 @@
         "isVisible": true,
         "visibleFrom": null,
         "visibleUntil": null,
-        "createdAt": "2026-11-06T21:43:20.804Z",
-        "updatedAt": "2026-11-06T21:43:20.804Z"
+        "createdAt": "2026-11-16T15:53:33.159Z",
+        "updatedAt": "2026-11-16T15:53:33.159Z"
       }
     },
     {

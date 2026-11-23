@@ -110,6 +110,7 @@ Inti talks to your CMS through **adapters**:
 | [`@intijs/adapter-kitsuden`](packages/adapter-kitsuden) | [Kitsuden](https://github.com/Kitsuden/kitsuden) Page Builder | ✅ |
 | [`@intijs/adapter-strapi`](packages/adapter-strapi) | Strapi v4 and v5 dynamic zones | ✅ |
 | [`@intijs/adapter-keystatic`](packages/adapter-keystatic) | [Keystatic](https://keystatic.com) files, locally or through GitHub | ✅ |
+| [`@intijs/adapter-odoo`](packages/adapter-odoo) | [Odoo](https://www.odoo.com) as the catalog next to the CMS: products, variants, free stock, prices with taxes, orders (JSON-2, JSON-RPC before 19) | Products are read; orders are created |
 
 Contentful and Sanity are read-only today. See [Packages](#-packages). With nothing configured, Inti writes to a local JSON file so you can try inline editing before connecting anything.
 
@@ -373,7 +374,7 @@ Writes go to your live CMS unless the agent works on a draft with `inti_create_d
 - [`AGENTS.md`](AGENTS.md): the canonical setup, import paths, naming and constraints; if any other document contradicts it, it is the one that is right. `CLAUDE.md` loads it for Claude Code.
 - [`llms.txt`](llms.txt): a short index of the docs for language models.
 - [`.claude/settings.json`](.claude/settings.json): shared Claude Code permissions (build and test allowed; `.env` files, `git push` and `npm publish` denied).
-- [`.claude/skills/`](.claude/skills): step-by-step skills any agent can follow: [`new-adapter`](.claude/skills/new-adapter/SKILL.md), [`fix-package`](.claude/skills/fix-package/SKILL.md) and [`release-check`](.claude/skills/release-check/SKILL.md).
+- [`.claude/skills/`](.claude/skills): step-by-step skills any agent can follow: [`new-adapter`](.claude/skills/new-adapter/SKILL.md), [`fix-package`](.claude/skills/fix-package/SKILL.md), [`release-check`](.claude/skills/release-check/SKILL.md), and [`webtest`](.claude/skills/webtest/SKILL.md).
 
 ## 📦 Packages
 
@@ -384,6 +385,7 @@ Writes go to your live CMS unless the agent works on a draft with `inti_create_d
 | `@intijs/adapter-kitsuden` | Kitsuden Page Builder adapter (read + write-back; blocks are rows, not an array) | MIT |
 | `@intijs/adapter-strapi` | Strapi v4/v5 adapter (read + write-back via dynamic zone) | MIT |
 | `@intijs/adapter-keystatic` | Edit Keystatic files on the page, locally or through GitHub | MIT |
+| `@intijs/adapter-odoo` | An Odoo catalog for a store: products, stock, prices, images, purges, orders | MIT |
 | `@intijs/adapter-contentful` / `-sanity` | Read adapters (write-back planned) | MIT |
 | `@intijs/cli` | `inti sync` — schema introspection → TypeScript types | MIT |
 | `@intijs/mcp` | MCP server — lets AI agents read and edit your CMS content | MIT |

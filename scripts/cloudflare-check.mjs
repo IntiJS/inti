@@ -10,6 +10,7 @@
  */
 
 import { execFileSync, spawn } from 'node:child_process';
+import { createServer } from 'node:net';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -18,7 +19,16 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const keep = process.argv.includes('--keep');
 const win = process.platform === 'win32';
-const PORT = 43500;
+// A free port asked from the system. It was a fixed 43500: when something already held it, `astro preview`
+// moved to 43501 and this check kept asking 43500 until it gave up ("workerd did not respond").
+const PORT = await new Promise((resolvePort, reject) => {
+    const probe = createServer();
+    probe.on('error', reject);
+    probe.listen(0, '127.0.0.1', () => {
+        const { port } = probe.address();
+        probe.close(() => resolvePort(port));
+    });
+});
 const BASE = `http://127.0.0.1:${PORT}`;
 const EDITOR = { 'x-check-editor': '1' };
 

@@ -1,29 +1,28 @@
 /* apps/demo-site/src/styles/landing.css
-   The landing page: flat colour fields, one heavy condensed grotesque set
-   against a serif, and the sun as the recurring device. Fonts are served from
+   The landing page: flat colour fields, Urbanist, a geometric sans, set
+   against Lora, a serif for long text (Kitsuden fonts.md), and the sun as the recurring device. Fonts are served from
    /fonts (SIL Open Font License): nothing is requested from another host. */
 
 @font-face {
-  font-family: 'Archivo';
+  font-family: 'Urbanist';
   font-style: normal;
   font-display: swap;
   font-weight: 100 900;
-  font-stretch: 62% 125%;
-  src: url('/fonts/archivo-latin-wdth-normal.woff2') format('woff2-variations');
+  src: url('/fonts/urbanist-latin-wght-normal.woff2') format('woff2-variations');
 }
 @font-face {
-  font-family: 'Instrument Serif';
+  font-family: 'Lora';
   font-style: normal;
   font-display: swap;
-  font-weight: 400;
-  src: url('/fonts/instrument-serif-latin-400-normal.woff2') format('woff2');
+  font-weight: 400 700;
+  src: url('/fonts/lora-latin-wght-normal.woff2') format('woff2-variations');
 }
 @font-face {
-  font-family: 'Instrument Serif';
+  font-family: 'Lora';
   font-style: italic;
   font-display: swap;
-  font-weight: 400;
-  src: url('/fonts/instrument-serif-latin-400-italic.woff2') format('woff2');
+  font-weight: 400 700;
+  src: url('/fonts/lora-latin-wght-italic.woff2') format('woff2-variations');
 }
 @font-face {
   font-family: 'JetBrains Mono';
@@ -42,8 +41,8 @@
   --ink-soft: #453D36; /* secondary text on paper */
   --paper-soft: #D6CAB4; /* secondary text on ink */
 
-  --f-sans: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
-  --f-serif: 'Instrument Serif', 'Times New Roman', Georgia, serif;
+  --f-sans: 'Urbanist', 'Helvetica Neue', Arial, sans-serif;
+  --f-serif: 'Lora', Georgia, 'Times New Roman', serif;
   --f-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
 
   --gutter: clamp(16px, 4vw, 56px);
@@ -1005,7 +1004,7 @@ body.lp {
   width: max-content;
   font-stretch: 62%;
   font-weight: 900;
-  font-size: clamp(4.5rem, 19vw, 19rem);
+  font-size: clamp(3.2rem, 13.3vw, 13.3rem); /* Urbanist has no condensed width: 0.7 of the Archivo-era size keeps the band's proportion */
   line-height: 0.82;
   letter-spacing: -0.015em;
   text-transform: uppercase;

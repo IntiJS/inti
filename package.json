@@ -60,6 +60,11 @@
     "typescript": "^5.7.3"
   },
   "overrides": {
-    "fflate": "^0.8.3"
+    "fflate": "^0.8.3",
+    "undici": "^7.30.2",
+    "sharp": "^0.35.5",
+    "zod": "^4.6.7",
+    "@hono/node-server": "^2.1.11",
+    "esbuild": "^0.28.2"
   }
 }

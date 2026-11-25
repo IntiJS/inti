@@ -1,3 +1,6 @@
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { describe, test, expect, mock, afterEach, beforeAll, afterAll } from 'bun:test';
 
 /**
@@ -17,7 +20,11 @@ import { describe, test, expect, mock, afterEach, beforeAll, afterAll } from 'bu
  * so the handler can be called directly.
  */
 
-const { ActionError } = await import('astro/actions/runtime/shared.js');
+// Astro 7 keeps ActionError in dist/actions/runtime/client.js, which is not in the
+// package exports; its public entrypoints import Vite virtual modules that do not
+// exist under bun test. Load the file by path from the installed astro package.
+const astroDir = dirname(createRequire(import.meta.url).resolve('astro/package.json'));
+const { ActionError } = await import(pathToFileURL(join(astroDir, 'dist/actions/runtime/client.js')).href);
 const { z } = await import('zod');
 
 mock.module('astro:actions', () => ({

@@ -7,7 +7,7 @@
   "homepage": "https://github.com/intijs/inti/tree/main/packages/adapter-wordpress#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/intijs/inti.git",
+    "url": "git+https://github.com/intijs/inti.git",
     "directory": "packages/adapter-wordpress"
   },
   "bugs": {

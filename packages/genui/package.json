@@ -17,7 +17,7 @@
   "homepage": "https://github.com/intijs/inti/tree/main/packages/genui#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/intijs/inti.git",
+    "url": "git+https://github.com/intijs/inti.git",
     "directory": "packages/genui"
   },
   "bugs": {

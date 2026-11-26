@@ -11,7 +11,8 @@
     "lib"
   ],
   "scripts": {
-    "test": "bun test"
+    "test": "bun test",
+    "prepublishOnly": "npm test"
   },
   "keywords": [
     "astro",

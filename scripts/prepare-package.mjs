@@ -22,18 +22,25 @@
  *   package itself with its `build` script.
  * - `INTI_SKIP_PREPARE=1`: does nothing.
  *
+ * With `--clean` it is the package's `prepack`: it deletes the package's own `dist/` and builds it
+ * again (and the internal packages it needs that have no `dist/`), from the root too. `tsc` never
+ * deletes outputs whose source is gone, so without this a tarball can carry stale files; that is
+ * how core and cli 0.1.0 shipped them.
+ *
  * Usage (in each package's package.json):
  *   "prepare": "node ../../scripts/prepare-package.mjs"
+ *   "prepack": "node ../../scripts/prepare-package.mjs --clean"
  */
 
 import { execSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PACKAGES = join(ROOT, 'packages');
 const pkgDir = process.cwd();
+const CLEAN = process.argv.includes('--clean');
 
 function log(message) {
     console.log(`[inti prepare] ${message}`);
@@ -67,12 +74,12 @@ function build(dir) {
     execSync('npm run build', { cwd: dir, stdio: 'inherit' });
 }
 
-if (process.env.INTI_SKIP_PREPARE === '1') {
+if (process.env.INTI_SKIP_PREPARE === '1' && !CLEAN) {
     log('INTI_SKIP_PREPARE=1, skipping');
     process.exit(0);
 }
 
-if (process.env.INIT_CWD && samePath(process.env.INIT_CWD, ROOT)) {
+if (!CLEAN && process.env.INIT_CWD && samePath(process.env.INIT_CWD, ROOT)) {
     // Install of the monorepo itself: it is built with `npm run build`
     process.exit(0);
 }
@@ -92,4 +99,8 @@ for (const name of Object.keys(deps)) {
     build(dir);
 }
 
+if (CLEAN) {
+    log(`cleaning ${manifest.name} dist/`);
+    rmSync(join(pkgDir, 'dist'), { recursive: true, force: true });
+}
 build(pkgDir);

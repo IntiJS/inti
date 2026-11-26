@@ -1,13 +1,13 @@
 {
   "name": "@intijs/cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "license": "MIT",
   "author": "Victor Antinori Broce",
   "homepage": "https://github.com/intijs/inti/tree/main/packages/cli#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/intijs/inti.git",
+    "url": "git+https://github.com/intijs/inti.git",
     "directory": "packages/cli"
   },
   "bugs": {
@@ -15,7 +15,7 @@
   },
   "description": "CLI for Inti.js — reads your CMS schema and generates TypeScript types for its blocks",
   "bin": {
-    "inti": "./bin/inti.js"
+    "inti": "bin/inti.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

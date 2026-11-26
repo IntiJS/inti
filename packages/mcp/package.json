@@ -7,7 +7,7 @@
   "homepage": "https://github.com/intijs/inti/tree/main/packages/mcp#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/intijs/inti.git",
+    "url": "git+https://github.com/intijs/inti.git",
     "directory": "packages/mcp"
   },
   "bugs": {
@@ -25,7 +25,7 @@
     "ai"
   ],
   "bin": {
-    "inti-mcp": "./bin/inti-mcp.js"
+    "inti-mcp": "bin/inti-mcp.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

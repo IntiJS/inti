@@ -4,7 +4,7 @@
   "description": "Creates an Astro project with Inti: visual editing on top of WordPress, Kitsuden, Strapi or Keystatic",
   "type": "module",
   "bin": {
-    "create-inti": "./bin/create-inti.js"
+    "create-inti": "bin/create-inti.js"
   },
   "files": [
     "bin",
@@ -28,7 +28,7 @@
   "homepage": "https://github.com/intijs/inti/tree/main/packages/create-inti#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/intijs/inti.git",
+    "url": "git+https://github.com/intijs/inti.git",
     "directory": "packages/create-inti"
   },
   "bugs": {

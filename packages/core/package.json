@@ -1,6 +1,6 @@
 {
   "name": "@intijs/core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "AI for any CMS, without changing the CMS: edit on the page and compose with AI on Astro sites, saving to WordPress, Kitsuden, Strapi, Keystatic…",
   "main": "./dist/index.js",
@@ -30,7 +30,7 @@
   "homepage": "https://github.com/intijs/inti/tree/main/packages/core#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/intijs/inti.git",
+    "url": "git+https://github.com/intijs/inti.git",
     "directory": "packages/core"
   },
   "bugs": {

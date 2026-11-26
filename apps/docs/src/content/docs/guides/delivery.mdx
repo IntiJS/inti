@@ -69,6 +69,23 @@ export const cache = createCacheManager({
 
 The client is injected: `iovalkey` and `ioredis` work as they are, and Inti pulls in no driver. One purge then empties the cache of every instance.
 
+### On Vercel: the Runtime Cache
+
+Each Vercel function instance has its own memory. The Runtime Cache is shared by every instance in a region, survives deployments, and expires a tag in every region at once:
+
+```ts
+import { getCache } from '@vercel/functions';
+import { createCacheManager, createVercelRuntimeCacheProvider } from '@intijs/core/cache';
+
+export const cache = createCacheManager({ provider: createVercelRuntimeCacheProvider({ cache: getCache() }) });
+```
+
+The Runtime Cache keeps at most 128 tags per entry; an entry with more is not stored, because it could not be purged by all of them. On a Hobby plan every project of the team shares one cache: give each a `prefix`.
+
+### On Cloudflare: KV
+
+`createKvCacheProvider(env.INTI_CACHE)` from `@intijs/cloudflare` keeps the cache in Workers KV. A purge is one write whatever the size of the site (a tag records when it was purged; older entries count as gone), because a Worker invocation may make at most 1000 KV operations. KV is eventually consistent: other data centers see a write or a purge up to 60 seconds later. See [Cloudflare](/guides/cloudflare/#caching-kv-and-the-cdn).
+
 ## The delivery middleware
 
 ```ts
@@ -88,6 +105,14 @@ export const onRequest = intiDelivery({ cache });
 - The key includes the host: a page rendered for a forged `Host` header (its canonical and `og:url` come from the request) is never served on the real one.
 - A page that sets its own `Cache-Control` (personalized with `adaptPage`) is neither stored nor made public.
 
+**On Vercel or Cloudflare**, name the platform:
+
+```ts
+export const onRequest = intiDelivery({ cache, cdn: { platform: 'vercel' } }); // or 'cloudflare'
+```
+
+It adds that CDN's own header, `Vercel-CDN-Cache-Control` or `Cloudflare-CDN-Cache-Control`, with the same lifetimes written as `max-age` (Cloudflare ignores `stale-while-revalidate` and `stale-if-error` next to `s-maxage`, so with `Cache-Control` alone a Cloudflare edge would not serve a stale page while the origin is down). It also tags every shareable page with what it showed (`Vercel-Cache-Tag` or `Cache-Tag`: the HTML, its page, and `Astro.locals.intiCacheTags`), so a purge empties the CDN page by page. Cloudflare removes `Cache-Tag` and `Cloudflare-CDN-Cache-Control` before the visitor, and Vercel removes `Vercel-CDN-Cache-Control`. `tagHeader` names another header (`Surrogate-Key`) or turns tags off. A tag that is not plain ASCII is sent as a stable hash (`cdnTag`), and a response carries at most 128.
+
 **Behind a CDN**, configure it to skip its cache when the editor session cookie is present. The CDN does not ask the origin for a page it already has, so it cannot see the `private` an editor would get.
 
 ## The purge route
@@ -102,7 +127,24 @@ export const prerender = false;
 export const POST = purgeRoute({ cache, secret: () => env('INTI_PURGE_SECRET') });
 ```
 
-The CMS (the WordPress plugin, a Kitsuden action, an ERP) posts `{ "slug": "about" }`, `{ "slugs": [...] }`, `{ "tags": [...] }` or `{ "all": true }`, signed with `X-Inti-Signature: sha256=<HMAC-SHA256 of the body>` (`signBody` makes one). A slug drops that page's data and HTML and the home page, which usually lists the others; an event ending in `deleted` drops everything. Without a secret the route answers 503 instead of accepting anything. `parse` reads a CMS's own payload; `onPurge` receives the tags to purge a CDN too.
+The CMS (the WordPress plugin, a Kitsuden action, an ERP) posts `{ "slug": "about" }`, `{ "slugs": [...] }`, `{ "tags": [...] }` or `{ "all": true }`, signed with `X-Inti-Signature: sha256=<HMAC-SHA256 of the body>` (`signBody` makes one). A slug drops that page's data and HTML and the home page, which usually lists the others; an event ending in `deleted` drops everything. Without a secret the route answers 503 instead of accepting anything. `parse` reads a CMS's own payload; `onPurge` receives the tags to purge a CDN too:
+
+```ts
+// Vercel: marks the tags stale on the CDN and in the Runtime Cache
+import { invalidateByTag } from '@vercel/functions';
+import { purgeRoute, vercelPurge } from '@intijs/core/delivery';
+export const POST = purgeRoute({ cache, secret: () => env('INTI_PURGE_SECRET'), onPurge: vercelPurge(invalidateByTag) });
+
+// Cloudflare: the zone's purge by tag, with a token that has the Cache Purge permission
+import { cloudflarePurge } from '@intijs/cloudflare';
+export const POST = purgeRoute({
+    cache,
+    secret: () => env('INTI_PURGE_SECRET'),
+    onPurge: cloudflarePurge({ zoneId: env('CF_ZONE_ID')!, apiToken: () => env('CF_PURGE_TOKEN') })
+});
+```
+
+Both send every tag, not only the 128 a response may carry. `cloudflarePurge` sends 100 tags per call (Cloudflare's limit; the Free plan allows 5 calls a minute) and throws when Cloudflare refuses, so the CMS sees the error and sends the notice again.
 
 ## Personalized zones without losing the cache
 

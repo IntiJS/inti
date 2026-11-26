@@ -148,6 +148,29 @@ registerImageService(createCloudflareImageService());
 
 `<IntiImage>` uses it with no further changes. Image Transformations must be enabled on the zone.
 
+## Caching: KV and the CDN
+
+Isolates share no memory, so the memory cache keeps one copy per isolate. Keep the page cache and the HTML cache in KV instead:
+
+```jsonc
+// wrangler.jsonc
+"kv_namespaces": [{ "binding": "INTI_CACHE", "id": "<namespace id>" }]
+```
+
+```ts
+import { env } from 'cloudflare:workers';
+import { createCacheManager } from '@intijs/core/cache';
+import { createKvCacheProvider } from '@intijs/cloudflare';
+
+export const cache = createCacheManager({ provider: createKvCacheProvider(env.INTI_CACHE) });
+```
+
+- **A purge is one write.** Deleting every entry of a tag would cost one operation per entry, and an invocation may make 1000 KV operations at most. Instead a tag records when it was last purged, and an entry stored before then counts as gone. A read is two calls: the entry, and its tags' purge times in one bulk `get`.
+- **Eventually consistent.** Other data centers see a write, or a purge, up to 60 seconds later. `cacheTtl` (at least 30) makes reads faster and purges slower. `purgeMargin` (10 s) also treats an entry stored just after a purge as purged: its render may have begun before.
+- **Limits.** The Free plan allows 1000 KV writes a day, which a busy site's HTML cache spends quickly; use a paid plan. KV takes one write per key per second: when several isolates store the same page at once, the extra writes are dropped, not errors.
+
+**Cloudflare in front of another origin** (a Node server it proxies): `intiDelivery({ cdn: { platform: 'cloudflare' } })` adds `Cloudflare-CDN-Cache-Control` with `max-age`, so `stale-while-revalidate` and `stale-if-error` hold (Cloudflare ignores both next to `s-maxage`), and `Cache-Tag` on every page. Cloudflare does not cache HTML by default: add a Cache Rule that makes those pages eligible, and bypass it when the editor's session cookie is present. `onPurge: cloudflarePurge({ zoneId, apiToken })` on the [purge route](/guides/delivery/#the-purge-route) empties the CDN by tag, on every plan.
+
 ## Check it locally
 
-`npm run test:cloudflare` builds a real project and runs it in `workerd`, Cloudflare's runtime, with local D1, R2 and Durable Objects. It needs no account.
+`npm run test:cloudflare` builds a real project and runs it in `workerd`, Cloudflare's runtime, with local D1, R2, KV and Durable Objects. It needs no account.

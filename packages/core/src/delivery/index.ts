@@ -30,8 +30,10 @@ import { resolveEditorSession } from '../server/editor-session.js';
 import { pageErrorResponse } from '../server/responses.js';
 import { isDevelopmentRuntime } from '../server/access.js';
 import { verifySignature, signBody } from './signature.js';
+import { cdnTags, CDN_MAX_TAGS } from './cdn-tags.js';
 
 export { signBody, verifySignature };
+export { cdnTag, cdnTags, CDN_MAX_TAGS, vercelPurge } from './cdn-tags.js';
 
 /** What the middleware reads from Astro's context; structural, so no Astro types are needed */
 export interface DeliveryContext {
@@ -51,7 +53,22 @@ export interface CdnOptions {
     staleWhileRevalidate?: number;
     /** Seconds it may serve it stale when the origin fails. Default 86400 */
     staleIfError?: number;
+    /**
+     * The CDN in front of the site. Adds that CDN's own header
+     * (`Cloudflare-CDN-Cache-Control`, `Vercel-CDN-Cache-Control`) with `max-age`, so
+     * `stale-while-revalidate` and `stale-if-error` hold there too (Cloudflare ignores both
+     * next to `s-maxage`), and tags every page (`Cache-Tag`, `Vercel-Cache-Tag`) so a purge
+     * empties the CDN page by page instead of all at once.
+     */
+    platform?: 'cloudflare' | 'vercel';
+    /** Header that carries the page's cache tags. Default: the platform's; `false` for none */
+    tagHeader?: string | false;
 }
+
+const PLATFORM_HEADERS = {
+    cloudflare: { control: 'cloudflare-cdn-cache-control', tags: 'cache-tag' },
+    vercel: { control: 'vercel-cdn-cache-control', tags: 'vercel-cache-tag' }
+} as const;
 
 export interface DeliveryOptions {
     /** HTML cache on the server for anonymous visitors (memory or Valkey) */
@@ -154,6 +171,16 @@ function cdnHeader(options: CdnOptions): string {
     ].join(', ');
 }
 
+/** The same lifetimes in a header only the CDN reads, where `max-age` is its own */
+function targetedHeader(options: CdnOptions): string {
+    return [
+        'public',
+        `max-age=${options.sMaxAge ?? 60}`,
+        `stale-while-revalidate=${options.staleWhileRevalidate ?? 300}`,
+        `stale-if-error=${options.staleIfError ?? 86_400}`
+    ].join(', ');
+}
+
 function withHeaders(response: Response, body: BodyInit | null, set: Record<string, string>, append: Record<string, string> = {}): Response {
     const headers = new Headers(response.headers);
     for (const [name, value] of Object.entries(set)) headers.set(name, value);
@@ -211,7 +238,12 @@ export function intiDelivery(options: DeliveryOptions = {}) {
     const htmlTtl = options.htmlTtl ?? 60;
     const staleIfError = options.staleIfError ?? 86_400;
     const strip = options.stripEditorMarkup !== false;
-    const cdn = options.cdn === false ? null : cdnHeader(options.cdn ?? {});
+    const cdnOptions = options.cdn === false ? null : (options.cdn ?? {});
+    const cdn = cdnOptions ? cdnHeader(cdnOptions) : null;
+    const platform = cdnOptions?.platform ? PLATFORM_HEADERS[cdnOptions.platform] : undefined;
+    const targeted = platform && cdnOptions ? { name: platform.control, value: targetedHeader(cdnOptions) } : undefined;
+    const tagHeader = cdnOptions?.tagHeader === false ? undefined : (cdnOptions?.tagHeader?.toLowerCase() ?? platform?.tags);
+    let warnedTags = false;
     const onError = options.onError ?? ((error: unknown) => pageErrorResponse(error));
 
     return async (context: DeliveryContext, next: Next): Promise<Response> => {
@@ -257,7 +289,18 @@ export function intiDelivery(options: DeliveryOptions = {}) {
         const isHtml = (response.headers.get('content-type') ?? '').includes('text/html');
         const shareable = isShareable(context.request, response);
         const extra: Record<string, string> = {};
-        if (cdn && shareable && !response.headers.has('cache-control')) extra['cache-control'] = cdn;
+        if (cdn && shareable && !response.headers.has('cache-control')) {
+            extra['cache-control'] = cdn;
+            if (targeted && !response.headers.has(targeted.name)) extra[targeted.name] = targeted.value;
+        }
+        const tags = [htmlTag, pageTags.page(slugOf(context.url)), ...extraTags(context.locals)];
+        if (tagHeader && shareable && isHtml) {
+            if (tags.length > CDN_MAX_TAGS && !warnedTags) {
+                warnedTags = true;
+                console.warn(`[inti] A page carries more than ${CDN_MAX_TAGS} cache tags; the CDN gets only the first ones, so a purge by the others misses it.`);
+            }
+            extra[tagHeader] = cdnTags(tags).join(',');
+        }
 
         if (!isHtml || (!strip && !(cache && shareable))) {
             return Object.keys(extra).length ? withHeaders(response, response.body, extra) : response;
@@ -271,7 +314,7 @@ export function intiDelivery(options: DeliveryOptions = {}) {
         if (cache && shareable) {
             const page: StoredPage = { status: out.status, headers: headerPairs(out.headers), body };
             await cache
-                .set(key, page, { ttl: htmlTtl, swr: 0, staleIfError, tags: [htmlTag, pageTags.page(slugOf(context.url)), ...extraTags(context.locals)] })
+                .set(key, page, { ttl: htmlTtl, swr: 0, staleIfError, tags })
                 .catch((error) => console.warn('[inti] The page could not be stored in the cache.', error));
             out.headers.set('x-inti-cache', 'MISS');
         }

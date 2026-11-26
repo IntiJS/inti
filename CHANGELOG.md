@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Vercel and Cloudflare: shared caches and purges by page
+
+- **`intiDelivery({ cdn: { platform: 'vercel' | 'cloudflare' } })`** adds the CDN's own `Vercel-CDN-Cache-Control` / `Cloudflare-CDN-Cache-Control` with `max-age` (Cloudflare ignores `stale-while-revalidate` and `stale-if-error` next to `s-maxage`, so a Cloudflare edge never served a stale page while the origin was down) and tags each page with `Vercel-Cache-Tag` / `Cache-Tag`. `tagHeader` names another header; `cdnTag` turns a tag that is not plain ASCII into a stable hash.
+- **`vercelPurge(invalidateByTag)`** (`@intijs/core/delivery`) and **`cloudflarePurge({ zoneId, apiToken })`** (`@intijs/cloudflare`) for `purgeRoute`'s `onPurge`: the CDN is emptied page by page instead of waiting for `s-maxage`.
+- **`createVercelRuntimeCacheProvider({ cache: getCache() })`** (`@intijs/core/cache`): one cache for every function instance of a region, kept across deployments, purged in every region. No Vercel package is a dependency.
+- **`createKvCacheProvider(env.KV)`** (`@intijs/cloudflare`): one cache for every isolate. A purge is one write whatever the size of the site, since an invocation may make 1000 KV operations at most. `npm run test:cloudflare` checks it in workerd.
+
 ### New: `@intijs/adapter-odoo`, an Odoo catalog for stores
 
 - **JSON-2 with a JSON-RPC fallback.** Odoo 19+ is read through `/json/2/<model>/<method>`; an older Odoo is detected by its 404 and read through `execute_kw` with the key's login.

@@ -11,6 +11,7 @@ Optional Cloudflare backends for [Inti](https://github.com/intijs/inti), current
 | `createR2MediaStore` | Media, checked by their bytes, usable as a `@intijs/genui` data source |
 | `createWorkersAiProvider` | A model in your account, with no external key |
 | `createCloudflareImageService`, `cloudflareImageUrl` | Resizing at the edge |
+| `createKvCacheProvider`, `cloudflarePurge` | A page and HTML cache shared by every isolate, purged in one write; the CDN purged by tag |
 
 See the [deployment guide](https://github.com/intijs/inti/blob/main/apps/docs/src/content/docs/guides/cloudflare.mdx).
 

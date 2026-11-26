@@ -29,7 +29,7 @@ Do not position Inti as a CMS, a WordPress plugin, a general-purpose generative 
 
 Supports Astro 5, 6 and 7, enforced in CI: for each major, every push installs the full documented setup into a clean project, builds it, serves it with `astro dev` (walking every module the browser loads), and runs the production server to assert what a visitor gets — no JavaScript, nothing from the editor, no hidden blocks. `node scripts/astro-compat.mjs <5|6|7>` runs the same check locally.
 
-Vercel is checked the same way on the three majors (`node scripts/vercel-check.mjs <5|6|7>`): the function `@astrojs/vercel` produces is run on its own, outside the project, so a file it needs and did not ship fails as it would in production. On Vercel the disk is read-only (connect a CMS; the local store says so), in-memory caches are per instance, and `isr` must stay off for pages that show the editor.
+Vercel is checked the same way on the three majors (`node scripts/vercel-check.mjs <5|6|7>`): the function `@astrojs/vercel` produces is run on its own, outside the project, so a file it needs and did not ship fails as it would in production. On Vercel the disk is read-only (connect a CMS; the local store says so), in-memory caches are per instance (`createVercelRuntimeCacheProvider` shares one between them), and `isr` must stay off for pages that show the editor.
 
 The repo itself develops on Astro 5. The adapter of Astro goes by its own major — Astro 5 pairs with `@astrojs/node@9`, 6 with `@10`, 7 with `@11`.
 
@@ -109,6 +109,7 @@ For Kitsuden: `INTI_ADAPTER=kitsuden`, `INTI_KITSUDEN_ENDPOINT`, `INTI_KITSUDEN_
 - `cachePages(adapter, { cache })` (`@intijs/core/cache`) puts a tagged cache in front of the adapter: stale-while-revalidate, one load per key, `staleIfError`, short-lived 404s. `createValkeyCacheProvider({ client })` shares it between instances.
 - `intiDelivery({ cache })` (`@intijs/core/delivery`) in `src/middleware.ts`: `public, s-maxage` for anonymous visitors, `private, no-store` + `Vary: Cookie` for editors, the HTML cache, a stale copy or 404/503 when rendering throws, and no `data-inti-*` editor attributes for visitors. Only requests with a cookie or an `Authorization` header are asked about a session, and those with `Authorization` are never stored. The key includes the host, and only queries listed in `cacheParams` (default `page`; tracking parameters are ignored) are stored. A CDN must skip its cache when the editor's session cookie is present.
 - `purgeRoute({ cache, secret })` takes a signed notice (`X-Inti-Signature: sha256=<HMAC of the body>`) with `slug`, `slugs`, `tags` or `all`. Without a secret it answers 503.
+- On Vercel or Cloudflare, `intiDelivery({ cdn: { platform: 'vercel' | 'cloudflare' } })` adds that CDN's own `*-CDN-Cache-Control` (with `max-age`, because Cloudflare ignores `stale-while-revalidate` and `stale-if-error` next to `s-maxage`) and tags each page (`Vercel-Cache-Tag`, `Cache-Tag`); `onPurge: vercelPurge(invalidateByTag)` or `cloudflarePurge({ zoneId, apiToken })` then empties the CDN page by page. Shared server caches: `createVercelRuntimeCacheProvider({ cache: getCache() })` (`@intijs/core/cache`) and `createKvCacheProvider(env.KV)` (`@intijs/cloudflare`), where a purge is one write whatever the size of the site.
 - `<BlockRenderer adaptive="island" />` renders each adaptive zone as a server island, so the page stays cacheable; do not call `adaptPage` on that page.
 - Adapters talk to their CMS with `createHttpClient` (`@intijs/core/http`): time limit, retries on reads only, `Retry-After`, ETags, deduplicated reads, typed errors, `Content-Type: application/json`.
 
@@ -292,7 +293,7 @@ Without that, the original is served unoptimized and Inti says so in dev, naming
 | `resolveWriteAdapter` | `@intijs/core/server` |
 | `WordPressAdapter`, `wooProductsAsData`, `wordpressImage`, `augmentMedia` | `@intijs/adapter-wordpress` |
 | `KeystaticAdapter`, `githubStorage`, `localStorage` | `@intijs/adapter-keystatic` |
-| `D1ContentAdapter`, `createR2MediaStore`, `createWorkersAiProvider`, `createCloudflareImageService` | `@intijs/cloudflare` |
+| `D1ContentAdapter`, `createR2MediaStore`, `createWorkersAiProvider`, `createCloudflareImageService`, `createKvCacheProvider`, `cloudflarePurge` | `@intijs/cloudflare` |
 | `IntiRoom`, `IntiLimiter`, `connectToRoom`, `createDurableLimiter` | `@intijs/cloudflare/durable` |
 | `renderInfographic`, `renderInfographicHtml`, `planInfographic`, `infographicVocabulary`, `defineFormat`, `defineTheme` | `@intijs/infographic` |
 | `Infographic.astro` | `@intijs/infographic/` |
@@ -304,8 +305,8 @@ Without that, the original is served unoptimized and Inti says so in dev, naming
 
 | `NotFoundError`, `UnavailableError`, `RateLimitError`, `ConflictError`, `isNotFound`, `isUnavailable` | `@intijs/core/errors` |
 | `createHttpClient` | `@intijs/core/http` |
-| `createCacheManager`, `cachePages`, `pageTags`, `createValkeyCacheProvider` | `@intijs/core/cache` |
-| `intiDelivery`, `purgeRoute`, `signBody`, `stripEditorMarkup` | `@intijs/core/delivery` |
+| `createCacheManager`, `cachePages`, `pageTags`, `createValkeyCacheProvider`, `createVercelRuntimeCacheProvider` | `@intijs/core/cache` |
+| `intiDelivery`, `purgeRoute`, `signBody`, `stripEditorMarkup`, `cdnTags`, `vercelPurge` | `@intijs/core/delivery` |
 | `pageErrorResponse`, `unavailableResponse` | `@intijs/core/server` |
 | `createCatalog`, `cachedCatalogSource`, `catalogPurgeRoute`, `readItem`, `readCollection`, `bindBlocks`, `catalogSitemap` | `@intijs/core/catalog` |
 | `sitemapIndexRoute`, `sitemapFileRoute`, `sitemapSection`, `chunkSitemap`, `localeFromPath`, `localizedPath`, `hreflangLinks` | `@intijs/core/seo` |
@@ -427,7 +428,7 @@ Do not give visitor-facing composition a write tool, and do not print a generate
 
 ## Cloudflare
 
-`@intijs/cloudflare` is optional; nothing in Inti depends on it. Each piece implements an existing contract: D1 (`D1ContentAdapter`, `createD1ExperimentStore`, `createD1PatternStore`, `createD1ComposeCache`), Durable Objects (`IntiRoom`, `IntiLimiter`, from `@intijs/cloudflare/durable`, which only loads in a Worker), R2 (`createR2MediaStore`), Workers AI (`createWorkersAiProvider`) and Images (`createCloudflareImageService`).
+`@intijs/cloudflare` is optional; nothing in Inti depends on it. Each piece implements an existing contract: D1 (`D1ContentAdapter`, `createD1ExperimentStore`, `createD1PatternStore`, `createD1ComposeCache`), Durable Objects (`IntiRoom`, `IntiLimiter`, from `@intijs/cloudflare/durable`, which only loads in a Worker), R2 (`createR2MediaStore`), Workers AI (`createWorkersAiProvider`), Images (`createCloudflareImageService`), KV as the cache provider (`createKvCacheProvider`) and the CDN purge by tag (`cloudflarePurge`).
 
 A Worker cannot resolve the `import()` that loads an adapter by name, so register it with `getWriteAdapter`, whichever CMS it is. `connectToRoom` does not authenticate: check `resolveEditorSession` first. So does `createR2MediaStore().upload`.
 

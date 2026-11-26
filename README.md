@@ -64,6 +64,15 @@ pnpm add "github:intijs/inti#$COMMIT&path:/packages/core" \
          "github:intijs/inti#$COMMIT&path:/packages/adapter-kitsuden"
 ```
 
+**Every `@intijs` package from the same place.** Until the scope is published, the name `@intijs/<anything>` on the npm registry is not ours. A package that depends on another one (`@intijs/mcp` on `@intijs/genui`, `@intijs/cli` on `@intijs/core`, the adapters on `@intijs/core`) must find it already installed from your clone or commit, or npm or pnpm will look for it on the registry. Install each of them explicitly in the same command (one `.tgz` per package, or one `path:` per package), and with pnpm pin them all:
+
+```yaml
+# pnpm-workspace.yaml (of your site): never resolve @intijs from the registry
+overrides:
+  "@intijs/core": "github:intijs/inti#<full commit sha>&path:/packages/core"
+  "@intijs/genui": "github:intijs/inti#<full commit sha>&path:/packages/genui"
+```
+
 **Once the packages are published:** `npm install @intijs/core @intijs/adapter-wordpress` (or the adapter you use).
 
 Then follow **Manual setup (WordPress)** below: an Astro adapter, the actions, the block registry and the page. No step is optional.

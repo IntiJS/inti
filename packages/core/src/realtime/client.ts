@@ -2,6 +2,8 @@
  * RealtimeClient - WebSocket client for real-time collaboration
  */
 
+import { sanitizeCursor, sanitizePresence } from './sanitize.js';
+
 import type {
     RealtimeConfig,
     RealtimeMessage,
@@ -93,7 +95,13 @@ export class RealtimeClient {
                 };
                 
                 this.ws.onmessage = (event) => {
-                    this.handleMessage(JSON.parse(event.data));
+                    let message: RealtimeMessage;
+                    try {
+                        message = JSON.parse(event.data);
+                    } catch {
+                        return; // A frame that is not JSON is dropped, not thrown
+                    }
+                    if (message && typeof message === 'object') this.handleMessage(message);
                 };
                 
             } catch (error) {
@@ -174,17 +182,22 @@ export class RealtimeClient {
                 // Connection is alive
                 break;
                 
-            case 'presence':
-                this.emit('user_join', message.payload);
+            case 'presence': {
+                // Peers' frames are relayed as they are: bound every field before listeners see it
+                const presence = sanitizePresence(message.payload);
+                if (presence) this.emit('user_join', presence as never);
                 break;
+            }
                 
             case 'update':
                 this.emit('update', message.payload);
                 break;
                 
-            case 'cursor':
-                this.emit('cursor_move', message.payload);
+            case 'cursor': {
+                const cursor = sanitizeCursor(message.payload);
+                if (cursor) this.emit('cursor_move', cursor as never);
                 break;
+            }
                 
             case 'conflict':
                 this.handleConflict(message.payload);

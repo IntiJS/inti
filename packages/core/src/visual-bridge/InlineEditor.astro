@@ -39,8 +39,11 @@ const {
 
 // Outside dev, `enabled` is honored only with an editor session: other
 // visitors receive neither the marker nor the editor chunks.
+// When intiDelivery decided this response is public (and may be cached), nothing is added.
+const publicResponse = (Astro.locals as Record<string, unknown> | undefined)?.intiEditor === false;
 const enabled =
     enabledProp &&
+    !publicResponse &&
     (import.meta.env.DEV ||
         (await resolveEditorSession({
             request: Astro.request,

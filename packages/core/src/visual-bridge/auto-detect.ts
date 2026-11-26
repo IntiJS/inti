@@ -130,13 +130,12 @@ export function createVisualBridgeConfig(
         ...options?.cmsConfig
     };
     
-    // Add the token if there is one
-    if (intiConfig.adapterConfig?.previewToken) {
-        cmsConfig.previewToken = intiConfig.adapterConfig.previewToken;
-    }
-    if (intiConfig.adapterConfig?.token) {
-        cmsConfig.previewToken = intiConfig.adapterConfig.token;
-    }
+    // Only identifiers for the admin links. This config is serialized into the page
+    // (data-config), so a token from adapterConfig (Kitsuden's agent key, a preview
+    // token) must never be copied here.
+    const ids = intiConfig.adapterConfig as { spaceId?: unknown; projectId?: unknown } | undefined;
+    if (typeof ids?.spaceId === 'string') cmsConfig.spaceId = ids.spaceId;
+    if (typeof ids?.projectId === 'string') cmsConfig.projectId = ids.projectId;
     
     return {
         enabled: true,

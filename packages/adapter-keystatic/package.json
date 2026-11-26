@@ -45,13 +45,13 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "js-yaml": "^4.1.0"
+    "js-yaml": "^4.3.2"
   },
   "peerDependencies": {
     "@intijs/core": "^0.1.0"
   },
   "devDependencies": {
-    "@keystatic/core": "^0.6.9",
+    "@keystatic/core": "^0.6.10",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.0.0",
     "typescript": "^5.7.3"

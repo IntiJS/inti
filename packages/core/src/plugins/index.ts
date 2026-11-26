@@ -29,6 +29,11 @@ export type WriteOperation =
     | 'createDraft'
     | 'publishDraft'
     | 'discardDraft'
+    /** Shared pattern library (`documentId` is empty; `data.name` is the pattern) */
+    | 'savePattern'
+    | 'deletePattern'
+    /** Assisted composition: spends the site's model key (`documentId` is empty) */
+    | 'generateBlocks'
     /**
      * Not a write: used when resolving the actor to open the editor
      * or the realtime channel. It only reaches `resolveActor`, never
@@ -330,6 +335,11 @@ export async function resolveActor(ctx: WriteContext): Promise<Actor | null> {
  *
  * With no plugins registered it returns `{ allowed: true }`, which is the
  * default behavior of open editing.
+ *
+ * A hook that throws denies the write. It is a permission check: treating its
+ * failure as "no opinion" turned every bug in a policy (a null actor
+ * dereferenced, an identity provider that times out) into an approval for
+ * whoever could trigger it.
  */
 export async function runBeforeWrite(ctx: WriteContext): Promise<WriteDecision> {
     for (const plugin of plugins) {
@@ -340,8 +350,8 @@ export async function runBeforeWrite(ctx: WriteContext): Promise<WriteDecision> 
                 return { allowed: false, reason: decision.reason ?? `Denied by plugin "${plugin.name}"` };
             }
         } catch (error) {
-            // A broken plugin must not turn into a silent block
             warn('beforeWrite', plugin.name, error);
+            return { allowed: false, reason: `The write policy of plugin "${plugin.name}" failed` };
         }
     }
     return { allowed: true };

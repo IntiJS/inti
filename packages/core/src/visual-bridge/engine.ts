@@ -163,8 +163,8 @@ export class VisualBridgeEngine {
         if (config.cmsConfig?.adminUrl) {
             this.state.cmsConnector = createCmsConnector(config.cms, {
                 adminUrl: config.cmsConfig.adminUrl,
-                spaceId: config.cmsConfig.previewToken, // Use the token as spaceId for Contentful
-                projectId: config.cmsConfig.previewToken // Use the token as projectId for Sanity
+                spaceId: config.cmsConfig.spaceId,
+                projectId: config.cmsConfig.projectId
             });
             this.syncManager = new CmsSyncManager(this.state.cmsConnector);
         }

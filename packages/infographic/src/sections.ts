@@ -164,12 +164,23 @@ export function niceTicks(min: number, max: number, count = 4): number[] {
         min -= pad;
         max += pad;
     }
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return [0, 1];
     const raw = (max - min) / count;
     const magnitude = 10 ** Math.floor(Math.log10(raw));
-    const step = [1, 2, 2.5, 5, 10].map((m) => m * magnitude).find((candidate) => candidate >= raw) ?? raw;
+    // At 1e16 and beyond, a span of a few units is below the float spacing: adding the
+    // step would not move v and the loop would never end. Such a step is widened to one
+    // that moves, and the loop is capped whatever happens.
+    let step = [1, 2, 2.5, 5, 10].map((m) => m * magnitude).find((candidate) => candidate >= raw) ?? raw;
+    const ulp = Math.max(Math.abs(min), Math.abs(max)) * Number.EPSILON * 4;
+    if (!(step > ulp)) step = ulp || 1;
     const start = Math.floor(min / step) * step;
     const ticks: number[] = [];
-    for (let v = start; v <= max + step * 0.5; v += step) ticks.push(Number(v.toFixed(10)));
+    for (let v = start, i = 0; v <= max + step * 0.5 && i < 50; i++) {
+        ticks.push(Number(v.toFixed(10)));
+        const next = v + step;
+        if (next === v) break;
+        v = next;
+    }
     return ticks;
 }
 

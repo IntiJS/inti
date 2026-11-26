@@ -176,8 +176,8 @@
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
-    "astro": "^5.0.0 || ^6.0.0 || ^7.0.0",
-    "@aws-sdk/client-s3": "^3.0.0"
+    "@aws-sdk/client-s3": "^3.0.0",
+    "astro": "^5.0.0 || ^6.0.0 || ^7.0.0"
   },
   "peerDependenciesMeta": {
     "@aws-sdk/client-s3": {
@@ -187,7 +187,7 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/ws": "^8.5.0",
-    "astro": "^5.0.0",
+    "astro": "^7.4.13",
     "typescript": "^5.7.3"
   },
   "optionalDependencies": {

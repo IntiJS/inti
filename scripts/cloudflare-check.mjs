@@ -60,6 +60,7 @@ export default defineConfig({
     "compatibility_flags": ["nodejs_compat"],
     "d1_databases": [{ "binding": "DB", "database_name": "inti", "database_id": "00000000-0000-0000-0000-000000000000" }],
     "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "inti-media" }],
+    "kv_namespaces": [{ "binding": "INTI_CACHE", "id": "00000000000000000000000000000000" }],
     "durable_objects": {
         "bindings": [
             { "name": "INTI_ROOM", "class_name": "IntiRoom" },
@@ -221,6 +222,39 @@ Astro.response.headers.set('X-Check-Status', result.status);
 Astro.response.headers.set('X-Check-Cached', String(result.cached));
 ---
 <BlockRenderer blocks={result.blocks.map((b) => ({ type: b.nativeType, data: b.data }))} editable={false} audit={false} />
+`,
+    'src/pages/api/kv-cache.ts': `import type { APIRoute } from 'astro';
+import { env } from 'cloudflare:workers';
+import { createCacheManager } from '@intijs/core/cache';
+import { intiDelivery } from '@intijs/core/delivery';
+import { createKvCacheProvider } from '@intijs/cloudflare';
+
+export const GET: APIRoute = async () => {
+    const prefix = 'check:' + crypto.randomUUID() + ':';
+    const make = () => createCacheManager({ provider: createKvCacheProvider(env.INTI_CACHE, { prefix, purgeMargin: 0 }) });
+    const one = make();
+    const other = make();
+    const steps: Record<string, unknown> = {};
+
+    await one.set('a', 'A', { ttl: 60, tags: ['inti:page:a'] });
+    await one.set('b', 'B', { ttl: 60, tags: ['inti:page:b'] });
+    steps.shared = await other.get('a');
+    await other.invalidateByTag('inti:page:a');
+    steps.purged = await one.get('a');
+    steps.kept = await one.get('b');
+
+    const delivery = intiDelivery({ cache: one, cdn: { platform: 'cloudflare' } });
+    const context = () => ({ request: new Request('https://site.test/kv'), url: new URL('https://site.test/kv'), locals: {} });
+    const render = (body: string) => async () => new Response(body, { headers: { 'content-type': 'text/html' } });
+    const first = await delivery(context(), render('first'));
+    const second = await delivery(context(), render('second'));
+    steps.first = first.headers.get('x-inti-cache');
+    steps.second = second.headers.get('x-inti-cache');
+    steps.body = await second.text();
+    steps.tag = first.headers.get('cache-tag');
+    steps.control = first.headers.get('cloudflare-cdn-cache-control');
+    return Response.json(steps);
+};
 `,
     'src/pages/image.astro': `---
 import { cloudflareImageSrcset, cloudflareImageUrl } from '@intijs/cloudflare';
@@ -435,6 +469,18 @@ async function checks() {
         const other = await search('four', 'v3');
         await other.text();
         assert(other.headers.get('x-check-status') === 'ok', other.headers.get('x-check-status'));
+    });
+
+    await check('KV cache: shared between instances, purged by tag in one write, and the HTML cache hits', async () => {
+        const response = await fetch(`${BASE}/api/kv-cache`);
+        assert(response.ok, `responds ${response.status}: ${(await response.clone().text()).slice(0, 300)}`);
+        const steps = await response.json();
+        assert(steps.shared === 'A', `not shared: ${JSON.stringify(steps)}`);
+        assert(steps.purged === null, `a purged entry is still served: ${JSON.stringify(steps)}`);
+        assert(steps.kept === 'B', `the purge took another page: ${JSON.stringify(steps)}`);
+        assert(steps.first === 'MISS' && steps.second === 'HIT' && steps.body === 'first', `HTML cache: ${JSON.stringify(steps)}`);
+        assert(steps.tag === 'inti:html,inti:page:kv', `Cache-Tag: ${steps.tag}`);
+        assert(String(steps.control).startsWith('public, max-age=60'), `Cloudflare-CDN-Cache-Control: ${steps.control}`);
     });
 
     await check('Cloudflare Images URLs are generated correctly', async () => {

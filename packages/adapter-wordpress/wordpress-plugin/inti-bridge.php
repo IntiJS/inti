@@ -518,8 +518,17 @@ function inti_bridge_register_fields() {
  * by PHP (a dynamic block) also carries `rendered`: what it shows is not in
  * `post_content`.
  */
+/**
+ * Whether the current request may see the body of a post. A post behind a password is
+ * shown by WordPress only once the password was given; the REST controller blanks
+ * content.rendered otherwise, and the blocks must not hand it out either.
+ */
+function inti_bridge_can_read_content($post) {
+    return !post_password_required($post) || current_user_can('edit_post', $post->ID);
+}
+
 function inti_bridge_blocks($post) {
-    if (!$post || !has_blocks($post->post_content)) {
+    if (!$post || !has_blocks($post->post_content) || !inti_bridge_can_read_content($post)) {
         return array();
     }
 
@@ -817,6 +826,10 @@ add_action('wp_abilities_api_init', function () {
         'execute_callback'    => function ($input) {
             $post = get_page_by_path(trim($input['path'], '/'), OBJECT, get_post_types(array('public' => true)));
             if (!$post || ($post->post_status !== 'publish' && !current_user_can('edit_post', $post->ID))) {
+                return new WP_Error('inti_not_found', 'No such page', array('status' => 404));
+            }
+            // A password-protected page is not readable through the ability either
+            if (!inti_bridge_can_read_content($post)) {
                 return new WP_Error('inti_not_found', 'No such page', array('status' => 404));
             }
             return array(

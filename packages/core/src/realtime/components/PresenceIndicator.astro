@@ -150,6 +150,7 @@ const positionClasses = {
 
 <script>
     import { initRealtime } from '../client.js';
+    import { safeAvatarUrl, safeColor, safeStatus, safeText } from '../sanitize.js';
     import type { UserPresence } from '../types.js';
     
     class PresenceManager {
@@ -209,7 +210,7 @@ const positionClasses = {
             const users = Array.from(this.users.values());
             
             // Render avatars
-            this.avatarsStack.innerHTML = '';
+            this.avatarsStack.replaceChildren();
             const visibleUsers = users.slice(0, this.maxAvatars);
             
             visibleUsers.forEach(user => {
@@ -228,7 +229,7 @@ const positionClasses = {
             }
             
             // Render the user list
-            this.usersList.innerHTML = '';
+            this.usersList.replaceChildren();
             users.forEach(user => {
                 const item = this.createUserListItem(user);
                 this.usersList.appendChild(item);
@@ -246,13 +247,17 @@ const positionClasses = {
         private createAvatar(user: UserPresence): HTMLElement {
             const div = document.createElement('div');
             div.className = 'inti-avatar';
-            div.style.backgroundColor = user.color;
-            div.title = user.name;
-            
-            if (user.avatar) {
-                div.innerHTML = `<img src="${user.avatar}" alt="${user.name}">`;
+            div.style.backgroundColor = safeColor(user.color);
+            div.title = safeText(user.name);
+
+            const avatar = safeAvatarUrl(user.avatar);
+            if (avatar) {
+                const img = document.createElement('img');
+                img.src = avatar;
+                img.alt = safeText(user.name);
+                div.appendChild(img);
             } else {
-                div.textContent = this.getInitials(user.name);
+                div.textContent = this.getInitials(safeText(user.name));
             }
             
             return div;
@@ -262,23 +267,36 @@ const positionClasses = {
             const li = document.createElement('li');
             li.className = 'inti-user-item';
             
-            const statusClass = `inti-status-${user.status}`;
-            
-            li.innerHTML = `
-                <div class="inti-user-avatar" style="background-color: ${user.color}">
-                    ${user.avatar ? 
-                        `<img src="${user.avatar}" alt="${user.name}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : 
-                        this.getInitials(user.name)
-                    }
-                </div>
-                <div class="inti-user-info">
-                    <div class="inti-user-name">${user.name}</div>
-                    <div class="inti-user-status">
-                        <span class="inti-status-dot ${statusClass}"></span>
-                        ${user.status}
-                    </div>
-                </div>
-            `;
+            const status = safeStatus(user.status);
+            const name = safeText(user.name);
+
+            // Built with DOM calls: nothing a peer sends is parsed as HTML
+            const avatarBox = document.createElement('div');
+            avatarBox.className = 'inti-user-avatar';
+            avatarBox.style.backgroundColor = safeColor(user.color);
+            const avatar = safeAvatarUrl(user.avatar);
+            if (avatar) {
+                const img = document.createElement('img');
+                img.src = avatar;
+                img.alt = name;
+                img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%';
+                avatarBox.appendChild(img);
+            } else {
+                avatarBox.textContent = this.getInitials(name);
+            }
+
+            const info = document.createElement('div');
+            info.className = 'inti-user-info';
+            const nameEl = document.createElement('div');
+            nameEl.className = 'inti-user-name';
+            nameEl.textContent = name;
+            const statusEl = document.createElement('div');
+            statusEl.className = 'inti-user-status';
+            const dot = document.createElement('span');
+            dot.className = `inti-status-dot inti-status-${status}`;
+            statusEl.append(dot, document.createTextNode(` ${status}`));
+            info.append(nameEl, statusEl);
+            li.append(avatarBox, info);
             
             return li;
         }

@@ -288,6 +288,13 @@ export class LocalAdapter extends IntiAdapter implements WritableAdapter, Search
         });
     }
 
+    /** The document `publishDraft(draftId)` overwrites (see `DraftableAdapter`) */
+    async draftOriginId(draftId: string): Promise<string | null> {
+        const store = await this.read();
+        if (!Object.hasOwn(store.documents, draftId)) return null;
+        return store.documents[draftId].draftOf ?? null;
+    }
+
     discardDraft(draftId: string): Promise<DraftResult> {
         return this.serialize(async () => {
             const store = await this.read();

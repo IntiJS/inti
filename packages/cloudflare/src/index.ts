@@ -22,3 +22,6 @@ export type { WorkersAiConfig } from './ai.js';
 
 export { cloudflareImageSrcset, cloudflareImageUrl, createCloudflareImageService } from './images.js';
 export type { CloudflareImageOptions, CloudflareImagesConfig } from './images.js';
+
+export { cloudflarePurge, createKvCacheProvider } from './cache.js';
+export type { CloudflarePurgeOptions, KvCacheProviderOptions } from './cache.js';

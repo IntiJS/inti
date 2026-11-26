@@ -30,8 +30,10 @@ import { resolveEditorSession } from '../server/editor-session.js';
 import { pageErrorResponse } from '../server/responses.js';
 import { isDevelopmentRuntime } from '../server/access.js';
 import { verifySignature, signBody } from './signature.js';
+import { cdnTags, CDN_MAX_TAGS } from './cdn-tags.js';
 
 export { signBody, verifySignature };
+export { cdnTag, cdnTags, CDN_MAX_TAGS, vercelPurge } from './cdn-tags.js';
 
 /** What the middleware reads from Astro's context; structural, so no Astro types are needed */
 export interface DeliveryContext {
@@ -51,7 +53,22 @@ export interface CdnOptions {
     staleWhileRevalidate?: number;
     /** Seconds it may serve it stale when the origin fails. Default 86400 */
     staleIfError?: number;
+    /**
+     * The CDN in front of the site. Adds that CDN's own header
+     * (`Cloudflare-CDN-Cache-Control`, `Vercel-CDN-Cache-Control`) with `max-age`, so
+     * `stale-while-revalidate` and `stale-if-error` hold there too (Cloudflare ignores both
+     * next to `s-maxage`), and tags every page (`Cache-Tag`, `Vercel-Cache-Tag`) so a purge
+     * empties the CDN page by page instead of all at once.
+     */
+    platform?: 'cloudflare' | 'vercel';
+    /** Header that carries the page's cache tags. Default: the platform's; `false` for none */
+    tagHeader?: string | false;
 }
+
+const PLATFORM_HEADERS = {
+    cloudflare: { control: 'cloudflare-cdn-cache-control', tags: 'cache-tag' },
+    vercel: { control: 'vercel-cdn-cache-control', tags: 'vercel-cache-tag' }
+} as const;
 
 export interface DeliveryOptions {
     /** HTML cache on the server for anonymous visitors (memory or Valkey) */
@@ -64,7 +81,7 @@ export interface DeliveryOptions {
     cdn?: CdnOptions | false;
     /** Is this request from an editor? Default: `resolveEditorSession` (the `resolveActor` plugins) */
     isEditor?: (context: DeliveryContext) => Promise<boolean>;
-    /** Can this request be from an editor at all? Default: it carries a cookie */
+    /** Can this request be from an editor at all? Default: it carries a cookie or an `Authorization` header */
     mayBeEditor?: (request: Request) => boolean;
     /** Seconds a session answer is remembered per cookie. Default 5 */
     sessionMemoSeconds?: number;
@@ -74,6 +91,12 @@ export interface DeliveryOptions {
     slugOf?: (url: URL) => string;
     /** Query parameters that do not change the page (tracking). Default: `utm_*`, `gclid`, `fbclid`… */
     ignoreParams?: (name: string) => boolean;
+    /**
+     * Query parameters that make a different page worth storing (pagination, a filter).
+     * A request with any other parameter is rendered but not stored, so made-up query
+     * strings cannot fill the cache. Default: `page`
+     */
+    cacheParams?: (name: string) => boolean;
     /** Remove `data-inti-*` from anonymous HTML. Default true */
     stripEditorMarkup?: boolean;
     /** The answer when rendering throws and there is nothing stale. Default: `pageErrorResponse` */
@@ -92,6 +115,9 @@ const STATIC =
 /** Tracking parameters: the same page under a thousand campaign links is one entry */
 export const isTrackingParam = (name: string) =>
     /^(?:utm_.+|gclid|gbraid|wbraid|fbclid|msclkid|dclid|yclid|twclid|ttclid|li_fat_id|mc_cid|mc_eid|_ga|_gl|igshid|ref_src)$/i.test(name);
+
+/** Query parameters stored as their own page by default */
+export const isPageParam = (name: string) => name === 'page';
 
 /** The cache key of a URL: path without trailing slash, query sorted and without tracking */
 export function cacheKeyOf(url: URL, ignore: (name: string) => boolean = isTrackingParam): string {
@@ -145,6 +171,16 @@ function cdnHeader(options: CdnOptions): string {
     ].join(', ');
 }
 
+/** The same lifetimes in a header only the CDN reads, where `max-age` is its own */
+function targetedHeader(options: CdnOptions): string {
+    return [
+        'public',
+        `max-age=${options.sMaxAge ?? 60}`,
+        `stale-while-revalidate=${options.staleWhileRevalidate ?? 300}`,
+        `stale-if-error=${options.staleIfError ?? 86_400}`
+    ].join(', ');
+}
+
 function withHeaders(response: Response, body: BodyInit | null, set: Record<string, string>, append: Record<string, string> = {}): Response {
     const headers = new Headers(response.headers);
     for (const [name, value] of Object.entries(set)) headers.set(name, value);
@@ -174,7 +210,8 @@ function memoize(seconds: number, resolve: (context: DeliveryContext) => Promise
     const answers = new Map<string, { value: Promise<boolean>; until: number }>();
     return (context: DeliveryContext) => {
         if (seconds <= 0) return resolve(context);
-        const cookie = context.request.headers.get('cookie') ?? '';
+        // Both credentials a session can come from: one answer per pair, never shared
+        const cookie = JSON.stringify([context.request.headers.get('cookie') ?? '', context.request.headers.get('authorization') ?? '']);
         const now = Date.now();
         const known = answers.get(cookie);
         if (known && known.until > now) return known.value;
@@ -192,13 +229,21 @@ const defaultIsEditor = async (context: DeliveryContext) =>
 
 export function intiDelivery(options: DeliveryOptions = {}) {
     const skip = options.skip ?? ((pathname: string) => STATIC.test(pathname));
-    const mayBeEditor = options.mayBeEditor ?? ((request: Request) => Boolean(request.headers.get('cookie')));
+    const mayBeEditor =
+        options.mayBeEditor ?? ((request: Request) => Boolean(request.headers.get('cookie') || request.headers.get('authorization')));
+    const ignoreParams = options.ignoreParams ?? isTrackingParam;
+    const cacheParams = options.cacheParams ?? isPageParam;
     const isEditor = memoize(options.sessionMemoSeconds ?? 5, options.isEditor ?? defaultIsEditor);
     const slugOf = options.slugOf ?? ((url: URL) => normalizeSlug(url.pathname));
     const htmlTtl = options.htmlTtl ?? 60;
     const staleIfError = options.staleIfError ?? 86_400;
     const strip = options.stripEditorMarkup !== false;
-    const cdn = options.cdn === false ? null : cdnHeader(options.cdn ?? {});
+    const cdnOptions = options.cdn === false ? null : (options.cdn ?? {});
+    const cdn = cdnOptions ? cdnHeader(cdnOptions) : null;
+    const platform = cdnOptions?.platform ? PLATFORM_HEADERS[cdnOptions.platform] : undefined;
+    const targeted = platform && cdnOptions ? { name: platform.control, value: targetedHeader(cdnOptions) } : undefined;
+    const tagHeader = cdnOptions?.tagHeader === false ? undefined : (cdnOptions?.tagHeader?.toLowerCase() ?? platform?.tags);
+    let warnedTags = false;
     const onError = options.onError ?? ((error: unknown) => pageErrorResponse(error));
 
     return async (context: DeliveryContext, next: Next): Promise<Response> => {
@@ -208,8 +253,17 @@ export function intiDelivery(options: DeliveryOptions = {}) {
         const editor = isDevelopmentRuntime() || (mayBeEditor(context.request) ? await isEditor(context) : false);
         if (context.locals) context.locals.intiEditor = editor;
 
-        const cache = !editor && context.request.method === 'GET' ? options.cache : undefined;
-        const key = cache ? `inti:html:${cacheKeyOf(context.url, options.ignoreParams)}` : '';
+        // Stored only for a query the site declared: anything else is rendered every time.
+        // A request with credentials is never stored, whatever the session check said
+        const storable =
+            !editor &&
+            context.request.method === 'GET' &&
+            !context.request.headers.has('authorization') &&
+            [...context.url.searchParams.keys()].every((name) => ignoreParams(name) || cacheParams(name));
+        const cache = storable ? options.cache : undefined;
+        // The host is part of the key: a page rendered for a forged Host (its canonical and
+        // og:url come from the request URL) is never served on the real one
+        const key = cache ? `inti:html:${context.url.host}${cacheKeyOf(context.url, ignoreParams)}` : '';
         const stored = cache ? await cache.getEntry<StoredPage>(key).catch(() => null) : null;
         const age = stored ? (Date.now() - stored.createdAt) / 1000 : Infinity;
         if (stored && age <= stored.ttl) return fromStore(stored.data, 'HIT');
@@ -235,7 +289,18 @@ export function intiDelivery(options: DeliveryOptions = {}) {
         const isHtml = (response.headers.get('content-type') ?? '').includes('text/html');
         const shareable = isShareable(context.request, response);
         const extra: Record<string, string> = {};
-        if (cdn && shareable && !response.headers.has('cache-control')) extra['cache-control'] = cdn;
+        if (cdn && shareable && !response.headers.has('cache-control')) {
+            extra['cache-control'] = cdn;
+            if (targeted && !response.headers.has(targeted.name)) extra[targeted.name] = targeted.value;
+        }
+        const tags = [htmlTag, pageTags.page(slugOf(context.url)), ...extraTags(context.locals)];
+        if (tagHeader && shareable && isHtml) {
+            if (tags.length > CDN_MAX_TAGS && !warnedTags) {
+                warnedTags = true;
+                console.warn(`[inti] A page carries more than ${CDN_MAX_TAGS} cache tags; the CDN gets only the first ones, so a purge by the others misses it.`);
+            }
+            extra[tagHeader] = cdnTags(tags).join(',');
+        }
 
         if (!isHtml || (!strip && !(cache && shareable))) {
             return Object.keys(extra).length ? withHeaders(response, response.body, extra) : response;
@@ -249,7 +314,7 @@ export function intiDelivery(options: DeliveryOptions = {}) {
         if (cache && shareable) {
             const page: StoredPage = { status: out.status, headers: headerPairs(out.headers), body };
             await cache
-                .set(key, page, { ttl: htmlTtl, swr: 0, staleIfError, tags: [htmlTag, pageTags.page(slugOf(context.url)), ...extraTags(context.locals)] })
+                .set(key, page, { ttl: htmlTtl, swr: 0, staleIfError, tags })
                 .catch((error) => console.warn('[inti] The page could not be stored in the cache.', error));
             out.headers.set('x-inti-cache', 'MISS');
         }

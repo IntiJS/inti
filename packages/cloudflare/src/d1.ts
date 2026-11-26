@@ -292,6 +292,11 @@ export class D1ContentAdapter extends IntiAdapter implements WritableAdapter, Li
         return { success: true, documentId: draft.draft_of, slug: draft.slug, source: 'd1' };
     }
 
+    /** The document `publishDraft(draftId)` overwrites (see `DraftableAdapter`) */
+    async draftOriginId(draftId: string): Promise<string | null> {
+        return (await this.row(draftId))?.draft_of ?? null;
+    }
+
     async discardDraft(draftId: string): Promise<DraftResult> {
         const draft = await this.row(draftId);
         if (!draft?.draft_of) return { success: false, documentId: draftId, error: `"${draftId}" is not a draft`, source: 'd1' };

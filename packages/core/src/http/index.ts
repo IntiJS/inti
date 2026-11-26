@@ -167,6 +167,17 @@ function headerPairs(headers: Headers): [string, string][] {
     return pairs;
 }
 
+/** `.` or `..`, also percent-encoded (`%2e%2e`) */
+function isDotSegment(segment: string): boolean {
+    let decoded = segment;
+    try {
+        decoded = decodeURIComponent(segment);
+    } catch {
+        // A malformed escape is not a dot segment
+    }
+    return decoded === '.' || decoded === '..';
+}
+
 export function createHttpClient(options: HttpClientOptions = {}): HttpClient {
     const timeoutMs = options.timeoutMs ?? 10_000;
     const retries = Math.max(0, options.retries ?? 2);
@@ -180,7 +191,19 @@ export function createHttpClient(options: HttpClientOptions = {}): HttpClient {
     const inflight = new Map<string, Promise<HttpResult<unknown>>>();
 
     const url = (path: string, query?: HttpRequestOptions['query']) => {
-        const absolute = /^https?:\/\//i.test(path)
+        // Paths are often built from a value a request carried (an id, a collection).
+        // A dot segment would make the URL parser leave the route the caller meant, with
+        // the client's credentials attached; no legitimate request needs one.
+        const segments = path.split(/[?#]/)[0].split('/');
+        if (segments.some((segment) => isDotSegment(segment))) {
+            throw new Error(`[inti:http] Refusing a path with dot segments: ${path}`);
+        }
+        const isAbsolute = /^https?:\/\//i.test(path);
+        // The base headers carry the credential of baseUrl: never to another origin
+        if (isAbsolute && options.baseUrl && new URL(path).origin !== new URL(options.baseUrl).origin) {
+            throw new Error(`[inti:http] Refusing to send the client's headers to another origin: ${new URL(path).origin}`);
+        }
+        const absolute = isAbsolute
             ? new URL(path)
             : new URL(path.replace(/^\/+/, ''), (options.baseUrl ?? '').replace(/\/?$/, '/'));
         for (const [key, value] of Object.entries(query ?? {})) {

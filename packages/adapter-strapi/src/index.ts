@@ -33,6 +33,12 @@ export interface StrapiConfig {
     blocksField?: string;
 }
 
+/** A Strapi API name (content type or collection): a plain name, never a path or a query */
+function apiName(name: string): string {
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(name)) throw new Error(`Invalid collection "${name}"`);
+    return name;
+}
+
 export class StrapiAdapter extends IntiAdapter<StrapiPageResponse> implements WritableAdapter {
     readonly writable = true as const;
 
@@ -262,7 +268,17 @@ export class StrapiAdapter extends IntiAdapter<StrapiPageResponse> implements Wr
     private get entryBase(): string {
         const endpoint = this.strapiConfig.endpoint.replace(/\/$/, '');
         const contentType = this.strapiConfig.contentType || 'pages';
-        return `${endpoint}/api/${contentType}`;
+        return `${endpoint}/api/${apiName(contentType)}`;
+    }
+
+    /**
+     * URL of one entry. The id comes from the editor: a dot segment or a query in it
+     * would address another collection with the server's token (`../articles/7`).
+     * Strapi ids are numbers (v4) or opaque documentIds (v5), never paths.
+     */
+    private entryUrl(documentId: string): string {
+        if (!/^[A-Za-z0-9_-]{1,64}$/.test(documentId)) throw new Error(`Invalid document id "${documentId}"`);
+        return `${this.entryBase}/${encodeURIComponent(documentId)}`;
     }
 
     private writeHeaders(): Record<string, string> {
@@ -301,7 +317,7 @@ export class StrapiAdapter extends IntiAdapter<StrapiPageResponse> implements Wr
     }
 
     private async fetchRawEntry(documentId: string): Promise<any> {
-        const url = `${this.entryBase}/${documentId}?populate=*`;
+        const url = `${this.entryUrl(documentId)}?populate=*`;
         const response = await fetch(url, { headers: this.writeHeaders() });
 
         if (!response.ok) {
@@ -566,7 +582,7 @@ export class StrapiAdapter extends IntiAdapter<StrapiPageResponse> implements Wr
         const params = new URLSearchParams({ 'pagination[pageSize]': '10' });
         if (query) params.set('filters[title][$containsi]', query);
 
-        const response = await fetch(`${endpoint}/api/${collection}?${params}`, { headers: this.writeHeaders() });
+        const response = await fetch(`${endpoint}/api/${apiName(collection)}?${params}`, { headers: this.writeHeaders() });
 
         if (!response.ok) {
             throw new Error(`Failed to search "${collection}": ${response.status} ${response.statusText}`);
@@ -587,7 +603,7 @@ export class StrapiAdapter extends IntiAdapter<StrapiPageResponse> implements Wr
 
     /** PUTs the { data } payload to the entry's endpoint */
     private async pushData(documentId: string, data: Record<string, any>, value: any): Promise<WriteResult> {
-        const response = await fetch(`${this.entryBase}/${documentId}`, {
+        const response = await fetch(this.entryUrl(documentId), {
             method: 'PUT',
             headers: this.writeHeaders(),
             body: JSON.stringify({ data })

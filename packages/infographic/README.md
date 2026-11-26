@@ -105,7 +105,7 @@ export const GET = createInfographicRoute({ readPage, blockTypes: ['infographic'
 | `/infographics/<slug>/<block>.jpg?format=instagram-portrait&slide=2` | One image |
 | `/infographics/<slug>/<block>.png?format=blog` | One image |
 
-`<block>` is the block's `meta.index`. The route reads the published page (pass a reader that never returns drafts), renders only the block types you list and returns 404 for a block that scheduled visibility hides. Responses carry an `ETag` and `Cache-Control`; renders are cached in memory and run two at a time (`concurrency`), because rendering is CPU work. Put a CDN in front for traffic.
+`<block>` is the block's `meta.index`. The route reads the published page (pass a reader that never returns drafts), renders only the block types you list and returns 404 for a block that scheduled visibility hides. Responses carry an `ETag` and `Cache-Control`; renders are cached in memory and run two at a time (`concurrency`), because rendering is CPU work. At most `maxQueue` requests (default 32) wait for a slot; beyond that the route answers `503` with `Retry-After`. `?theme=` must name a declared theme (`400` otherwise), so a made-up name cannot force a fresh render. Put a CDN in front for traffic.
 
 A typical n8n flow: fetch the `.json`, then publish each `url` to Instagram as a carousel item (its API fetches the image from that URL, so the site must be public) with the `alt`.
 

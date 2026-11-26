@@ -111,6 +111,8 @@ export default defineConfig({
         enabled: true,
         wsPort: 3001,
         draftMode: true,
+        // Clients must send { type: 'auth', payload: { token } } before they receive anything.
+        // The server listens on 127.0.0.1 (wsHost) and accepts loopback origins (allowedOrigins)
         cmsToken: process.env.CMS_PREVIEW_TOKEN
     }
 });
@@ -121,7 +123,8 @@ export default defineConfig({
 ---
 import { usePreviewMode, getPreviewScript } from '@intijs/core/preview';
 
-const preview = usePreviewMode(Astro.request);
+// Outside development, ?preview=1 also needs ?token= equal to the secret
+const preview = usePreviewMode(Astro.request, import.meta.env.CMS_PREVIEW_TOKEN);
 const isDraft = preview.isPreview;
 
 // Fetch draft content if in preview mode
@@ -210,7 +213,7 @@ import { transformContent, usePreviewMode } from '@intijs/core';
 import { getPage } from '../lib/inti-sdk';
 
 const { slug } = Astro.params;
-const preview = usePreviewMode(Astro.request);
+const preview = usePreviewMode(Astro.request, import.meta.env.CMS_PREVIEW_TOKEN);
 
 // Fetch page with preview support
 const page = await getPage(slug, {

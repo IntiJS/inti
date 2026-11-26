@@ -91,6 +91,12 @@ If an editor session is requested in production and no plugin declares `resolveA
 
 `ctx` carries `request` and `cookies`, as well as the operation, the document and the value being written. With that you can build policies per document, per field or per time of day, not only per user.
 
+What the policy can rely on:
+
+- **Every operation that changes something reaches `beforeWrite`.** Besides the block and draft writes, `savePattern` and `deletePattern` (the shared pattern library; `ctx.data.name` is the pattern) and `generateBlocks` (it spends your model key; `ctx.value` is the instruction) have operations of their own, and also require an editor session.
+- **A hook that throws denies the write.** A policy bug (a null `ctx.actor` dereferenced, an identity provider that times out) is a refusal, logged once per failure, never an approval.
+- **`publishDraft` is decided for the page it overwrites too.** The policy is asked first with the draft id and then with the published page's id, so a rule that protects `home` also covers publishing `home`'s draft. Adapters report that page with `draftOriginId` (every built-in draftable adapter does).
+
 These two hooks are the whole contract: any session or identity provider you already use plugs in here.
 
 ## Option 3 — Open it on purpose
@@ -110,7 +116,9 @@ Actions are not the only thing the editor exposes. Outside development, all of t
 | Piece | Without a session |
 |---|---|
 | `GET/POST /api/inti/sync` (changes between connected editors) | `401` |
-| `GET /api/inti/search` (relation picker, queries the CMS) | `401` |
+| `GET /api/inti/search` and the `searchEntries` action (relation picker, queries the CMS) | `401` |
+| The `listPatterns` action (the shared pattern library) | `401` |
+| The `generateBlocks`, `savePattern` and `deletePattern` actions | `401`, and then your `beforeWrite` decides |
 | `VisualBridgeAuto` / `InlineEditor` with `enabled={true}` | nothing is drawn |
 | `BlockRenderer` with `editable={true}` | renders as in production: no block JSON and no hidden blocks |
 

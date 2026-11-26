@@ -9,8 +9,31 @@ interface WebSocket {
 }
 
 interface WebSocketServer {
-    on(event: string, callback: (ws: WebSocket) => void): void;
+    on(event: string, callback: (ws: WebSocket, request?: { headers: Record<string, string | string[] | undefined> }) => void): void;
     close(): void;
+}
+
+const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
+
+/** Constant-time comparison of two strings */
+export function sameSecret(given: unknown, expected: string): boolean {
+    if (typeof given !== 'string') return false;
+    const a = new TextEncoder().encode(given);
+    const b = new TextEncoder().encode(expected);
+    let diff = a.length ^ b.length;
+    for (let i = 0; i < b.length; i++) diff |= (a[i] ?? 0) ^ b[i];
+    return diff === 0;
+}
+
+/** Is a browser at this Origin allowed to connect? No Origin: not a browser, allowed */
+export function isAllowedOrigin(origin: string | undefined, allowed?: string[]): boolean {
+    if (!origin) return true;
+    if (allowed?.length) return allowed.includes(origin);
+    try {
+        return LOOPBACK.has(new URL(origin).hostname);
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -19,7 +42,10 @@ interface WebSocketServer {
  */
 export class PreviewServer {
     private config: PreviewConfig;
+    /** Clients that receive broadcasts: authenticated ones, or every allowed one when no token is set */
     private clients: Set<WebSocket> = new Set();
+    /** Clients that proved the token: only they may relay content.update to the others */
+    private trusted: Set<WebSocket> = new Set();
     private server: WebSocketServer | null = null;
     private isRunning = false;
 
@@ -27,6 +53,7 @@ export class PreviewServer {
         this.config = {
             wsPort: 3001,
             wsPath: '/__inti_preview',
+            wsHost: '127.0.0.1',
             refreshDebounce: 300,
             draftMode: true,
             ...config
@@ -51,16 +78,18 @@ export class PreviewServer {
         }
         
         this.server = new WebSocketServerImpl({
+            host: this.config.wsHost,
             port: this.config.wsPort,
             path: this.config.wsPath
         });
 
-        this.server!.on('connection', (ws: WebSocket) => {
-            this.handleConnection(ws);
+        this.server!.on('connection', (ws, request) => {
+            const origin = request?.headers?.origin;
+            this.handleConnection(ws, Array.isArray(origin) ? origin[0] : origin);
         });
 
         this.isRunning = true;
-        console.log(`🔄 Inti Preview Server running on ws://localhost:${this.config.wsPort}${this.config.wsPath}`);
+        console.log(`🔄 Inti Preview Server running on ws://${this.config.wsHost}:${this.config.wsPort}${this.config.wsPath}`);
     }
 
     /**
@@ -71,6 +100,7 @@ export class PreviewServer {
         
         this.server?.close();
         this.clients.clear();
+        this.trusted.clear();
         this.isRunning = false;
         console.log('🔄 Inti Preview Server stopped');
     }
@@ -131,8 +161,15 @@ export class PreviewServer {
         });
     }
 
-    private handleConnection(ws: WebSocket): void {
-        this.clients.add(ws);
+    /** @internal exposed for tests: what the server does with one connection */
+    handleConnection(ws: WebSocket, origin?: string): void {
+        // A page on another site cannot open a socket to this server and read drafts
+        if (!isAllowedOrigin(origin, this.config.allowedOrigins)) {
+            ws.close();
+            return;
+        }
+        // With a token, a client is only added once it proves it (see 'auth')
+        if (!this.config.cmsToken) this.clients.add(ws);
         console.log('👤 Preview client connected');
 
         ws.addEventListener('message', (event: MessageEvent) => {
@@ -141,6 +178,7 @@ export class PreviewServer {
 
         ws.addEventListener('close', () => {
             this.clients.delete(ws);
+            this.trusted.delete(ws);
             console.log('👤 Preview client disconnected');
         });
 
@@ -161,7 +199,8 @@ export class PreviewServer {
         }));
     }
 
-    private handleMessage(ws: WebSocket, data: string): void {
+    /** @internal exposed for tests */
+    handleMessage(ws: WebSocket, data: string): void {
         try {
             const message: PreviewMessage = JSON.parse(data);
 
@@ -171,19 +210,23 @@ export class PreviewServer {
                     break;
                 
                 case 'auth':
-                    // Verify authentication if needed
-                    if (this.config.cmsToken && message.payload.token !== this.config.cmsToken) {
+                    if (!this.config.cmsToken) break;
+                    if (!sameSecret(message.payload?.token, this.config.cmsToken)) {
                         ws.send(JSON.stringify({
                             type: 'error',
                             timestamp: Date.now(),
                             payload: { error: 'Authentication failed' }
                         }));
                         ws.close();
+                        break;
                     }
+                    this.clients.add(ws);
+                    this.trusted.add(ws);
                     break;
 
                 case 'content.update':
-                    // Forward to all other clients
+                    // Only a client that proved the token may speak for the CMS
+                    if (!this.trusted.has(ws)) break;
                     this.clients.forEach(client => {
                         if (client !== ws && client.readyState === 1) {
                             client.send(data);

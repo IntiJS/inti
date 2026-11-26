@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Vercel and Cloudflare: shared caches and purges by page
+
+- **`intiDelivery({ cdn: { platform: 'vercel' | 'cloudflare' } })`** adds the CDN's own `Vercel-CDN-Cache-Control` / `Cloudflare-CDN-Cache-Control` with `max-age` (Cloudflare ignores `stale-while-revalidate` and `stale-if-error` next to `s-maxage`, so a Cloudflare edge never served a stale page while the origin was down) and tags each page with `Vercel-Cache-Tag` / `Cache-Tag`. `tagHeader` names another header; `cdnTag` turns a tag that is not plain ASCII into a stable hash.
+- **`vercelPurge(invalidateByTag)`** (`@intijs/core/delivery`) and **`cloudflarePurge({ zoneId, apiToken })`** (`@intijs/cloudflare`) for `purgeRoute`'s `onPurge`: the CDN is emptied page by page instead of waiting for `s-maxage`.
+- **`createVercelRuntimeCacheProvider({ cache: getCache() })`** (`@intijs/core/cache`): one cache for every function instance of a region, kept across deployments, purged in every region. No Vercel package is a dependency.
+- **`createKvCacheProvider(env.KV)`** (`@intijs/cloudflare`): one cache for every isolate. A purge is one write whatever the size of the site, since an invocation may make 1000 KV operations at most. `npm run test:cloudflare` checks it in workerd.
+
 ### New: `@intijs/adapter-odoo`, an Odoo catalog for stores
 
 - **JSON-2 with a JSON-RPC fallback.** Odoo 19+ is read through `/json/2/<model>/<method>`; an older Odoo is detected by its 404 and read through `execute_kw` with the key's login.
@@ -30,6 +37,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`revalidationEntries`** (default 500): the ETag store was a fixed 100.
 - **`create-inti --cms kitsuden`** generates the middleware, one cache for pages and HTML, the purge route, the media routes and the site key.
 - **CI checks a real Kitsuden** when `KITSUDEN_REPO_TOKEN` is set (the image is built from its repository); the contract copy is synced with Kitsuden's canonical file.
+### Security: the write policy has no way around it
+
+Fixes found by a security audit and reproduced against the built packages before the change.
+
+- **`searchEntries` and `listPatterns` require an editor session.** They answered anonymous callers, querying the CMS with the server's credentials and returning the shared patterns. The collection name must be a plain name (`/^[A-Za-z0-9_-]{1,64}$/`) in the action and in `/api/inti/search`; it went into the CMS URL path as received.
+- **`generateBlocks`, `savePattern` and `deletePattern` require an editor session and run `beforeWrite`**, with operations of their own (`generateBlocks`, `savePattern`, `deletePattern`). They only checked that a guard was registered, so a policy that denies anonymous writes did not stop anonymous model spend or changes to the pattern library. A policy that allows only listed operations now has to list these.
+- **A `beforeWrite` that throws denies the write.** An exception was treated as "no opinion" and the write went through.
+- **`publishDraft` is authorised for the page it overwrites** as well as for the draft id. Draftable adapters gain `draftOriginId(draftId)`; local, D1, Keystatic, WordPress and Kitsuden implement it.
+- **Keystatic: `fetchPageBySlug('draft:<slug>')` is a 404.** The public read returned the unpublished working copy.
+- **WordPress: `publishDraft` only publishes drafts.** Given a private, pending or scheduled post it set `status: publish`; it now refuses, like `discardDraft`.
+- **JSON-LD and the markdown dump honour block visibility.** `buildStructuredData` and `pageToMarkdown` read hidden, scheduled and expired blocks; the `index` passed to a block schema builder is still the block's position in the page.
+- **`createAiDecider` has a spend limit**: `limits.perMinute` (60) and `limits.perDay` (2000) for the whole site, an optional shared `limiter`, one call for identical requests in flight, and only real language tags in its cache key.
+- **The infographic route rejects unknown themes (`400`) and bounds its queue** (`maxQueue`, default 32, then `503` with `Retry-After`). A made-up `?theme=` forced a fresh render and flushed the cache.
+- **Ids from the editor stay on the post they name.** WordPress accepts only canonical post ids and plain REST bases, Strapi only plain document ids and API names, and `createHttpClient` refuses dot segments (also `%2e%2e`) and absolute URLs on another origin. `5/../../users/1` used to reach other REST routes with the server credential.
+- **WordPress: password-protected pages are not rendered.** With a write credential the adapter reads with `context=edit`, which returns a protected page's content; `fetchPageBySlug` now answers `NotFoundError` for them and listings leave them out. The companion plugin's `inti_blocks` field and `inti/get-page` ability check `post_password_required()` too.
+- **The HTML cache keys on the host, stores only declared queries, and never a request with credentials.** A page rendered for a forged `Host` (canonical and `og:url` come from the request) was served on the real one; any made-up query string was a new entry. `cacheParams` (default: `page`) lists the parameters that make a different page; other queries are rendered and not stored. A request with `Authorization` is asked about a session and never stored, and the editor is not rendered into a response `intiDelivery` marked public.
+- **Preview mode needs the secret outside development.** `usePreviewMode(request, secret)` is false for `?preview=1` alone; `previewMiddleware` passes `cmsToken`. `PreviewServer` listens on `127.0.0.1` (`wsHost`), accepts only loopback or `allowedOrigins` browsers, delivers nothing to a client before it authenticates when `cmsToken` is set, and relays `content.update` only from authenticated clients.
+- **Presence and cursors render peers' fields as text.** `LiveCursors` and `PresenceIndicator` built HTML from the name, colour and avatar another editor sent; they now use DOM calls, and `RealtimeClient` bounds every field before listeners see it.
+- **No token from `adapterConfig` reaches the editor's page.** `createVisualBridgeConfig` copied `adapterConfig.token` (Kitsuden's agent key) into the serialized config; it now copies only `spaceId` / `projectId`.
+- **Infographic axes end.** `niceTicks` looped forever on values of 1e16 and more a few units apart.
+- **Installing from git: every `@intijs` package from the same place** (README → Installation). The scope is not published yet, so a dependency left to the registry could resolve to someone else's package.
 
 ### WordPress: writes that cannot overwrite, notices that purge, and the rest of a site
 

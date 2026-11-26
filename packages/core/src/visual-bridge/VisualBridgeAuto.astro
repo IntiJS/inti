@@ -80,7 +80,10 @@ try {
         // `enabled={true}` in production is no longer enough: the block bar and
         // the panels are only rendered for whoever has an editor session.
         // Other visitors receive the page with nothing for editing.
-        const hasSession = couldActivate
+        // When intiDelivery already decided this response is public (and may be cached),
+        // the editor is not rendered into it, whatever another credential would say
+        const publicResponse = (Astro.locals as Record<string, unknown> | undefined)?.intiEditor === false;
+        const hasSession = couldActivate && !publicResponse
             ? (await resolveEditorSession({
                   request: Astro.request,
                   cookies: Astro.cookies,

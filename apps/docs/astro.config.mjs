@@ -8,14 +8,14 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'Inti.js',
-      tagline: 'AI for any CMS, without changing the CMS',
+      description: 'AI for any CMS, without changing the CMS',
       logo: {
         src: './src/assets/inti-logo.svg',
         replacesTitle: true,
       },
-      social: {
-        github: 'https://github.com/intijs/inti',
-      },
+      social: [
+        { icon: 'github', label: 'GitHub', href: 'https://github.com/intijs/inti' },
+      ],
       sidebar: [
         {
           label: 'Core Concepts',

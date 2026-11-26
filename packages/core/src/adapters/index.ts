@@ -223,6 +223,13 @@ export interface DraftableAdapter {
     publishDraft(draftId: string): Promise<DraftResult>;
     /** Removes the copy without touching the published page */
     discardDraft(draftId: string): Promise<DraftResult>;
+    /**
+     * The document that publishing this draft overwrites, or null when the id is not a
+     * working copy of another document. `publishDraft` is authorised for that document
+     * too: a `beforeWrite` that protects `home` must not be bypassed by publishing the
+     * draft id of `home`.
+     */
+    draftOriginId?(draftId: string): Promise<string | null>;
 }
 
 /** Type guard: detects whether an adapter supports drafts */

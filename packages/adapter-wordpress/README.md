@@ -86,6 +86,12 @@ new WordPressAdapter({
 ### Introspection (`inti sync`)
 WordPress does not expose the ACF schema over REST, so introspection combines `/wp-json/wp/v2/types` with one sample post per type to infer fields and types. With the API down, it falls back to the introspection system's standard mock.
 
+### Password-protected pages
+A page with a WordPress password is never rendered: `fetchPageBySlug` throws `NotFoundError` (a 404) and listings leave it out. The adapter reads with `context=edit` when it has a write credential, and that context returns the protected content, so it checks `content.protected` and `password` itself. The companion plugin's `inti_blocks` field and `inti/get-page` ability apply `post_password_required()` as well.
+
+### Ids
+`documentId` and `draftId` must be post ids (digits) and `postType`, taxonomies and search collections plain REST bases (`[A-Za-z0-9_-]`). Anything else is refused before a request is made: those values come from the editor, and a path such as `5/../../users/1` would reach another route with the service credential.
+
 ## Gutenberg mode
 
 If your pages do not use ACF Flexible Content, the adapter (in `auto` mode, or with `mode: 'gutenberg'`) parses the blocks in `post_content`:

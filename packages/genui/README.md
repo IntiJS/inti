@@ -126,4 +126,4 @@ import { createAiDecider } from '@intijs/genui/decider';
 registerIntiPlugin({ name: 'ai', getDeciders: () => [createAiDecider({ provider })] });
 ```
 
-It only chooses between versions a person already wrote. If it fails, is slow or does not decide, the page shows what it would show without it. See "Personalization" in the docs.
+It only chooses between versions a person already wrote. If it fails, is slow or does not decide, the page shows what it would show without it. Its model spend is bounded (`limits: { perMinute: 60, perDay: 2000 }` by default, an optional shared `limiter`, one call for identical requests in flight). See "Personalization" in the docs.

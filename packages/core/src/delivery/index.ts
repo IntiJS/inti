@@ -64,7 +64,7 @@ export interface DeliveryOptions {
     cdn?: CdnOptions | false;
     /** Is this request from an editor? Default: `resolveEditorSession` (the `resolveActor` plugins) */
     isEditor?: (context: DeliveryContext) => Promise<boolean>;
-    /** Can this request be from an editor at all? Default: it carries a cookie */
+    /** Can this request be from an editor at all? Default: it carries a cookie or an `Authorization` header */
     mayBeEditor?: (request: Request) => boolean;
     /** Seconds a session answer is remembered per cookie. Default 5 */
     sessionMemoSeconds?: number;
@@ -74,6 +74,12 @@ export interface DeliveryOptions {
     slugOf?: (url: URL) => string;
     /** Query parameters that do not change the page (tracking). Default: `utm_*`, `gclid`, `fbclid`… */
     ignoreParams?: (name: string) => boolean;
+    /**
+     * Query parameters that make a different page worth storing (pagination, a filter).
+     * A request with any other parameter is rendered but not stored, so made-up query
+     * strings cannot fill the cache. Default: `page`
+     */
+    cacheParams?: (name: string) => boolean;
     /** Remove `data-inti-*` from anonymous HTML. Default true */
     stripEditorMarkup?: boolean;
     /** The answer when rendering throws and there is nothing stale. Default: `pageErrorResponse` */
@@ -92,6 +98,9 @@ const STATIC =
 /** Tracking parameters: the same page under a thousand campaign links is one entry */
 export const isTrackingParam = (name: string) =>
     /^(?:utm_.+|gclid|gbraid|wbraid|fbclid|msclkid|dclid|yclid|twclid|ttclid|li_fat_id|mc_cid|mc_eid|_ga|_gl|igshid|ref_src)$/i.test(name);
+
+/** Query parameters stored as their own page by default */
+export const isPageParam = (name: string) => name === 'page';
 
 /** The cache key of a URL: path without trailing slash, query sorted and without tracking */
 export function cacheKeyOf(url: URL, ignore: (name: string) => boolean = isTrackingParam): string {
@@ -174,7 +183,8 @@ function memoize(seconds: number, resolve: (context: DeliveryContext) => Promise
     const answers = new Map<string, { value: Promise<boolean>; until: number }>();
     return (context: DeliveryContext) => {
         if (seconds <= 0) return resolve(context);
-        const cookie = context.request.headers.get('cookie') ?? '';
+        // Both credentials a session can come from: one answer per pair, never shared
+        const cookie = JSON.stringify([context.request.headers.get('cookie') ?? '', context.request.headers.get('authorization') ?? '']);
         const now = Date.now();
         const known = answers.get(cookie);
         if (known && known.until > now) return known.value;
@@ -192,7 +202,10 @@ const defaultIsEditor = async (context: DeliveryContext) =>
 
 export function intiDelivery(options: DeliveryOptions = {}) {
     const skip = options.skip ?? ((pathname: string) => STATIC.test(pathname));
-    const mayBeEditor = options.mayBeEditor ?? ((request: Request) => Boolean(request.headers.get('cookie')));
+    const mayBeEditor =
+        options.mayBeEditor ?? ((request: Request) => Boolean(request.headers.get('cookie') || request.headers.get('authorization')));
+    const ignoreParams = options.ignoreParams ?? isTrackingParam;
+    const cacheParams = options.cacheParams ?? isPageParam;
     const isEditor = memoize(options.sessionMemoSeconds ?? 5, options.isEditor ?? defaultIsEditor);
     const slugOf = options.slugOf ?? ((url: URL) => normalizeSlug(url.pathname));
     const htmlTtl = options.htmlTtl ?? 60;
@@ -208,8 +221,17 @@ export function intiDelivery(options: DeliveryOptions = {}) {
         const editor = isDevelopmentRuntime() || (mayBeEditor(context.request) ? await isEditor(context) : false);
         if (context.locals) context.locals.intiEditor = editor;
 
-        const cache = !editor && context.request.method === 'GET' ? options.cache : undefined;
-        const key = cache ? `inti:html:${cacheKeyOf(context.url, options.ignoreParams)}` : '';
+        // Stored only for a query the site declared: anything else is rendered every time.
+        // A request with credentials is never stored, whatever the session check said
+        const storable =
+            !editor &&
+            context.request.method === 'GET' &&
+            !context.request.headers.has('authorization') &&
+            [...context.url.searchParams.keys()].every((name) => ignoreParams(name) || cacheParams(name));
+        const cache = storable ? options.cache : undefined;
+        // The host is part of the key: a page rendered for a forged Host (its canonical and
+        // og:url come from the request URL) is never served on the real one
+        const key = cache ? `inti:html:${context.url.host}${cacheKeyOf(context.url, ignoreParams)}` : '';
         const stored = cache ? await cache.getEntry<StoredPage>(key).catch(() => null) : null;
         const age = stored ? (Date.now() - stored.createdAt) / 1000 : Infinity;
         if (stored && age <= stored.ttl) return fromStore(stored.data, 'HIT');

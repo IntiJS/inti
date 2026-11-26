@@ -60,3 +60,18 @@ describe('infographic route keys and queue', () => {
         expect(busy[0].headers.get('retry-after')).toBeTruthy();
     }, 30_000);
 });
+
+describe('niceTicks', () => {
+    test('ends for huge values a few units apart', async () => {
+        const { niceTicks } = await import('../src/sections.js');
+        const ticks = niceTicks(1e16, 1e16 + 4);
+        expect(ticks.length).toBeGreaterThan(0);
+        expect(ticks.length).toBeLessThanOrEqual(50);
+        expect(niceTicks(1e300, 1e300 * 1.0000001).length).toBeLessThanOrEqual(50);
+    });
+
+    test('ordinary ranges are unchanged', async () => {
+        const { niceTicks } = await import('../src/sections.js');
+        expect(niceTicks(0, 100)).toEqual([0, 25, 50, 75, 100]);
+    });
+});

@@ -91,6 +91,7 @@ const config = {
 
 <script>
     import { initRealtime, getRealtimeClient } from '../client.js';
+    import { safeColor, safeText, safeCoordinate } from '../sanitize.js';
     import type { UserPresence, CursorPosition } from '../types.js';
     
     class LiveCursorsManager {
@@ -172,14 +173,15 @@ const config = {
             }
             
             // Update the position
-            cursor.style.transform = `translate(${data.cursor.x}px, ${data.cursor.y}px)`;
-            
+            cursor.style.transform = `translate(${safeCoordinate(data.cursor.x)}px, ${safeCoordinate(data.cursor.y)}px)`;
+
             // Update the color if it changed
             if (data.color) {
-                cursor.style.color = data.color;
+                const color = safeColor(data.color);
+                cursor.style.color = color;
                 const name = cursor.querySelector('.inti-cursor-name') as HTMLElement;
                 if (name) {
-                    name.style.background = data.color;
+                    name.style.background = color;
                 }
             }
         }
@@ -187,21 +189,28 @@ const config = {
         private createCursor(data: { userId: string; color: string; name?: string }): HTMLElement {
             const cursor = document.createElement('div');
             cursor.className = 'inti-cursor';
-            cursor.style.color = data.color;
-            
-            cursor.innerHTML = `
-                <div class="inti-cursor-icon">
-                    <svg viewBox="0 0 24 24">
-                        <path d="M5.5 3.21V20.8c0 .45.54.67.85.35l4.86-4.86a.5.5 0 0 1 .35-.15h6.87a.5.5 0 0 0 .35-.85L6.35 2.85a.5.5 0 0 0-.85.35Z"/>
-                    </svg>
-                </div>
-                ${this.showNames ? `
-                    <div class="inti-cursor-name" style="background: ${data.color}">
-                        ${data.name || data.userId.slice(0, 8)}
-                    </div>
-                ` : ''}
-            `;
-            
+            const color = safeColor(data.color);
+            cursor.style.color = color;
+
+            // Built with DOM calls: a peer's name or colour is never parsed as HTML
+            const icon = document.createElement('div');
+            icon.className = 'inti-cursor-icon';
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('viewBox', '0 0 24 24');
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', 'M5.5 3.21V20.8c0 .45.54.67.85.35l4.86-4.86a.5.5 0 0 1 .35-.15h6.87a.5.5 0 0 0 .35-.85L6.35 2.85a.5.5 0 0 0-.85.35Z');
+            svg.appendChild(path);
+            icon.appendChild(svg);
+            cursor.appendChild(icon);
+
+            if (this.showNames) {
+                const name = document.createElement('div');
+                name.className = 'inti-cursor-name';
+                name.style.background = color;
+                name.textContent = safeText(data.name) || safeText(data.userId, 8);
+                cursor.appendChild(name);
+            }
+
             return cursor;
         }
         

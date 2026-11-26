@@ -65,7 +65,7 @@ export interface WordPressPost {
     status?: string;
     modified?: string;
     title?: { rendered?: string; raw?: string };
-    content?: { rendered?: string };
+    content?: { rendered?: string; raw?: string; protected?: boolean };
     /** The post's ACF fields. The Flexible Content lives here as an array of layouts */
     acf?: Record<string, any>;
     [key: string]: any;
@@ -149,7 +149,7 @@ export interface ArchiveQuery {
 
 /** The fields a page needs from `wp/v2`, for `_fields` */
 const PAGE_FIELDS = [
-    'id', 'slug', 'type', 'status', 'link', 'modified', 'modified_gmt', 'date_gmt', 'title', 'content', 'excerpt',
+    'id', 'slug', 'type', 'status', 'link', 'modified', 'modified_gmt', 'date_gmt', 'title', 'content', 'password', 'excerpt',
     'featured_media', 'acf', 'parent', 'lang', 'translations',
     'yoast_head_json', 'rank_math_head_json', 'rank_math', 'aioseo_head_json', 'aioseo', 'seopress',
     'seopress_titles_title', 'seopress_titles_desc', 'seopress_robots_canonical', 'seopress_social_fb_img',
@@ -200,6 +200,24 @@ function setByPath(target: Record<string, any>, path: string, value: any): void 
 
 /** Slug of a post's working copy: `inti-draft-of-<id>` */
 const DRAFT_SLUG_PREFIX = 'inti-draft-of-';
+
+/** A post id as WordPress names it: canonical digits only (see `postPath`) */
+function postId(id: string | number): number {
+    const value = String(id);
+    if (!/^[1-9][0-9]{0,18}$/.test(value)) throw new Error(`Invalid post id "${value}"`);
+    return Number(value);
+}
+
+/** A REST base (post type, taxonomy, collection): a plain name, never a path or a query */
+function restBase(name: string): string {
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(name)) throw new Error(`Invalid REST base "${name}"`);
+    return name;
+}
+
+/** A post with a password: WordPress flags it in `content.protected` */
+function isPasswordProtected(post: WordPressPost): boolean {
+    return post.content?.protected === true || (typeof post.password === 'string' && post.password !== '');
+}
 
 // ============================================
 // WordPress Adapter (read + write-back)
@@ -508,6 +526,10 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
                 : list[0];
 
         if (!post) throw new NotFoundError('page', slug, `Page not found for slug: ${slug}`);
+        // A page behind a post password is not public. Read with the editor's credentials
+        // (context=edit) WordPress returns its body anyway; the headless site cannot ask
+        // for the password, so for the site it does not exist.
+        if (isPasswordProtected(post)) throw new NotFoundError('page', slug, `Page not found for slug: ${slug}`);
         return this.parsePage(post);
     }
 
@@ -517,12 +539,22 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
             context: this.hasCredentials ? 'edit' : undefined,
             _fields: this.pageFields()
         });
-        return posts.map((post) => this.parsePage(post));
+        return posts.filter((post) => !isPasswordProtected(post)).map((post) => this.parsePage(post));
     }
 
     /** Path of the post type's REST collection: `/wp-json/wp/v2/pages` */
     private get restPath(): string {
-        return `/wp-json/wp/v2/${this.wpConfig.postType || 'pages'}`;
+        return `/wp-json/wp/v2/${restBase(this.wpConfig.postType || 'pages')}`;
+    }
+
+    /**
+     * REST path of one post. Only a canonical numeric id: the id arrives from the editor,
+     * and a dot segment or a query in it would address another route of the site with
+     * the server's credentials (`5/../../users`, `12?force=true`). `012` and `12.0`
+     * are refused too, so a policy that compares ids as strings sees the post written.
+     */
+    private postPath(id: string | number): string {
+        return `${this.restPath}/${postId(id)}`;
     }
 
     /**
@@ -586,7 +618,7 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
 
     /** Terms of a taxonomy (`categories`, `tags`, a custom REST base), every page of them */
     async listTerms(taxonomy: string, options: { locale?: string; hideEmpty?: boolean } = {}): Promise<WordPressTerm[]> {
-        const terms = await this.walk<Record<string, any>>(`/wp-json/wp/v2/${taxonomy}`, {
+        const terms = await this.walk<Record<string, any>>(`/wp-json/wp/v2/${restBase(taxonomy)}`, {
             hide_empty: options.hideEmpty === false ? undefined : 'true',
             lang: options.locale,
             _fields: 'id,slug,name,taxonomy,description,count,parent,link'
@@ -596,7 +628,7 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
 
     /** One term by slug; `NotFoundError` when there is none */
     async fetchTerm(taxonomy: string, slug: string, options: { locale?: string } = {}): Promise<WordPressTerm> {
-        const terms = await this.http.get<Record<string, any>[]>(`/wp-json/wp/v2/${taxonomy}`, {
+        const terms = await this.http.get<Record<string, any>[]>(`/wp-json/wp/v2/${restBase(taxonomy)}`, {
             query: { slug, lang: options.locale, _fields: 'id,slug,name,taxonomy,description,count,parent,link' },
             resource: 'term'
         });
@@ -628,7 +660,7 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
         const perPage = Math.max(1, Math.min(100, query.perPage ?? 10));
         const term = query.taxonomy && query.term ? await this.fetchTerm(query.taxonomy, query.term, { locale: query.locale }) : undefined;
 
-        const result = await this.http.request<WordPressPost[]>('GET', `/wp-json/wp/v2/${postType}`, {
+        const result = await this.http.request<WordPressPost[]>('GET', `/wp-json/wp/v2/${restBase(postType)}`, {
             query: {
                 page,
                 per_page: perPage,
@@ -669,14 +701,14 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
         // `light` avoids formatting what it can, but inside a Flexible
         // Content it still arrives expanded: `pushAcf` takes care of that
         try {
-            return await this.http.get<WordPressPost>(`${this.restPath}/${documentId}`, {
+            return await this.http.get<WordPressPost>(this.postPath(documentId), {
                 query: { acf_format: 'light', context: 'edit' },
                 resource: 'post'
             });
         } catch (error) {
             // context=edit requires edit permission; reading still works without it
             if ((error as { status?: number }).status !== 401) throw error;
-            return this.http.get<WordPressPost>(`${this.restPath}/${documentId}`, { query: { acf_format: 'light' }, resource: 'post' });
+            return this.http.get<WordPressPost>(this.postPath(documentId), { query: { acf_format: 'light' }, resource: 'post' });
         }
     }
 
@@ -753,7 +785,7 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
     private async bridgeRows(documentId: string, op: string, params: Record<string, unknown>): Promise<WriteResult | null> {
         if ((this.wpConfig.mode || 'auto') === 'gutenberg') return null;
         try {
-            const result = await this.bridge('rows', { post_id: Number(documentId), blocks_field: this.blocksField, op, ...params });
+            const result = await this.bridge('rows', { post_id: postId(documentId), blocks_field: this.blocksField, op, ...params });
             return result ? { success: true, documentId, value: params, source: 'wordpress-bridge' } : null;
         } catch (error) {
             if (WordPressAdapter.bridgeCode(error) === 'inti_no_rows' && (this.wpConfig.mode || 'auto') === 'auto') return null;
@@ -777,7 +809,7 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
             if ((this.wpConfig.mode || 'auto') !== 'gutenberg' || blockIndex === -1) {
                 try {
                     const bridged = await this.bridge('patch', {
-                        post_id: Number(documentId),
+                        post_id: postId(documentId),
                         blocks_field: this.blocksField,
                         block_index: blockIndex,
                         field,
@@ -858,9 +890,9 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
     private async writeContent(post: WordPressPost, documentId: string, blocks: GutenbergDocument): Promise<void> {
         const content = serializeGutenberg(blocks);
         const expected = post.modified_gmt ? `${post.modified_gmt}Z` : undefined;
-        const bridged = await this.bridge('content', { post_id: Number(documentId), content, expected_modified: expected });
+        const bridged = await this.bridge('content', { post_id: postId(documentId), content, expected_modified: expected });
         if (bridged) return;
-        await this.http.post(`${this.restPath}/${documentId}`, { json: { content }, idempotent: true, resource: 'post' });
+        await this.http.post(this.postPath(documentId), { json: { content }, idempotent: true, resource: 'post' });
     }
 
     /**
@@ -1102,7 +1134,7 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
     }
 
     private fetchPostById(id: string | number): Promise<WordPressPost> {
-        return this.http.get<WordPressPost>(`${this.restPath}/${id}`, { query: { acf_format: 'standard', context: 'edit' }, resource: 'post' });
+        return this.http.get<WordPressPost>(this.postPath(id), { query: { acf_format: 'standard', context: 'edit' }, resource: 'post' });
     }
 
     async fetchDraftBySlug(slug: string): Promise<IntiPage | null> {
@@ -1165,12 +1197,12 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
                 if (draft.status !== 'draft') {
                     throw new Error(`Post ${draftId} is not a draft (status: ${draft.status})`);
                 }
-                await this.http.post(`${this.restPath}/${draftId}`, { json: { status: 'publish' }, idempotent: true, resource: 'post' });
+                await this.http.post(this.postPath(draftId), { json: { status: 'publish' }, idempotent: true, resource: 'post' });
                 return { success: true, documentId: draftId, slug: draft.slug, source: 'wordpress' };
             }
 
             const schema = await this.fetchAcfSchema(draftId);
-            const published = await this.http.post<WordPressPost>(`${this.restPath}/${originalId}`, {
+            const published = await this.http.post<WordPressPost>(this.postPath(originalId), {
                 json: {
                     title: draft.title?.raw ?? draft.title?.rendered,
                     content: (draft.content as any)?.raw ?? '',
@@ -1216,7 +1248,7 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
 
     /** To the trash, not a permanent delete: it can be recovered from wp-admin */
     private async trashPost(id: string): Promise<void> {
-        await this.http.delete(`${this.restPath}/${id}`, { idempotent: true, resource: 'post' });
+        await this.http.delete(this.postPath(id), { idempotent: true, resource: 'post' });
     }
 
     /**
@@ -1224,7 +1256,7 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
      * picker. `collection` is the rest_base ('posts', 'pages', CPTs).
      */
     async searchEntries(collection: string, query: string): Promise<Array<{ id: string; title: string; subtitle?: string }>> {
-        const posts = await this.http.get<WordPressPost[]>(`/wp-json/wp/v2/${collection}`, {
+        const posts = await this.http.get<WordPressPost[]>(`/wp-json/wp/v2/${restBase(collection)}`, {
             query: { per_page: 10, search: query, _fields: 'id,title,slug' },
             resource: collection
         });
@@ -1241,7 +1273,7 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
 
     private fetchAcfSchema(documentId: string): Promise<RestSchema | undefined> {
         this.acfSchema ??= this.http
-            .request<{ schema?: { properties?: { acf?: RestSchema } } }>('OPTIONS', `${this.restPath}/${documentId}`, { retry: false })
+            .request<{ schema?: { properties?: { acf?: RestSchema } } }>('OPTIONS', this.postPath(documentId), { retry: false })
             .then((response) => response.data?.schema?.properties?.acf)
             .catch(() => undefined);
         return this.acfSchema;
@@ -1252,7 +1284,7 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
         const schema = await this.fetchAcfSchema(documentId);
 
         // The whole final state: sending it twice changes nothing
-        await this.http.post(`${this.restPath}/${documentId}`, {
+        await this.http.post(this.postPath(documentId), {
             json: { acf: normalizeAcfForWrite(acf, schema) },
             idempotent: true,
             resource: 'post'

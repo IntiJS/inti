@@ -82,9 +82,10 @@ export const onRequest = intiDelivery({ cache });
 - **Anonymous visitors** get `Cache-Control: public, max-age=0, s-maxage=60, stale-while-revalidate=300, stale-if-error=86400` (change it with `cdn`), so a CDN keeps the page and browsers always ask the CDN. With `cache`, the HTML is also kept on the server for `htmlTtl` seconds and tagged by page.
 - **Editors** get `private, no-store` and `Vary: Cookie`: their HTML carries the editing markup.
 - **`data-inti-*`** attributes are the editor's business: `BlockRenderer` only writes them for an editor, and the middleware removes the ones block components write (`data-inti-field`) from what a visitor receives. Visitor-facing attributes such as `data-inti-why` stay.
-- **Sessions:** only requests with a cookie are asked about a session (a visitor with no cookie cannot be an editor), and the answer is remembered per cookie for `sessionMemoSeconds` (5). The decision is passed to `BlockRenderer` through `Astro.locals.intiEditor`, so the page does not ask again.
+- **Sessions:** only requests with a cookie or an `Authorization` header are asked about a session (a visitor with neither cannot be an editor), and the answer is remembered per cookie and header for `sessionMemoSeconds` (5). The decision is passed to `BlockRenderer`, `VisualBridgeAuto` and `InlineEditor` through `Astro.locals.intiEditor`: a response the middleware treats as public never carries the editor. A request with `Authorization` is never stored.
 - **When rendering throws**, a stale copy is served if there is one; otherwise `pageErrorResponse`. A 5xx with a stale copy also gets the copy.
-- Tracking parameters (`utm_*`, `gclid`, `fbclid`…) do not split the cache.
+- Tracking parameters (`utm_*`, `gclid`, `fbclid`…) do not split the cache. Other parameters are stored only when `cacheParams` lists them (default: `page`); a request with any other query is rendered and not stored, so made-up query strings cannot fill the cache.
+- The key includes the host: a page rendered for a forged `Host` header (its canonical and `og:url` come from the request) is never served on the real one.
 - A page that sets its own `Cache-Control` (personalized with `adaptPage`) is neither stored nor made public.
 
 **Behind a CDN**, configure it to skip its cache when the editor session cookie is present. The CDN does not ask the origin for a page it already has, so it cannot see the `private` an editor would get.

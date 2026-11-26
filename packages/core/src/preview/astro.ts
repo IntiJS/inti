@@ -1,4 +1,5 @@
 import type { PreviewConfig } from './types.js';
+import { sameSecret } from './server.js';
 
 /**
  * Astro integration for Preview Mode
@@ -11,11 +12,23 @@ export interface PreviewContext {
     documentId?: string;
 }
 
+function isDevelopment(): boolean {
+    try {
+        return Boolean(import.meta.env?.DEV);
+    } catch {
+        return false;
+    }
+}
+
 /**
  * Check if current request is in preview mode
- * Use in Astro SSR pages
+ * Use in Astro SSR pages.
+ *
+ * Outside development, preview mode needs `secret` (the preview config's `cmsToken`) and
+ * a request carrying it as `?token=`. `?preview=1` alone is not a credential: a page that
+ * fetches drafts when `isPreview` is true would show them to anyone.
  */
-export function usePreviewMode(request: Request): PreviewContext {
+export function usePreviewMode(request: Request, secret?: string): PreviewContext {
     const url = new URL(request.url);
     
     // Check for preview token in query params
@@ -23,12 +36,12 @@ export function usePreviewMode(request: Request): PreviewContext {
     const draftToken = url.searchParams.get('token');
     const documentId = url.searchParams.get('document');
     
-    // Preview mode is active if:
-    // 1. preview=1 or preview=true is in URL
-    // 2. We're in development mode
-    const isPreview = previewToken === '1' || 
-                      previewToken === 'true' ||
-                      (import.meta.env.DEV && previewToken !== 'false');
+    // In development, preview is on unless ?preview=false. Elsewhere ?preview=1 is a
+    // request, not a credential: it also needs ?token= matching the configured secret
+    const asked = previewToken === '1' || previewToken === 'true';
+    const isPreview = isDevelopment()
+        ? previewToken !== 'false'
+        : asked && typeof secret === 'string' && secret !== '' && sameSecret(draftToken, secret);
     
     return {
         isPreview,
@@ -42,16 +55,14 @@ export function usePreviewMode(request: Request): PreviewContext {
  */
 export function previewMiddleware(config: PreviewConfig) {
     return async (context: any, next: () => Promise<Response>) => {
-        const previewContext = usePreviewMode(context.request);
-        
+        const previewContext = usePreviewMode(context.request, config.cmsToken);
+
         // Attach preview context to Astro locals
         context.locals.preview = previewContext;
-        
-        // Validate draft token if provided
-        if (previewContext.draftToken && config.cmsToken) {
-            if (previewContext.draftToken !== config.cmsToken) {
-                return new Response('Invalid preview token', { status: 403 });
-            }
+
+        // A wrong token is refused rather than quietly served the published page
+        if (previewContext.draftToken && config.cmsToken && !sameSecret(previewContext.draftToken, config.cmsToken)) {
+            return new Response('Invalid preview token', { status: 403 });
         }
         
         return next();

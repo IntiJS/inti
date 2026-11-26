@@ -27,8 +27,15 @@ export interface VisualBridgeConfig {
         adminUrl?: string;
         /** Preview API endpoint */
         previewEndpoint?: string;
-        /** API key for preview */
+        /**
+         * @deprecated Never filled from `adapterConfig`: this config is serialized into the
+         * editor's page, so a token here reaches the browser. Use `spaceId` / `projectId`.
+         */
         previewToken?: string;
+        /** Contentful space id, for links to the entry in its admin (not a secret) */
+        spaceId?: string;
+        /** Sanity project id, for links to the document in its studio (not a secret) */
+        projectId?: string;
     };
     /** Display configuration */
     display?: {

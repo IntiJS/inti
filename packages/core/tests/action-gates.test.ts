@@ -1,3 +1,6 @@
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { describe, test, expect, mock, afterEach, beforeAll, afterAll } from 'bun:test';
 
 /**
@@ -19,7 +22,9 @@ import { describe, test, expect, mock, afterEach, beforeAll, afterAll } from 'bu
  * they are replaced by Astro's real `ActionError` and zod.
  */
 
-const { ActionError } = await import('astro/actions/runtime/shared.js');
+// Astro 7 keeps ActionError outside its package exports: load it by path, as actions-forbidden does
+const astroDir = dirname(createRequire(import.meta.url).resolve('astro/package.json'));
+const { ActionError } = await import(pathToFileURL(join(astroDir, 'dist/actions/runtime/client.js')).href);
 const { z } = await import('zod');
 
 mock.module('astro:actions', () => ({

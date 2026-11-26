@@ -52,7 +52,7 @@
     "test:odoo": "node scripts/odoo-check.mjs 19 && node scripts/odoo-check.mjs 20"
   },
   "engines": {
-    "node": ">=18.0.0",
+    "node": ">=22.12.0",
     "bun": ">=1.0.0"
   },
   "devDependencies": {

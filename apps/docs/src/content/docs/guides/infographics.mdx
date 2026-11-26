@@ -53,7 +53,7 @@ import { readPage } from '../../lib/cms';
 export const GET = createInfographicRoute({ readPage, blockTypes: ['infographic'] });
 ```
 
-`/infographics/<slug>/<block>.json?format=instagram-portrait` lists the images to post, with their URLs and alt text; each URL returns the JPEG. The route renders only the block types you list, from the published page, and returns 404 for a block hidden by scheduled visibility. Results are cached and carry an `ETag`.
+`/infographics/<slug>/<block>.json?format=instagram-portrait` lists the images to post, with their URLs and alt text; each URL returns the JPEG. The route renders only the block types you list, from the published page, and returns 404 for a block hidden by scheduled visibility. Results are cached and carry an `ETag`. `?theme=` must name a declared theme (`400` otherwise), and when more than `maxQueue` requests (default 32) are waiting for a render it answers `503` with `Retry-After`.
 
 ## With AI
 

@@ -103,6 +103,8 @@ registerIntiPlugin({
 
 A decider can only choose an existing candidate, and it is abandoned after 500 ms (`timeoutMs`).
 
+`createAiDecider` calls the model on behalf of anonymous visitors, so it is bounded: at most `limits.perMinute` (default 60) and `limits.perDay` (default 2000) model calls for the whole site, identical requests in flight share one call, and only real language tags (`en`, `es`) count as a signal, so an invented `Accept-Language` does not buy a fresh call. Beyond the budget it has no opinion and the default content stays. With several instances, pass a shared `limiter` (the same interface as the visitor composer's, such as `createDurableLimiter` from `@intijs/cloudflare/durable`); without one, each instance counts on its own. The timeout stops waiting but does not cancel a call already made.
+
 ## Cost
 
 Each adapted page is rendered per visitor and does not go through a shared cache. Pages without `inti_slot` or `inti_audience` pay nothing. To cache the rest of the page, move the personalized area into a [Server Island](https://docs.astro.build/en/guides/server-islands/).

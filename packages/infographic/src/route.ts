@@ -14,6 +14,7 @@ import type { IntiBlock } from '@intijs/core/types';
 import { isBlockVisible } from '@intijs/core/blocks';
 import { FORMATS, resolveFormat } from './formats.js';
 import { planInfographic, renderInfographic, type RenderOptions } from './render.js';
+import { resolveTheme } from './themes.js';
 
 export interface InfographicRouteOptions extends Omit<RenderOptions, 'format' | 'output'> {
     /** The published page. Return null when it does not exist */
@@ -28,7 +29,12 @@ export interface InfographicRouteOptions extends Omit<RenderOptions, 'format' | 
     maxCacheEntries?: number;
     /** Renders at the same time. Default 2 */
     concurrency?: number;
+    /** Requests waiting for a render slot; beyond it the route answers 503. Default 32 */
+    maxQueue?: number;
 }
+
+/** The render queue is full: answered with 503 and Retry-After instead of waiting */
+class QueueFull extends Error {}
 
 type RouteContext = { params: Record<string, string | undefined>; request: Request; url?: URL };
 
@@ -43,8 +49,13 @@ export function createInfographicRoute(options: InfographicRouteOptions) {
     let running = 0;
     const waiting: (() => void)[] = [];
     const limit = Math.max(1, options.concurrency ?? 2);
+    const maxQueue = Math.max(0, options.maxQueue ?? 32);
     const withSlot = async <T>(work: () => Promise<T>): Promise<T> => {
-        if (running >= limit) await new Promise<void>((resolve) => waiting.push(resolve));
+        if (running >= limit) {
+            // Each anonymous request costs a render: past a bounded queue, say "later"
+            if (waiting.length >= maxQueue) throw new QueueFull();
+            await new Promise<void>((resolve) => waiting.push(resolve));
+        }
         running++;
         try {
             return await work();
@@ -74,7 +85,11 @@ export function createInfographicRoute(options: InfographicRouteOptions) {
         const formatId = url.searchParams.get('format') ?? 'blog';
         if (!allowed.has(formatId)) return text(400, `Unknown format. Use one of: ${[...allowed].join(', ')}`);
         const format = resolveFormat(formatId, options.formats);
+        // The key holds the theme that is drawn, not the string asked for: an unknown name
+        // would render the default and still be a new cache entry and a new render
         const themeParam = url.searchParams.get('theme') ?? undefined;
+        const theme = resolveTheme(themeParam ?? options.theme, options.themes);
+        if (themeParam !== undefined && theme.name !== themeParam) return text(400, 'Unknown theme');
         const slideParam = url.searchParams.get('slide');
         const slide = slideParam === null ? 0 : Number(slideParam) - 1;
         if (!Number.isInteger(slide) || slide < 0 || slide > 99) return text(400, 'slide is a number from 1');
@@ -84,14 +99,14 @@ export function createInfographicRoute(options: InfographicRouteOptions) {
         if (!block || !options.blockTypes.includes(block.type) || !isBlockVisible(block)) return text(404, 'Not found');
 
         const output = kind === 'json' ? 'json' : kind;
-        const key = await digest(JSON.stringify([block.data, formatId, themeParam, slide, output]));
+        const key = await digest(JSON.stringify([block.data, formatId, theme.name, slide, output]));
         const etag = `"${key}"`;
         if (context.request.headers.get('if-none-match') === etag) return new Response(null, { status: 304, headers: { ETag: etag, 'Cache-Control': cacheControl } });
 
         const hit = cache.get(key);
         if (hit) return respond(hit.body, hit.type, etag, cacheControl);
 
-        const renderOptions = { ...options, format, theme: themeParam ?? options.theme };
+        const renderOptions = { ...options, format, theme: theme.name };
         try {
             if (output === 'json') {
                 const plan = await withSlot(() => planInfographic(block.data, renderOptions));
@@ -120,6 +135,12 @@ export function createInfographicRoute(options: InfographicRouteOptions) {
             remember(key, { body: rendered.bytes, type: rendered.contentType, etag });
             return respond(rendered.bytes, rendered.contentType, etag, cacheControl);
         } catch (error) {
+            if (error instanceof QueueFull) {
+                return new Response('Busy, try again shortly', {
+                    status: 503,
+                    headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'Retry-After': '5' }
+                });
+            }
             console.error('[inti] infographic render failed:', error);
             return text(500, 'Render failed');
         }

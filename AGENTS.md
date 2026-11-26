@@ -367,11 +367,13 @@ export class MyAdapter extends IntiAdapter implements WritableAdapter {
     return { success: true, documentId, value, source: 'my-cms' };
   }
   // optional: updateBlock, moveBlock, insertBlock, insertBlocks, removeBlock, duplicateBlock
-  // and DraftableAdapter: fetchDraftBySlug, createDraft, publishDraft, discardDraft
+  // and DraftableAdapter: fetchDraftBySlug, createDraft, publishDraft, discardDraft, draftOriginId
 }
 ```
 
 Return `{ success: false, error }` rather than throwing — the error text reaches the editor.
+
+A draftable adapter also implements `draftOriginId(draftId)`: the id of the page that publishing that draft overwrites, or `null`. `publishDraft` asks `beforeWrite` about that page too, so a policy that protects a page also covers publishing its draft. The public `fetchPageBySlug` never returns a draft.
 
 Every adapter also implements `fetchPageBySlug(slug)` (abstract in `IntiAdapter`): `NotFoundError` when the page does not exist, `UnavailableError` when the CMS cannot answer. Run `adapterConformance` from `@intijs/core/testing` in the adapter's tests, and call `assertSafeFieldPath(field)` before writing a dot-path: the MCP server calls adapters without the actions' checks.
 
@@ -448,7 +450,7 @@ export const onRequest = (_ctx, next) => next();
 
 For a team, `@intijs/core/team` adds two more hooks to the same plugin: `getPatternStore` (`createFilePatternStore`, `createCustomPatternStore`, `restrictPatternWrites`) so saved patterns are shared instead of living in each browser, and `getRealtimeBackplane` (`createValkeyBackplane`) so editors on different instances behind a load balancer see each other's changes. Create the store or backplane once, outside the hook.
 
-`resolveActor` opens the editor, `/api/inti/search` and `/api/inti/sync`; `beforeWrite` guards each write. Connect them to whatever session or identity provider the site already uses. To show the editor on the published site, also pass `<VisualBridgeAuto enabled={true} />` — it only ever renders for a request with an editor session.
+`resolveActor` opens the editor, `/api/inti/search`, `/api/inti/sync` and the `searchEntries`, `listPatterns`, `generateBlocks`, `savePattern` and `deletePattern` actions; `beforeWrite` guards each write, including `savePattern`, `deletePattern` and `generateBlocks`, which have operations of their own. A `beforeWrite` that throws denies the write. Connect them to whatever session or identity provider the site already uses. To show the editor on the published site, also pass `<VisualBridgeAuto enabled={true} />` — it only ever renders for a request with an editor session.
 
 ## Editing content programmatically
 

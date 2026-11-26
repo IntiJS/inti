@@ -29,6 +29,11 @@ export const GET: APIRoute = async ({ url, request, cookies }) => {
     if (!collection) {
         return json({ error: 'Missing "collection" param' }, 400);
     }
+    // A REST base or content type name: adapters put it in a URL path, so a separator,
+    // a dot segment or a query must never reach them
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(collection)) {
+        return json({ error: 'Invalid "collection" param' }, 400);
+    }
 
     try {
         const adapter = await resolveWriteAdapter();

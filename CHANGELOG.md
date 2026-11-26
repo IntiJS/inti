@@ -30,6 +30,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`revalidationEntries`** (default 500): the ETag store was a fixed 100.
 - **`create-inti --cms kitsuden`** generates the middleware, one cache for pages and HTML, the purge route, the media routes and the site key.
 - **CI checks a real Kitsuden** when `KITSUDEN_REPO_TOKEN` is set (the image is built from its repository); the contract copy is synced with Kitsuden's canonical file.
+### Security: the write policy has no way around it
+
+Fixes found by a security audit and reproduced against the built packages before the change.
+
+- **`searchEntries` and `listPatterns` require an editor session.** They answered anonymous callers, querying the CMS with the server's credentials and returning the shared patterns. The collection name must be a plain name (`/^[A-Za-z0-9_-]{1,64}$/`) in the action and in `/api/inti/search`; it went into the CMS URL path as received.
+- **`generateBlocks`, `savePattern` and `deletePattern` require an editor session and run `beforeWrite`**, with operations of their own (`generateBlocks`, `savePattern`, `deletePattern`). They only checked that a guard was registered, so a policy that denies anonymous writes did not stop anonymous model spend or changes to the pattern library. A policy that allows only listed operations now has to list these.
+- **A `beforeWrite` that throws denies the write.** An exception was treated as "no opinion" and the write went through.
+- **`publishDraft` is authorised for the page it overwrites** as well as for the draft id. Draftable adapters gain `draftOriginId(draftId)`; local, D1, Keystatic, WordPress and Kitsuden implement it.
+- **Keystatic: `fetchPageBySlug('draft:<slug>')` is a 404.** The public read returned the unpublished working copy.
+- **WordPress: `publishDraft` only publishes drafts.** Given a private, pending or scheduled post it set `status: publish`; it now refuses, like `discardDraft`.
+- **JSON-LD and the markdown dump honour block visibility.** `buildStructuredData` and `pageToMarkdown` read hidden, scheduled and expired blocks; the `index` passed to a block schema builder is still the block's position in the page.
+- **`createAiDecider` has a spend limit**: `limits.perMinute` (60) and `limits.perDay` (2000) for the whole site, an optional shared `limiter`, one call for identical requests in flight, and only real language tags in its cache key.
+- **The infographic route rejects unknown themes (`400`) and bounds its queue** (`maxQueue`, default 32, then `503` with `Retry-After`). A made-up `?theme=` forced a fresh render and flushed the cache.
 
 ### WordPress: writes that cannot overwrite, notices that purge, and the rest of a site
 

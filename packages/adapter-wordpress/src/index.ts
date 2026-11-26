@@ -1158,8 +1158,13 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
                 ? draft.slug.slice(DRAFT_SLUG_PREFIX.length)
                 : null;
 
-            // No original: a new page, which is published as is
+            // No original: a new page, which is published as is. Only a draft, as in
+            // discardDraft: a private, pending or scheduled page must not go public
+            // because its id reached this method.
             if (!originalId) {
+                if (draft.status !== 'draft') {
+                    throw new Error(`Post ${draftId} is not a draft (status: ${draft.status})`);
+                }
                 await this.http.post(`${this.restPath}/${draftId}`, { json: { status: 'publish' }, idempotent: true, resource: 'post' });
                 return { success: true, documentId: draftId, slug: draft.slug, source: 'wordpress' };
             }
@@ -1179,6 +1184,16 @@ export class WordPressAdapter extends IntiAdapter<WordPressPost> implements Writ
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             return { success: false, documentId: draftId, error: message, source: 'wordpress' };
+        }
+    }
+
+    /** The page `publishDraft(draftId)` overwrites (see `DraftableAdapter`) */
+    async draftOriginId(draftId: string): Promise<string | null> {
+        try {
+            const draft = await this.fetchRawPost(draftId);
+            return draft.slug?.startsWith(DRAFT_SLUG_PREFIX) ? draft.slug.slice(DRAFT_SLUG_PREFIX.length) : null;
+        } catch {
+            return null;
         }
     }
 

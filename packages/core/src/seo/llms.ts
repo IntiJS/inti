@@ -9,6 +9,7 @@
 
 import type { PageSummary } from '../adapters/index.js';
 import type { IntiPage } from '../types/index.js';
+import { visibleBlocks } from '../blocks/visibility.js';
 
 export interface LlmsTxtSection {
     /** Section title, e.g. 'Docs' */
@@ -111,7 +112,8 @@ export function pageToMarkdown(
         'description'
     ];
 
-    for (const block of page.blocks ?? []) {
+    // A hidden or scheduled block never reaches llms.txt or the markdown dump
+    for (const block of visibleBlocks(page.blocks ?? [])) {
         const data = block.data ?? {};
         const chunk: string[] = [];
 

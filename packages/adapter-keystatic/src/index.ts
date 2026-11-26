@@ -238,7 +238,10 @@ export class KeystaticAdapter
     }
 
     async fetchPageBySlug(slug: string): Promise<IntiPage> {
-        const { path } = this.locate(slug);
+        const { path, isDraft } = this.locate(slug);
+        // The public read: a working copy is only reachable through fetchDraftBySlug,
+        // which the page calls for an editor session. /draft:home must be a 404.
+        if (isDraft) throw new NotFoundError('page', slug, `Page not found for slug: ${slug}`);
         const entry = await this.readEntry(path);
         if (!entry) throw new NotFoundError('page', slug, `Page not found for slug: ${slug}`);
         return this.parsePage({ ...entry, slug });
@@ -429,6 +432,16 @@ export class KeystaticAdapter
                 return { success: false, documentId: draftId, error: error instanceof Error ? error.message : String(error), source: SOURCE };
             }
         });
+    }
+
+    /** The page `publishDraft(draftId)` overwrites (see `DraftableAdapter`) */
+    async draftOriginId(draftId: string): Promise<string | null> {
+        try {
+            const { slug, isDraft } = this.locate(draftId);
+            return isDraft ? slug : null;
+        } catch {
+            return null;
+        }
     }
 
     discardDraft(draftId: string): Promise<DraftResult> {

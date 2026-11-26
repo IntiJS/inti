@@ -694,6 +694,17 @@ export class KitsudenAdapter
         }
     }
 
+    /** The page `publishDraft(draftId)` overwrites (see `DraftableAdapter`) */
+    async draftOriginId(draftId: string): Promise<string | null> {
+        try {
+            this.requireCredentials();
+            const copy = await this.fetchPage(draftId, { auth: true });
+            return copy.slug?.startsWith(DRAFT_PREFIX) ? copy.slug.slice(DRAFT_PREFIX.length) : null;
+        } catch {
+            return null;
+        }
+    }
+
     /**
      * Takes the copy to the original page, keeping its id, its slug and whether it is the home
      * page, which an agent cannot change.

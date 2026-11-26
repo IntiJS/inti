@@ -11,8 +11,9 @@ import {
     resolveBlockGenerator,
     hasWriteGuard
 } from '../plugins/index.js';
-import type { WriteContext, Pattern, GeneratorBlockType } from '../plugins/index.js';
+import type { Actor, WriteContext, WriteOperation, Pattern, GeneratorBlockType } from '../plugins/index.js';
 import { checkWriteAccess } from '../server/access.js';
+import { resolveEditorSession } from '../server/editor-session.js';
 import { sequentialInsertWithRollback } from '../server/batch-insert.js';
 import type { PendingBlock } from '../server/batch-insert.js';
 
@@ -35,6 +36,49 @@ function requireWriteAccess(operation: string): void {
         throw forbidden(access.reason, 'Write denied');
     }
 }
+
+/**
+ * Editor-only capabilities that are not a write to a document (searching the CMS with
+ * the server credential, reading the shared patterns) follow the same rule as
+ * /api/inti/search: an editor session, or a 401.
+ */
+async function requireEditorSession(context: ActionContext): Promise<Actor | null> {
+    const session = await resolveEditorSession({ request: context.request, cookies: context.cookies });
+    if (!session.allowed) {
+        throw new ActionError({ code: 'UNAUTHORIZED', message: session.reason || 'Editor session required' });
+    }
+    return session.actor;
+}
+
+/**
+ * The actions that change something other than a document (the pattern library, the
+ * model spend) get the whole pipeline: the default gate, an editor session, and the
+ * site's `beforeWrite` with an operation of their own. Checking only that a guard is
+ * registered let an anonymous caller through a policy that denies anonymous writes.
+ */
+async function authorizeEditorAction(
+    operation: WriteOperation,
+    context: ActionContext,
+    extra: Partial<WriteContext> = {}
+): Promise<WriteContext> {
+    requireWriteAccess(operation);
+    const sessionActor = await requireEditorSession(context);
+
+    const ctx: WriteContext = { operation, documentId: '', request: context.request, cookies: context.cookies, ...extra };
+    ctx.actor = sessionActor ?? (await resolveActor(ctx));
+
+    const decision = await runBeforeWrite(ctx);
+    if (!decision.allowed) {
+        throw forbidden(decision.reason, 'Write denied');
+    }
+    return ctx;
+}
+
+/**
+ * A collection is a REST base or content type name: adapters put it in a URL path, so
+ * a separator, a dot segment or a query must never reach them.
+ */
+const COLLECTION_NAME = /^[A-Za-z0-9_-]{1,64}$/;
 
 /** The adapter always exists: with no CMS configured, the local store is used */
 async function requireAdapter() {
@@ -61,11 +105,16 @@ async function requireDraftAdapter() {
  * In development, and with a guard plugin registered, the behavior is
  * the usual one. In production without a guard the write is rejected
  * before touching the CMS: see `server/access.ts` for why.
+ *
+ * `alsoChanges` names documents the write changes besides `ctx.documentId` (the
+ * published page a draft overwrites). Each goes through `beforeWrite` too, after the
+ * first decision, so nothing is looked up for a caller who was already refused.
  */
 async function guardedWrite<T extends WriteResult>(
     ctx: WriteContext,
     exec: () => Promise<T>,
-    failMessage: string
+    failMessage: string,
+    alsoChanges?: () => Promise<Array<string | null>>
 ): Promise<T> {
     requireWriteAccess(ctx.operation);
 
@@ -74,6 +123,14 @@ async function guardedWrite<T extends WriteResult>(
     const decision = await runBeforeWrite(ctx);
     if (!decision.allowed) {
         throw forbidden(decision.reason, 'Write denied');
+    }
+
+    for (const documentId of (await alsoChanges?.()) ?? []) {
+        if (!documentId || documentId === ctx.documentId) continue;
+        const also = await runBeforeWrite({ ...ctx, documentId });
+        if (!also.allowed) {
+            throw forbidden(also.reason, 'Write denied');
+        }
     }
 
     const result = await exec();
@@ -332,7 +389,12 @@ export const intiActions = {
       return guardedWrite(
         { operation: 'publishDraft', documentId: input.documentId, request: context.request, cookies: context.cookies },
         async () => (await requireDraftAdapter()).publishDraft(input.documentId),
-        'Could not publish the draft'
+        'Could not publish the draft',
+        // Publishing overwrites the published page: the policy decides on it too
+        async () => {
+          const adapter = await requireDraftAdapter();
+          return [adapter.draftOriginId ? await adapter.draftOriginId(input.documentId) : null];
+        }
       );
     }
   }),
@@ -450,10 +512,11 @@ export const intiActions = {
    * use its localStorage — that is the MIT core's behavior.
    */
   listPatterns: defineAction({
-    handler: async (): Promise<{ shared: boolean; patterns: Pattern[] }> => {
+    handler: async (_input?: unknown, context: ActionContext = {}): Promise<{ shared: boolean; patterns: Pattern[] }> => {
       const store = resolvePatternStore();
       if (!store) return { shared: false, patterns: [] };
 
+      await requireEditorSession(context);
       return { shared: true, patterns: await store.list() };
     }
   }),
@@ -473,13 +536,8 @@ export const intiActions = {
       const store = resolvePatternStore();
       if (!store) return { shared: false };
 
-      requireWriteAccess('savePattern');
-
-      const actor = await resolveActor({
-        operation: 'insertBlock',
-        documentId: '',
-        request: context.request,
-        cookies: context.cookies
+      const { actor = null } = await authorizeEditorAction('savePattern', context, {
+        data: { name: input.name, blocks: input.blocks }
       });
 
       await store.save(
@@ -498,14 +556,7 @@ export const intiActions = {
       const store = resolvePatternStore();
       if (!store) return { shared: false };
 
-      requireWriteAccess('deletePattern');
-
-      const actor = await resolveActor({
-        operation: 'removeBlock',
-        documentId: '',
-        request: context.request,
-        cookies: context.cookies
-      });
+      const { actor = null } = await authorizeEditorAction('deletePattern', context, { data: { name: input.name } });
 
       await store.remove(input.name, actor);
       return { shared: true };
@@ -533,13 +584,13 @@ export const intiActions = {
       ),
       max: z.number().int().min(1).max(20).optional()
     }),
-    handler: async (input) => {
+    handler: async (input, context: ActionContext = {}) => {
       const generator = resolveBlockGenerator();
       if (!generator) return { available: false as const, blocks: [], warnings: [] };
 
-      // This action spends the customer's key on every call. Without a
-      // guard, an open endpoint is an open bill.
-      requireWriteAccess('generateBlocks');
+      // This action spends the customer's key on every call: only an editor
+      // the site's policy accepts may run it (the same rule as /api/inti/generate).
+      await authorizeEditorAction('generateBlocks', context, { value: input.prompt });
 
       // The model key lives here, on the server: the browser only sees
       // the instruction and the blocks that come back.
@@ -562,7 +613,13 @@ export const intiActions = {
       collection: z.string().min(1),
       query: z.string()
     }),
-    handler: async (input): Promise<EntrySummary[]> => {
+    handler: async (input, context: ActionContext = {}): Promise<EntrySummary[]> => {
+      // Queries the CMS with the server's credentials: editors only, like /api/inti/search
+      await requireEditorSession(context);
+      if (!COLLECTION_NAME.test(input.collection)) {
+        throw new ActionError({ code: 'BAD_REQUEST', message: 'Invalid collection name' });
+      }
+
       const adapter = await resolveWriteAdapter();
 
       return adapter && isSearchableAdapter(adapter)

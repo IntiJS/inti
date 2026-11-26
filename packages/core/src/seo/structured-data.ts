@@ -8,6 +8,7 @@
  */
 
 import type { IntiBlock, IntiPage } from '../types/index.js';
+import { isBlockVisible } from '../blocks/visibility.js';
 import { buildProductSchema } from './product.js';
 import type { ProductInput } from './product.js';
 
@@ -183,9 +184,13 @@ export function buildStructuredData(
         graph.push(breadcrumbNode(options.breadcrumbs));
     }
 
-    // Nodes derived from the blocks
+    // Nodes derived from the blocks. A hidden or scheduled block never reaches the
+    // structured data: the head is public even when BlockRenderer left the block out.
+    // The index stays the block's position in the page, as it was.
     if (options.blockSchemas && page?.blocks?.length) {
+        const now = new Date();
         page.blocks.forEach((block, index) => {
+            if (!isBlockVisible(block, now)) return;
             const builder = options.blockSchemas?.[block.type];
             if (!builder) return;
 
